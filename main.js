@@ -1,6 +1,7 @@
 /* =========================================================================
-   Poopboy v0.6.0 – Mehrdateien-Build
-   Upgrades, Inventar-Highlight, Monster + Steinschleuder, Safe-Zone im Shack
+   Poopboy v0.6.1 – Mehrdateien-Build
+   Fixes: Stein-Vorschau/Platzieren, Tutorial-Schild, 4 Monster + Respawn,
+   Pushback + SFX, Zaun-/Haus-Kollisionen, Teich/Steine hinter Gebäuden.
    ========================================================================= */
 (() => {
   // ----- Canvas & DPI -----
@@ -35,6 +36,9 @@
   const rectsOverlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const ellipse=(x,y,rx,ry,color)=>{ ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill(); };
   function clampToWorld(x,y){ const min=T/2, maxX=MAP_W*T-T/2, maxY=MAP_H*T-T/2; return {x:clamp(x,min,maxX), y:clamp(y,min,maxY)}; }
+  // präzises Tile-Center (verhindert „zwischen Kacheln“)
+  function tileCenterFromPx(x,y){ const tx=Math.floor(x/T), ty=Math.floor(y/T); return {x:tx*T+T/2, y:ty*T+T/2}; }
+  const snapToTile = tileCenterFromPx;
 
   // ----- Areas (mutable) -----
   const BASE_FARM  = toRectPx(MAPDATA.farm);
@@ -163,12 +167,12 @@
     state.prevIsDay = state.isDay;
     state.isDay = dt < DAYLIGHT_MS;
     if (state.isDay !== state.prevIsDay){
-      if (state.isDay){ if(SFX)SFX.play("day"); state.monsters.length = 0; } else { if(SFX)SFX.play("night"); ensureMonster(); }
+      if (state.isDay){ if(SFX)SFX.play("day"); state.monsters.length = 0; }
+      else { if(SFX)SFX.play("night"); }
     }
   }
 
   // ----- Plants -----
-  function snapToTile(x,y){ return {x:Math.round(x/T)*T, y:Math.round(y/T)*T}; }
   function inFarm(x,y){ const f=state.farm; return x>=f.x&&x<=f.x+f.w&&y>=f.y&&y<=f.y+f.h; }
   function findNearbyPlant(){ let best=null,bd=1e9; for(const p of state.plants){ const d=dist(state.player.x,state.player.y,p.x,p.y); if(d<T*0.9 && d<bd){bd=d;best=p;} } return best; }
   function plant(type){
@@ -237,18 +241,27 @@
     const w = T*1.8, h = T*1.2;
     return { x: c.x + c.w/2 - w/2, y: c.y + c.h/2 - h/2, w, h };
   }
-  function ensureMonster(){
-    if (state.monsters.length>0) return;
-    // Spawn weit genug weg vom Spieler
-    let tries=200;
-    while(tries--){
-      const tx=Math.floor(rnd()*MAP_W), ty=Math.floor(rnd()*MAP_H);
-      const x=tx*T+T/2, y=ty*T+T/2;
-      const r={x:x-T*0.5,y:y-T*0.5,w:T,h:T};
-      if(rectsOverlap(r,POND)||rectsOverlap(r,state.farm)||rectsOverlap(r,state.clear)) continue;
-      if(dist(x,y,state.player.x,state.player.y)<T*6) continue;
-      state.monsters.push({x,y,hp:2,knock:0});
-      return;
+  let monsterRespawnTimer = 0;
+  function maintainMonsters(dt){
+    if (!state.isDay){
+      monsterRespawnTimer -= dt;
+      const target = 4;
+      if (state.monsters.length < target && monsterRespawnTimer <= 0){
+        let tries=200;
+        while(tries--){
+          const tx=Math.floor(rnd()*MAP_W), ty=Math.floor(rnd()*MAP_H);
+          const x=tx*T+T/2, y=ty*T+T/2;
+          const r={x:x-T*0.5,y:y-T*0.5,w:T,h:T};
+          if(rectsOverlap(r,POND)||rectsOverlap(r,state.farm)||rectsOverlap(r,state.clear)) { tries--; continue; }
+          if(dist(x,y,state.player.x,state.player.y)<T*8) { tries--; continue; }
+          state.monsters.push({x,y,hp:2});
+          break;
+        }
+        monsterRespawnTimer = 2000; // alle 2s versuchen
+      }
+    } else {
+      state.monsters.length = 0;
+      monsterRespawnTimer = 0;
     }
   }
   function fireTowards(tx,ty){
@@ -296,6 +309,30 @@
     if(ui.joy.active && e.pointerId===ui.joy.id){ ui.joy.active=false; ui.joy.id=null; ui.joy.vx=ui.joy.vy=0; }
   });
 
+  // ----- Kollisionen (Zaun/Häuser) -----
+  const FRED_POS   = toPx(NPCS.find(n=>n.id==="fred").x,   NPCS.find(n=>n.id==="fred").y);
+  const STEFAN_POS = toPx(NPCS.find(n=>n.id==="stefan").x, NPCS.find(n=>n.id==="stefan").y);
+  const FRED_HOUSE   = { x: FRED_POS.x - T*1.0,   y: FRED_POS.y - T*0.6, w: T*2.0, h: T*1.2 };
+  const STEFAN_HOUSE = { x: STEFAN_POS.x - T*0.9, y: STEFAN_POS.y - T*0.9, w: T*1.8, h: T*1.1 };
+
+  function fenceBlocks(rect){
+    const f = state.farm;
+    const gateW = T*1.2, gateC = f.x + f.w/2, gateL = gateC - gateW/2, gateR = gateC + gateW/2;
+    const overlapX = !(rect.x + rect.w < f.x || rect.x > f.x + f.w);
+    const hitsTop   = rect.y < f.y && rect.y + rect.h > f.y && overlapX;
+    const hitsLeft  = rect.x < f.x && rect.x + rect.w > f.x && rect.y < f.y + f.h && rect.y + rect.h > f.y;
+    const hitsRight = rect.x < f.x + f.w && rect.x + rect.w > f.x + f.w && rect.y < f.y + f.h && rect.y + rect.h > f.y;
+    let hitsBottom = false;
+    const onBottomEdge = rect.y + rect.h > f.y + f.h - 3 && rect.y < f.y + f.h + 3;
+    if (onBottomEdge && overlapX){
+      const midL = Math.max(rect.x, f.x);
+      const midR = Math.min(rect.x + rect.w, f.x + f.w);
+      const throughGate = !(midR <= gateL || midL >= gateR);
+      hitsBottom = !throughGate;
+    }
+    return hitsTop || hitsLeft || hitsRight || hitsBottom;
+  }
+
   // ----- Player movement -----
   function updatePlayer(){
     let dx=0,dy=0;
@@ -315,6 +352,10 @@
       let bx=false,by=false;
       for(const b of state.blocks){ const r={x:b.x-T*0.5,y:b.y-T*0.5,w:T,h:T}; if(rectsOverlap(RX,r))bx=true; if(rectsOverlap(RY,r))by=true; if(bx&&by)break; }
       if(rectsOverlap(RX,POND))bx=true; if(rectsOverlap(RY,POND))by=true;
+      if(rectsOverlap(RX,FRED_HOUSE) || rectsOverlap(RX,STEFAN_HOUSE)) bx=true;
+      if(rectsOverlap(RY,FRED_HOUSE) || rectsOverlap(RY,STEFAN_HOUSE)) by=true;
+      if(fenceBlocks(RX)) bx=true;
+      if(fenceBlocks(RY)) by=true;
       if(!bx) state.player.x=nx; if(!by) state.player.y=ny;
     }
     if (state.dmgCooldown>0) state.dmgCooldown--;
@@ -454,46 +495,58 @@
     openModal();
   }
 
+  // ----- Tutorial Schild -----
+  function drawTutorialSign(){
+    const x=TUTORIAL.x, y=TUTORIAL.y;
+    ctx.fillStyle="#8b5a2b";
+    ctx.fillRect(x - T*0.06, y - T*0.5, T*0.12, T*0.9);
+    const w=T*1.2,h=T*0.45;
+    ctx.fillStyle="#f0e9d6";
+    ctx.fillRect(x - w/2, y - T*0.65, w, h);
+    ctx.strokeStyle="#856d45"; ctx.strokeRect(x - w/2+0.5, y - T*0.65+0.5, w-1, h-1);
+    ctx.fillStyle="#333"; ctx.font=`bold ${Math.floor(T*0.28)}px system-ui`;
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("INFO", x, y - T*0.43);
+    ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+  }
+
   // ----- Toast -----
   const TOAST={t:0,text:""}; function say(s){ TOAST.text=s; TOAST.t=1.6; }
 
   // ----- Monsters Update -----
   function updateMonsters(){
-    const speed = 3.6*state.speedMult*0.5; // halbe Spielergeschwindigkeit
+    const speed = 3.6*state.speedMult*0.5;
     const safe = getSafeZoneRect();
-
-    // move + collide with player
     for (let i=state.monsters.length-1;i>=0;i--){
       const m = state.monsters[i];
       if (!state.isDay){
-        // chase
         const dx = state.player.x - m.x, dy = state.player.y - m.y, L = Math.hypot(dx,dy)||1;
         let nx = m.x + (dx/L)*speed, ny = m.y + (dy/L)*speed;
 
-        // avoid pond + blocks + safe zone
         const RX={x:nx-T*0.5,y:m.y-T*0.5,w:T,h:T}, RY={x:m.x-T*0.5,y:ny-T*0.5,w:T,h:T};
         let bx=false,by=false;
         for(const b of state.blocks){ const r={x:b.x-T*0.5,y:b.y-T*0.5,w:T,h:T}; if(rectsOverlap(RX,r))bx=true; if(rectsOverlap(RY,r))by=true; if(bx&&by)break; }
         if(rectsOverlap(RX,POND))bx=true; if(rectsOverlap(RY,POND))by=true;
+        if(rectsOverlap(RX,FRED_HOUSE) || rectsOverlap(RX,STEFAN_HOUSE)) bx=true;
+        if(rectsOverlap(RY,FRED_HOUSE) || rectsOverlap(RY,STEFAN_HOUSE)) by=true;
+        if(fenceBlocks(RX)) bx=true; if(fenceBlocks(RY)) by=true;
         if(safe && rectsOverlap(RX,safe)) bx=true;
         if(safe && rectsOverlap(RY,safe)) by=true;
         if(!bx) m.x=nx; if(!by) m.y=ny;
 
-        // player collision
         const d = dist(m.x,m.y,state.player.x,state.player.y);
         if (d < T*0.7){
           if(!state.god && state.dmgCooldown<=0){
             state.hearts = Math.max(0, state.hearts-1);
-            state.dmgCooldown = 60;
-            // knockback
+            state.dmgCooldown = 220;
             const kx = (state.player.x - m.x) / (d||1), ky=(state.player.y - m.y)/(d||1);
-            state.player.x += kx * T*0.6; state.player.y += ky * T*0.6;
+            state.player.x += kx * T*1.2; state.player.y += ky * T*1.2;
+            if (SFX){ SFX.play("hit"); SFX.play("deny"); }
             say("💢 Aua! -1 ❤");
             if (state.hearts<=0){ state.hearts=3; spawnPlayer(); say("Neu gestartet."); }
           }
         }
       } else {
-        // day: burn
         state.monsters.splice(i,1);
       }
     }
@@ -501,14 +554,11 @@
 
   // ----- Bullets -----
   function updateBullets(){
-    // move
     for (let i=state.bullets.length-1;i>=0;i--){
       const b = state.bullets[i];
       b.x += b.vx; b.y += b.vy; b.life--;
       if (b.life<=0){ state.bullets.splice(i,1); continue; }
       if (b.x<0||b.y<0||b.x>MAP_W*T||b.y>MAP_H*T){ state.bullets.splice(i,1); continue; }
-
-      // hit monster?
       for (let j=state.monsters.length-1;j>=0;j--){
         const m = state.monsters[j];
         if (dist(b.x,b.y,m.x,m.y) < T*0.4){
@@ -524,7 +574,7 @@
     const r=rnd();
     if (r<0.33) state.inv.poop++;
     else if (r<0.66) state.inv.cabbageSeed++;
-    else state.inv.euro += 1 + Math.floor(rnd()*3); // 1–3 €
+    else state.inv.euro += 1 + Math.floor(rnd()*3);
     save();
   }
 
@@ -594,11 +644,9 @@
 
   // ----- HUD & Preview -----
   function drawHUD(){
-    // BG
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, HUD_Y, cv.clientWidth, HUD_H);
 
-    // Slots
     hudSlotRects = [];
     for (let i=0; i<HUD_SLOTS.length; i++){
       const s = HUD_SLOTS[i];
@@ -623,7 +671,6 @@
     }
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
 
-    // Werte rechts
     let x=330,y=22;
     ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
     ctx.fillText(`❤ ${state.hearts}`, x,y); x+=70;
@@ -633,8 +680,8 @@
     if(state.inv.hasCan) ctx.fillText(`💧 ${state.inv.can}/${state.inv.canMax}`, x,y);
 
     const el=((performance.now()-state.dayBase)*state.timeScale)%DAY_TOTAL_MS;
-    const h=Math.floor((el/DAY_TOTAL_MS)*24), m=Math.floor(((el/DAY_TOTAL_MS)*24-h)*60);
-    ctx.textAlign="right"; ctx.fillText(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} ${state.isDay?'🌞':'🌙'}`, cv.clientWidth-12, y); ctx.textAlign="left";
+    const hh=Math.floor((el/DAY_TOTAL_MS)*24), mm=Math.floor(((el/DAY_TOTAL_MS)*24-hh)*60);
+    ctx.textAlign="right"; ctx.fillText(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${state.isDay?'🌞':'🌙'}`, cv.clientWidth-12, y); ctx.textAlign="left";
 
     ctx.fillStyle="#ddd"; ctx.font="12px system-ui"; ctx.fillText(state.version, 10, cv.clientHeight-10);
 
@@ -649,7 +696,6 @@
     ctx.fillStyle="#fff"; ctx.font="32px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(ui.ctxBtn.icon, ui.ctxBtn.x, ui.ctxBtn.y+2); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
 
-    // toast
     if(TOAST.t>0){ ctx.fillStyle="rgba(0,0,0,.8)"; const tw=ctx.measureText(TOAST.text).width+22;
       ctx.fillRect((cv.clientWidth-tw)/2, cv.clientHeight-120, tw, 30);
       ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
@@ -659,16 +705,16 @@
   function drawPreview(){
     if(state.uiSeed!=="stone"||state.inv.stone<=0) return;
     if(nearestLooseStoneIndex()>=0||nearestBlockIndex()>=0) return;
-    const g=snapToTile(state.player.x,state.player.y); const ok=canPlaceStone(g.x,g.y);
+    const g=tileCenterFromPx(state.player.x,state.player.y); const ok=canPlaceStone(g.x,g.y);
     ctx.globalAlpha=.6; ellipse(g.x,g.y,STONE_R,STONE_R*0.78, ok?"rgba(56,189,248,.35)":"rgba(239,68,68,.45)"); ctx.globalAlpha=1;
   }
-  function drawTutorial(){
+  function drawTutorialOverlay(){
     if(!ui.tutorial) return;
     const lines=[
-      "Steine: aufnehmen, platzieren, handeln, als Munition nutzen (Tap auf Map).",
+      "Steine: aufnehmen, platzieren, handeln, als Munition nutzen (Tippen).",
       "Platziertes blockiert Monster – und dich selbst.",
-      "💩 pflanzen → 🌽 (40s, 60%). 🥬-Saat → 🥬 (120s; Gießen → 40s).",
-      "Gießkanne bei Berta, am Teich auffüllen.",
+      "💩 → 🌽 (40s, 60%). 🥬-Saat → 🥬 (120s; Gießen → 40s).",
+      "Gießkanne bei Berta, am Teich auffüllen."
     ];
     const W=Math.min(560,cv.clientWidth*0.9), H=Math.min(260,cv.clientHeight*0.6);
     const x=(cv.clientWidth-W)/2, y=(cv.clientHeight-H)/2;
@@ -682,9 +728,15 @@
   }
 
   // ----- Update/Draw Loop -----
+  let lastT = performance.now();
   function update(){
-    updateDay(); updatePlants(); updatePlayer(); updateContext(); updateMonsters(); updateBullets();
-    if(TOAST.t>0){ TOAST.t-=1/60; if(TOAST.t<0) TOAST.t=0; }
+    const now = performance.now();
+    const dt = now - lastT; lastT = now;
+
+    updateDay(); updatePlants(); updatePlayer(); updateContext();
+    maintainMonsters(dt);
+    updateMonsters(); updateBullets();
+    if(TOAST.t>0){ TOAST.t-=dt/1000; if(TOAST.t<0) TOAST.t=0; }
   }
   function draw(){
     ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
@@ -694,7 +746,8 @@
     for(const s of state.stones) drawStone(s.x,s.y);
     for(const d of state.dirts)  drawDirt(d.x,d.y);
 
-    drawClearing(); drawFence(); drawPond(); drawFred(); drawBerta(); drawStefan(); drawToolbox(); drawShack();
+    drawClearing(); drawFence(); drawPond(); drawTutorialSign();
+    drawFred(); drawBerta(); drawStefan(); drawToolbox(); drawShack();
 
     // Pflanzen
     for(const p of state.plants){
@@ -713,24 +766,21 @@
       }
     }
 
-    // Monster + Bullets + Player
     for(const m of state.monsters) drawMonster(m);
-    // bullets
     ctx.fillStyle="#cbd5e1";
     for(const b of state.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
 
     drawPlayer();
 
-    // FX
     ctx.globalCompositeOperation='lighter';
     for(let i=FX.length-1;i>=0;i--){ const p=FX[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.t--; ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); if(p.t<=0||p.a<0.05) FX.splice(i,1); }
     ctx.globalCompositeOperation='source-over';
     if(!state.isDay){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight); }
 
-    drawPreview(); drawHUD(); drawTutorial();
+    drawPreview(); drawHUD(); drawTutorialOverlay();
   }
 
-  // ----- Cull off-world (Saves säubern) -----
+  // ----- Save-Sauberkeit -----
   function cullOutOfWorld(){
     const min=T/2, maxX=MAP_W*T - T/2, maxY=MAP_H*T - T/2;
     state.stones = state.stones.filter(s => s.x>=min && s.x<=maxX && s.y>=min && s.y<=maxY);
