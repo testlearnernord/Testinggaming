@@ -1,5 +1,5 @@
 /* ========= GAME DATA ========= */
-const GAME_VERSION = "v0.6.0";
+const GAME_VERSION = "v0.6.1"; // Build mit Fixes
 
 /* Welt in Tiles (w*h) + Tilegröße in px */
 const WORLD = { W: 40, H: 24, TILE: 48 };
