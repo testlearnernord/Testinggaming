@@ -1,26 +1,45 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <title>Poopboy</title>
   <style>
-    body {
-      margin: 0;
-      background: #000;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-      margin: 0 auto;
-      background: #5c9e3f; /* Default map background */
-    }
+    html,body{margin:0;height:100%;background:#000;overflow:hidden}
+    #gameCanvas{display:block;width:100vw;height:100vh;background:#0b0f12;touch-action:none}
+    /* Modal */
+    #backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.2s;z-index:50}
+    #modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.98);
+      width:min(94vw,560px);background:#0f141a;border:2px solid #3a2a18;border-radius:14px;
+      box-shadow:0 20px 60px rgba(0,0,0,.5), inset 0 0 0 4px #22170d;opacity:0;pointer-events:none;
+      transition:.2s;z-index:51;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    #modal.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+    #backdrop.open{opacity:1;pointer-events:auto}
+    .mhead{display:flex;gap:12px;align-items:center;padding:12px 14px;border-bottom:2px solid #3a2a18;background:linear-gradient(180deg,#1a1f25,#12171c)}
+    .portrait{width:56px;height:56px;border-radius:8px;background:#2b1c11;display:grid;place-items:center;font-size:28px;border:2px solid #6b4630}
+    .mttl{font-weight:900;font-size:18px}.msub{opacity:.8;font-size:13px}
+    .mlist{max-height:58vh;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:10px}
+    .item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #2a3440;border-radius:10px;background:#121a22}
+    .iic{width:44px;height:44px;border-radius:8px;display:grid;place-items:center;font-size:24px;background:#19222b;border:1px solid #2c3743}
+    .ibody{flex:1}.iname{font-weight:800}.idesc{opacity:.85;font-size:12px}.iprice{font-weight:800}
+    .rowend{display:flex;justify-content:flex-end;gap:10px;padding:10px 14px;border-top:2px solid #3a2a18}
+    .ghost{background:#1a242e;border:1px solid #2f3b48;color:#d7e7ff;border-radius:10px;padding:.6rem .9rem;font-weight:800}
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="960" height="540"></canvas>
+  <canvas id="gameCanvas"></canvas>
 
-  <!-- Game Scripts -->
+  <!-- Modal -->
+  <div id="backdrop"></div>
+  <div id="modal">
+    <div class="mhead">
+      <div id="m_portrait" class="portrait">🧑‍🌾</div>
+      <div><div id="m_title" class="mttl">Shop</div><div id="m_sub" class="msub">—</div></div>
+    </div>
+    <div id="m_list" class="mlist"></div>
+    <div class="rowend"><button id="m_close" class="ghost">Schließen</button></div>
+  </div>
+
   <script src="sfx.js"></script>
   <script src="data.js"></script>
   <script src="main.js"></script>
