@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
-<title>Mais & 💩 — Single-File</title>
+<title>Mais & 💩 — Joystick, Farmzaun, Fecalfred</title>
 <style>
   :root { --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-top: env(safe-area-inset-top, 0px); }
   html, body { margin:0; padding:0; background:#0b0f12; color:#f2f2f2; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; height:100%; }
@@ -14,10 +14,12 @@
   .btn:disabled { background:#3b4551; box-shadow:none; opacity:.8; }
   #hud { margin-left:auto; display:flex; gap:.5rem; align-items:center; font-weight:600; }
   #toast { position:fixed; bottom: calc(10.5rem + var(--safe-bottom)); left:50%; transform: translateX(-50%); background:rgba(0,0,0,.8); padding:.7rem 1rem; border-radius:.9rem; opacity:0; transition: opacity .3s; font-weight:800; z-index:10; }
-  #dpad { position:fixed; bottom: calc(2.5rem + var(--safe-bottom)); left:1rem; display:grid; grid-template-columns: repeat(3, 72px); grid-template-rows: repeat(3, 72px); gap:8px; opacity:.98; z-index:11; }
-  #dpad button { background:#18222c; border:2px solid #33404d; border-radius:18px; font-size:26px; color:#f2f2f2; }
-  #actions { position:fixed; bottom: calc(2.5rem + var(--safe-bottom)); right:1rem; display:flex; flex-direction:column; gap:10px; z-index:11; }
-  .hint { font-size:.95rem; opacity:.95; }
+
+  /* Joystick */
+  #stick { position:fixed; bottom: calc(2.2rem + var(--safe-bottom)); left:1rem; width:140px; height:140px; z-index:11; }
+  .ring { position:absolute; inset:0; border-radius:999px; background:rgba(24,34,44,.55); border:2px solid #33404d; }
+  .knob { position:absolute; width:64px; height:64px; left:38px; top:38px; border-radius:999px; background:#1f2937; border:2px solid #556070; box-shadow: inset 0 0 8px rgba(0,0,0,.4); touch-action:none; }
+  #actions { position:fixed; bottom: calc(2.2rem + var(--safe-bottom)); right:1rem; display:flex; flex-direction:column; gap:10px; z-index:11; }
   #debug { position:fixed; bottom: calc(0.5rem + var(--safe-bottom)); left: 0.6rem; right: 0.6rem; display:flex; gap:.5rem; justify-content:space-between; z-index:12; }
   #debug button { background:#11181f; color:#d0e1ff; border:1px solid #33404d; border-radius:.7rem; padding:.5rem .7rem; font-weight:700; }
 </style>
@@ -30,15 +32,15 @@
   <span class="pill">💩 Kacke: <b id="poops">0</b></span>
   <span class="pill">🌽 Mais: <b id="corns">0</b></span>
   <span class="pill">⏱️ Pflanzungen: <b id="plants">0</b></span>
-  <div id="hud" class="hint">Sammle Steine. Händler unten rechts.</div>
+  <div id="hud" class="hint">Anbau nur im eingezäunten Feld bei Fecalfred.</div>
 </div>
 
 <div id="toast"></div>
 
-<div id="dpad" aria-label="Steuerkreuz">
-  <div></div><button data-dir="up">▲</button><div></div>
-  <button data-dir="left">◀</button><div></div><button data-dir="right">▶</button>
-  <div></div><button data-dir="down">▼</button><div></div>
+<!-- Joystick -->
+<div id="stick" aria-label="Joystick">
+  <div class="ring"></div>
+  <div class="knob" id="knob"></div>
 </div>
 
 <div id="actions">
@@ -54,359 +56,395 @@
 
 <script>
 (() => {
-  // --- Config ---
-  const TILE = 48;                // tile size in CSS px
-  const MAP_W = 40;               // tiles
-  const MAP_H = 24;               // tiles
-  const ROCK_SPAWN = 90;          // frames between rock spawn attempts
-  const ROCK_MAX = 140;           // cap on rocks
-  const MOVE_SPEED = 3.4;         // px per frame
-  const CORN_TIME_MS = 60_000;    // 1 minute
-  const CORN_CHANCE = 0.6;        // 60%
-  const NEAR_DIST = TILE * 1.3;   // distance for merchant
+  // === TUNING ===
+  const TILE = 48;
+  const MAP_W = 40, MAP_H = 24;
 
-  // Camera (simple pan so player is always on screen)
-  const camera = { x: 0, y: 0 };
+  const ROCK_SPAWN = 200;     // seltener
+  const ROCK_MAX   = 90;      // weniger gleichzeitig
+  const START_ROCKS = 40;     // Anfangs weniger
+  const DIRT_RATIO = 0.35;    // Anteil Erdbrocken beim Spawnen
 
-  // --- State ---
+  const MOVE_SPEED = 3.6;
+  const CORN_TIME_MS = 60_000;
+  const CORN_CHANCE  = 0.6;
+  const NEAR_DIST = TILE * 1.3;
+
+  // Farmzone (rechteckig) in der Nähe des Händlers (eingezäunt)
+  const FARM_W = 6, FARM_H = 4; // in Tiles
+
+  const camera = { x:0, y:0 };
+
   const state = {
     player: { x: TILE*2, y: TILE*2, r: TILE*0.38 },
-    merchant: { x: TILE*(MAP_W-5), y: TILE*(MAP_H-5) },
-    stones: [],
-    plants: [], // {x,y, plantedAt, readyAt, status}
-    corns: [],  // items on ground
+    merchant: { x: TILE*(MAP_W-5), y: TILE*(MAP_H-5), name: "Fecalfred" },
+    farmRect: null, // berechnet nach merchant
+    stones: [],     // {x,y,type:'stone'|'dirt'}
+    plants: [],
+    corns: [],
     inv: { stone:0, poop:0, corn:0 },
+    smoke: [],      // Rauchpartikel von Fecalfreds Schornstein
     frame: 0,
     keys: new Set(),
-    pad: { up:false, down:false, left:false, right:false },
+    joy: { id:null, cx:0, cy:0, vx:0, vy:0, dead:10, max:50 },
     rngSeed: (Date.now() ^ 0x9e3779b9) >>> 0,
     debugCenter: true,
   };
 
-  function rand() {
-    // xorshift32
-    let x = state.rngSeed;
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
-    state.rngSeed = x >>> 0;
+  function rand(){
+    let x = state.rngSeed; x ^= x<<13; x ^= x>>>17; x ^= x<<5; state.rngSeed = x>>>0;
     return (state.rngSeed % 1_000_000) / 1_000_000;
   }
 
-  // --- Canvas setup ---
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { alpha:false });
-  function resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const w = Math.floor(window.innerWidth);
-    const h = Math.floor(window.innerHeight);
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio||1);
+    const w = Math.floor(window.innerWidth), h = Math.floor(window.innerHeight);
+    canvas.style.width = w+"px"; canvas.style.height = h+"px";
+    canvas.width = Math.floor(w*dpr); canvas.height = Math.floor(h*dpr);
     ctx.setTransform(dpr,0,0,dpr,0,0);
   }
-  window.addEventListener('resize', resize, { passive:true });
-  resize();
+  window.addEventListener('resize', resize, {passive:true}); resize();
 
-  // --- UI elements ---
   const lblStones = document.getElementById('stones');
-  const lblPoops = document.getElementById('poops');
-  const lblCorns = document.getElementById('corns');
+  const lblPoops  = document.getElementById('poops');
+  const lblCorns  = document.getElementById('corns');
   const lblPlants = document.getElementById('plants');
-  const btnPlant = document.getElementById('btnPlant');
-  const btnTrade = document.getElementById('btnTrade');
-  const btnSellCorn = document.getElementById('btnSellCorn');
+  const btnPlant  = document.getElementById('btnPlant');
+  const btnTrade  = document.getElementById('btnTrade');
+  const btnSell   = document.getElementById('btnSellCorn');
   const btnCenter = document.getElementById('btnCenter');
-  const btnReset = document.getElementById('btnReset');
-  const toast = document.getElementById('toast');
-  const hud = document.getElementById('hud');
+  const btnReset  = document.getElementById('btnReset');
+  const toast     = document.getElementById('toast');
+  const hud       = document.getElementById('hud');
 
   btnCenter.addEventListener('click', ()=>{ state.debugCenter = true; say("Ansicht zentriert."); });
   btnReset.addEventListener('click', ()=>{ localStorage.removeItem('mk_save'); location.reload(); });
 
-  // --- Map helpers ---
-  function randomEmptyTile() {
-    return {
-      x: Math.floor(rand()*MAP_W) * TILE + TILE/2,
-      y: Math.floor(rand()*MAP_H) * TILE + TILE/2
-    };
+  // Farmrechteck definieren (links oberhalb des Händlers)
+  (function setupFarm(){
+    const left = Math.max(TILE, state.merchant.x - TILE*(FARM_W+2));
+    const top  = Math.max(TILE, state.merchant.y - TILE*(FARM_H+2));
+    state.farmRect = { x1:left, y1:top, x2:left+FARM_W*TILE, y2:top+FARM_H*TILE };
+  })();
+
+  function inFarm(x,y){
+    const f = state.farmRect;
+    return x >= f.x1 && x <= f.x2 && y >= f.y1 && y <= f.y2;
   }
 
-  // populate stones
-  for (let i=0; i<80; i++) {
+  function randomEmptyTile(){ return {
+    x: Math.floor(rand()*MAP_W)*TILE + TILE/2,
+    y: Math.floor(rand()*MAP_H)*TILE + TILE/2
+  };}
+
+  function spawnRock(){
     const p = randomEmptyTile();
-    state.stones.push({x:p.x, y:p.y});
+    const type = (rand() < DIRT_RATIO) ? 'dirt' : 'stone';
+    state.stones.push({x:p.x, y:p.y, type});
   }
 
-  // --- Controls ---
-  window.addEventListener('keydown', (e) => state.keys.add(e.key.toLowerCase()));
-  window.addEventListener('keyup',   (e) => state.keys.delete(e.key.toLowerCase()));
+  for (let i=0;i<START_ROCKS;i++){ spawnRock(); }
 
-  // Touch dpad
-  document.querySelectorAll('#dpad button').forEach(btn => {
-    const dir = btn.dataset.dir;
-    const on = (v)=> (ev)=>{ ev.preventDefault(); state.pad[dir] = v; };
-    btn.addEventListener('touchstart', on(true), {passive:false});
-    btn.addEventListener('touchend', on(false), {passive:false});
-    btn.addEventListener('touchcancel', on(false), {passive:false});
-  });
+  // Tastatur (Fallback)
+  window.addEventListener('keydown', e=>state.keys.add(e.key.toLowerCase()));
+  window.addEventListener('keyup',   e=>state.keys.delete(e.key.toLowerCase()));
 
-  // Actions
+  // Joystick
+  const stick = document.getElementById('stick');
+  const knob  = document.getElementById('knob');
+  function setKnob(dx,dy){
+    const m = Math.hypot(dx,dy);
+    const cl = Math.min(m, state.joy.max);
+    const nx = (dx===0&&dy===0)?0:(dx/m*cl);
+    const ny = (dx===0&&dy===0)?0:(dy/m*cl);
+    knob.style.transform = `translate(${nx}px, ${ny}px)`;
+  }
+  function joyVecFrom(dx,dy){
+    const m = Math.hypot(dx,dy);
+    if (m < state.joy.dead) return {vx:0, vy:0};
+    const scale = Math.min(1, m / state.joy.max);
+    return { vx: (dx/m)*scale, vy: (dy/m)*scale };
+  }
+  stick.addEventListener('touchstart', (e)=>{
+    const t = e.changedTouches[0]; state.joy.id = t.identifier;
+    const r = stick.getBoundingClientRect();
+    state.joy.cx = r.left + r.width/2; state.joy.cy = r.top + r.height/2;
+    const dx = t.clientX - state.joy.cx, dy = t.clientY - state.joy.cy;
+    const v = joyVecFrom(dx,dy); state.joy.vx = v.vx; state.joy.vy = v.vy;
+    setKnob(dx,dy); e.preventDefault();
+  }, {passive:false});
+  stick.addEventListener('touchmove', (e)=>{
+    for (const t of e.changedTouches){
+      if (t.identifier !== state.joy.id) continue;
+      const dx = t.clientX - state.joy.cx, dy = t.clientY - state.joy.cy;
+      const v = joyVecFrom(dx,dy); state.joy.vx = v.vx; state.joy.vy = v.vy;
+      setKnob(dx,dy); e.preventDefault();
+    }
+  }, {passive:false});
+  function joyEnd(){ state.joy.id=null; state.joy.vx=0; state.joy.vy=0; setKnob(0,0); }
+  stick.addEventListener('touchend',   (e)=>{ if ([...e.changedTouches].some(t=>t.identifier===state.joy.id)) joyEnd(); }, {passive:false});
+  stick.addEventListener('touchcancel',(e)=>{ if ([...e.changedTouches].some(t=>t.identifier===state.joy.id)) joyEnd(); }, {passive:false});
+
+  // Aktionen
   btnPlant.addEventListener('click', plantPoop);
   btnTrade.addEventListener('click', doTrade);
-  btnSellCorn.addEventListener('click', doSellCorn);
+  btnSell .addEventListener('click', doSellCorn);
 
-  function plantPoop() {
-    if (state.inv.poop <= 0) return;
-    const tileX = Math.round(state.player.x / TILE) * TILE + TILE/2;
-    const tileY = Math.round(state.player.y / TILE) * TILE + TILE/2;
-    const occupied = state.plants.some(p => Math.hypot(p.x - tileX, p.y - tileY) < TILE*0.25);
+  function say(msg){
+    toast.textContent = msg; toast.style.opacity='1';
+    clearTimeout(say._t); say._t = setTimeout(()=>toast.style.opacity='0', 1700);
+  }
+  function isNearMerchant(){ return Math.hypot(state.player.x-state.merchant.x, state.player.y-state.merchant.y) < NEAR_DIST; }
+
+  function plantPoop(){
+    if (state.inv.poop<=0) return;
+    if (!inFarm(state.player.x, state.player.y)) { say("Nur im eingezäunten Feld pflanzen!"); return; }
+    const tileX = Math.round(state.player.x/TILE)*TILE + TILE/2;
+    const tileY = Math.round(state.player.y/TILE)*TILE + TILE/2;
+    const occupied = state.plants.some(p => Math.hypot(p.x-tileX, p.y-tileY) < TILE*0.25);
     if (occupied) return say("Hier wächst bereits etwas.");
     state.inv.poop--;
     const now = performance.now();
-    state.plants.push({ x: tileX, y: tileY, plantedAt: now, readyAt: now + CORN_TIME_MS, status: 'growing' });
-    lblPlants.textContent = state.plants.length;
-    updateHUD();
-    say("💩 Gedüngt! In ~1 Min könnte 🌽 wachsen…");
-    save();
+    state.plants.push({ x:tileX, y:tileY, plantedAt:now, readyAt: now+CORN_TIME_MS, status:'growing' });
+    lblPlants.textContent = state.plants.length; updateHUD();
+    say("💩 Gedüngt! In ~1 Min könnte 🌽 wachsen…"); save();
   }
 
-  function doTrade() {
-    if (!isNearMerchant()) return say("Geh näher an den Händler.");
-    if (state.inv.stone >= 5) {
-      state.inv.stone -= 5;
-      state.inv.poop += 1;
-      updateHUD(); say("🤝 Tausch: 5 🪨 → 1 💩"); save();
-    } else say("Du brauchst 5 🪨 für 1 💩.");
+  function doTrade(){
+    if (!isNearMerchant()) return say("Geh näher an Fecalfred.");
+    if (state.inv.stone>=5){ state.inv.stone-=5; state.inv.poop+=1; updateHUD(); say("🤝 5 🪨 → 1 💩"); save(); }
+    else say("Du brauchst 5 🪨 für 1 💩.");
+  }
+  function doSellCorn(){
+    if (!isNearMerchant()) return say("Geh näher an Fecalfred.");
+    if (state.inv.corn>=1){ state.inv.corn-=1; state.inv.poop+=5; updateHUD(); say("💸 1 🌽 → 5 💩"); save(); }
+    else say("Du hast keinen 🌽.");
   }
 
-  function doSellCorn() {
-    if (!isNearMerchant()) return say("Geh näher an den Händler.");
-    if (state.inv.corn >= 1) {
-      state.inv.corn -= 1;
-      state.inv.poop += 5;
-      updateHUD(); say("💸 Verkauf: 1 🌽 → 5 💩"); save();
-    } else say("Du hast keinen 🌽.");
-  }
-
-  function say(msg) {
-    toast.textContent = msg;
-    toast.style.opacity = '1';
-    clearTimeout(say._t);
-    say._t = setTimeout(()=>toast.style.opacity='0', 1700);
-  }
-
-  function isNearMerchant() {
-    const dx = state.player.x - state.merchant.x;
-    const dy = state.player.y - state.merchant.y;
-    return Math.hypot(dx,dy) < NEAR_DIST;
-  }
-
-  function updateHUD() {
+  function updateHUD(){
     lblStones.textContent = state.inv.stone;
-    lblPoops.textContent = state.inv.poop;
-    lblCorns.textContent = state.inv.corn;
+    lblPoops.textContent  = state.inv.poop;
+    lblCorns.textContent  = state.inv.corn;
     lblPlants.textContent = state.plants.length;
-    btnPlant.disabled = state.inv.poop <= 0;
     const near = isNearMerchant();
-    btnTrade.disabled = !near;
-    btnSellCorn.disabled = !near;
-    hud.textContent = near ? "Bei Händler: Tausch möglich." : "Sammle Steine. Händler unten rechts.";
+    btnTrade.disabled = !near; btnSell.disabled = !near;
+    btnPlant.disabled = !(state.inv.poop>0 && inFarm(state.player.x, state.player.y));
+    hud.textContent = near ? "Bei Fecalfred: Tausch möglich." : "Anbau nur im eingezäunten Feld bei Fecalfred.";
   }
 
-  // --- Save/Load ---
-  function save() {
-    const data = JSON.stringify({ inv: state.inv, plants: state.plants, corns: state.corns });
-    try { localStorage.setItem('mk_save', data); } catch {}
-  }
-  (function load(){
-    try {
-      const data = JSON.parse(localStorage.getItem('mk_save') || "null");
-      if (!data) return;
-      if (data.inv) state.inv = data.inv;
-      if (Array.isArray(data.plants)) state.plants = data.plants;
-      if (Array.isArray(data.corns)) state.corns = data.corns;
-    } catch {}
-  })();
+  // Save/Load
+  function save(){ try { localStorage.setItem('mk_save', JSON.stringify({ inv:state.inv, plants:state.plants, corns:state.corns })); } catch{} }
+  (function load(){ try{ const d = JSON.parse(localStorage.getItem('mk_save')||"null"); if(!d) return; if(d.inv) state.inv=d.inv; if(Array.isArray(d.plants)) state.plants=d.plants; if(Array.isArray(d.corns)) state.corns=d.corns; }catch{} })();
 
-  // --- Game loop ---
-  function loop() {
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+
+  function loop(){
     state.frame++;
 
-    // movement
-    let vx=0, vy=0;
-    if (state.keys.has('arrowup') || state.keys.has('w') || state.pad.up) vy -= 1;
-    if (state.keys.has('arrowdown') || state.keys.has('s') || state.pad.down) vy += 1;
-    if (state.keys.has('arrowleft') || state.keys.has('a') || state.pad.left) vx -= 1;
-    if (state.keys.has('arrowright') || state.keys.has('d') || state.pad.right) vx += 1;
-    const len = Math.hypot(vx,vy) || 1;
-    state.player.x = clamp(state.player.x + (vx/len)*MOVE_SPEED, TILE/2, MAP_W*TILE - TILE/2);
-    state.player.y = clamp(state.player.y + (vy/len)*MOVE_SPEED, TILE/2, MAP_H*TILE - TILE/2);
+    // Bewegung
+    let vx = state.joy.vx, vy = state.joy.vy;
+    if (state.keys.has('arrowup') || state.keys.has('w')) vy -= 1;
+    if (state.keys.has('arrowdown') || state.keys.has('s')) vy += 1;
+    if (state.keys.has('arrowleft') || state.keys.has('a')) vx -= 1;
+    if (state.keys.has('arrowright') || state.keys.has('d')) vx += 1;
 
-    // camera follow
-    if (state.debugCenter) {
+    const len = Math.hypot(vx,vy); const spd = MOVE_SPEED * (len>1?1:len);
+    if (len>0){ state.player.x = clamp(state.player.x + (vx/len)*spd, TILE/2, MAP_W*TILE - TILE/2);
+                state.player.y = clamp(state.player.y + (vy/len)*spd, TILE/2, MAP_H*TILE - TILE/2); }
+
+    // Kamera
+    if (state.debugCenter){
       camera.x = clamp(state.player.x - canvas.clientWidth/2, 0, MAP_W*TILE - canvas.clientWidth);
       camera.y = clamp(state.player.y - canvas.clientHeight/2, 0, MAP_H*TILE - canvas.clientHeight);
     }
 
-    // pick up stones
-    for (let i=state.stones.length-1; i>=0; i--) {
+    // Aufheben: Stein vs Erdbrocken
+    for (let i=state.stones.length-1;i>=0;i--){
       const s = state.stones[i];
-      if (dist(s.x, s.y, state.player.x, state.player.y) < TILE*0.5) {
+      if (dist(s.x,s.y,state.player.x,state.player.y) < TILE*0.5){
         state.stones.splice(i,1);
-        state.inv.stone++; say("+1 🪨"); save();
+        if (s.type === 'dirt'){ say("🪵 Erdbrocken – wertlos."); }
+        else { state.inv.stone++; say("+1 🪨"); save(); }
       }
     }
 
-    // rock respawn
-    if (state.frame % ROCK_SPAWN === 0 && state.stones.length < ROCK_MAX) {
-      for (let k=0; k<3; k++) {
-        const p = randomEmptyTile();
-        if (dist(p.x,p.y,state.player.x,state.player.y) > TILE*2 &&
-            dist(p.x,p.y,state.merchant.x,state.merchant.y) > TILE*2) {
-          state.stones.push({x:p.x, y:p.y});
-        }
-      }
+    // Respawn
+    if (state.frame % ROCK_SPAWN === 0 && state.stones.length < ROCK_MAX){
+      for (let k=0;k<2;k++){ spawnRock(); }
     }
 
-    // update plants (grow to corn after time, with chance)
+    // Pflanzen-Update
     const now = performance.now();
-    for (const pl of state.plants) {
-      if (pl.status === 'growing' && now >= pl.readyAt) {
-        pl.status = (rand() < CORN_CHANCE) ? 'ready' : 'fail';
-        if (pl.status === 'ready') {
-          state.corns.push({ x: pl.x, y: pl.y });
-          say("🌽 Ein Mais ist gewachsen!");
-        } else {
-          say("🙃 Diesmal ist nichts gewachsen.");
-        }
+    for (const pl of state.plants){
+      if (pl.status==='growing' && now >= pl.readyAt){
+        pl.status = (rand()<CORN_CHANCE)?'ready':'fail';
+        if (pl.status==='ready'){ state.corns.push({x:pl.x,y:pl.y}); say("🌽 Ein Mais ist gewachsen!"); }
+        else { say("🙃 Diesmal ist nichts gewachsen."); }
         save();
       }
     }
 
-    // harvest corn by walking over it
-    for (let i=state.corns.length-1; i>=0; i--) {
+    // Mais einsammeln
+    for (let i=state.corns.length-1;i>=0;i--){
       const c = state.corns[i];
-      if (dist(c.x, c.y, state.player.x, state.player.y) < TILE*0.5) {
-        state.corns.splice(i,1);
-        state.inv.corn++; say("+1 🌽 (beim Händler 5 💩 wert)"); save();
+      if (dist(c.x,c.y,state.player.x,state.player.y) < TILE*0.5){
+        state.corns.splice(i,1); state.inv.corn++; say("+1 🌽 (bei Fecalfred 5 💩 wert)"); save();
       }
     }
 
-    // draw
-    draw();
+    // Rauch aus Schornstein
+    if (state.frame % 20 === 0) spawnSmoke();
 
-    // UI
-    updateHUD();
-
+    draw(); updateHUD();
     requestAnimationFrame(loop);
   }
 
-  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+  function spawnSmoke(){
+    // Quelle: Schornstein-Position leicht rechts oben vom Händlerdach
+    const sx = state.merchant.x + TILE*0.7;
+    const sy = state.merchant.y - TILE*1.8;
+    state.smoke.push({ x:sx, y:sy, r:4+rand()*5, a:0.6, vy:-0.3-rand()*0.2, life:120 });
+    // Aufräumen
+    state.smoke = state.smoke.filter(s => s.a > 0.02);
+  }
 
-  function draw() {
+  function drawFenceRect(x1,y1,x2,y2){
+    // Pfosten alle 1 Tile, zwei horizontale Streben
+    ctx.strokeStyle = "#916c3b";
+    ctx.lineWidth = 4;
+    // Außenlinie
+    ctx.strokeRect(x1, y1, x2-x1, y2-y1);
+
+    // Streben
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1+TILE*0.35); ctx.lineTo(x2, y1+TILE*0.35);
+    ctx.moveTo(x1, y2-TILE*0.35); ctx.lineTo(x2, y2-TILE*0.35);
+    ctx.stroke();
+
+    // Pfosten
+    for (let x = x1; x <= x2; x += TILE){
+      // oben
+      ctx.fillStyle = "#a77b44";
+      ctx.fillRect(x-3, y1-6, 6, 12);
+      // unten
+      ctx.fillRect(x-3, y2-6, 6, 12);
+    }
+    for (let y = y1; y <= y2; y += TILE){
+      // links
+      ctx.fillStyle = "#a77b44";
+      ctx.fillRect(x1-6, y-3, 12, 6);
+      // rechts
+      ctx.fillRect(x2-6, y-3, 12, 6);
+    }
+  }
+
+  function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.save();
-    // apply camera (in CSS px)
-    ctx.translate(-camera.x, -camera.y);
+    ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    // background grid
-    for (let y=0; y<MAP_H; y++) {
-      for (let x=0; x<MAP_W; x++) {
-        const px = x*TILE, py = y*TILE;
+    // Grid
+    for (let y=0;y<MAP_H;y++){
+      for (let x=0;x<MAP_W;x++){
+        const px=x*TILE, py=y*TILE;
         ctx.fillStyle = ((x+y)%2===0) ? "#0d3316" : "#12401e";
-        ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillRect(px,py,TILE,TILE);
       }
     }
 
-    // merchant hut
-    const hx = state.merchant.x - TILE, hy = state.merchant.y - TILE;
-    ctx.fillStyle = "#5a3c23";
-    ctx.fillRect(hx - TILE*0.5, hy - TILE*0.5, TILE*2, TILE*2);
-    // hut roof
-    ctx.fillStyle = "#7d4f2c";
-    ctx.fillRect(hx - TILE*0.5, hy - TILE*0.8, TILE*2, TILE*0.3);
-    // merchant sign
-    ctx.fillStyle = "#f8f5e7";
-    ctx.fillRect(hx + TILE*0.2, hy + TILE*0.9, TILE*1.6, TILE*0.5);
-    ctx.fillStyle = "#2b2b2b";
-    ctx.font = `bold ${Math.floor(TILE*0.4)}px system-ui`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("HÄNDLER", state.merchant.x, hy + TILE*1.15);
+    // Händler-Areal: Weg/Platten
+    ctx.fillStyle = "#6c543a";
+    ctx.fillRect(state.merchant.x - TILE*1.2, state.merchant.y + TILE*0.9, TILE*2.4, TILE*0.6);
 
-    // stones
-    for (const s of state.stones) {
-      ctx.fillStyle = "#b9c2cc";
-      ctx.beginPath();
-      ctx.ellipse(s.x, s.y, TILE*0.36, TILE*0.28, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = "#88929e";
-      ctx.beginPath();
-      ctx.ellipse(s.x - TILE*0.12, s.y - TILE*0.08, TILE*0.12, TILE*0.09, 0, 0, Math.PI*2);
-      ctx.fill();
+    // Farm-Zone: heller Grund + Zaun
+    const f = state.farmRect;
+    ctx.fillStyle = "rgba(120, 220, 140, 0.14)";
+    ctx.fillRect(f.x1, f.y1, f.x2-f.x1, f.y2-f.y1);
+    drawFenceRect(f.x1, f.y1, f.x2, f.y2);
+
+    // Fecalfreds Hütte (markant)
+    const hx=state.merchant.x - TILE, hy=state.merchant.y - TILE;
+    // Wände
+    ctx.fillStyle="#6b4630"; ctx.fillRect(hx - TILE*0.5, hy - TILE*0.5, TILE*2, TILE*2);
+    // Dach (Ziegel)
+    ctx.fillStyle="#9b3b2e"; ctx.fillRect(hx - TILE*0.5, hy - TILE*0.95, TILE*2, TILE*0.45);
+    ctx.fillStyle="rgba(0,0,0,0.15)";
+    for (let i=0;i<12;i++){ ctx.fillRect(hx - TILE*0.5 + i*TILE*0.16, hy - TILE*0.95, TILE*0.12, TILE*0.45); }
+    // Tür + Fenster
+    ctx.fillStyle="#2b1c11"; ctx.fillRect(hx + TILE*0.2, hy + TILE*0.5, TILE*0.5, TILE*0.7);
+    ctx.fillStyle="#d7e7ff"; ctx.fillRect(hx + TILE*1.0, hy + TILE*0.2, TILE*0.6, TILE*0.45);
+    ctx.fillStyle="#94b8ff"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18);
+    ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18);
+    // Schild
+    ctx.fillStyle="#f8f5e7"; ctx.fillRect(state.merchant.x - TILE*0.9, hy + TILE*1.2, TILE*1.8, TILE*0.5);
+    ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(TILE*0.36)}px system-ui`;
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("FECALFRED", state.merchant.x, hy + TILE*1.45);
+    // Schornstein
+    const cx = state.merchant.x + TILE*0.7, cy = hy - TILE*0.95;
+    ctx.fillStyle="#4b2f1b"; ctx.fillRect(cx, cy - TILE*0.2, TILE*0.25, TILE*0.35);
+    // Rauch zeichnen
+    for (const s of state.smoke){
+      s.x += 0.05; s.y += s.vy; s.a *= 0.985; s.r *= 1.01;
+      ctx.fillStyle = `rgba(220,220,220,${s.a})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
     }
 
-    // plants patches
-    for (const pl of state.plants) {
-      if (pl.status === 'growing') {
-        const t = Math.max(0, pl.readyAt - performance.now());
-        const k = 1 - (t / CORN_TIME_MS);
-        ctx.fillStyle = "#382a1d";
-        ctx.beginPath();
-        ctx.arc(pl.x, pl.y, TILE*0.34, 0, Math.PI*2);
-        ctx.fill();
-        // sprout
-        ctx.fillStyle = "#63d16e";
-        ctx.fillRect(pl.x - TILE*0.18, pl.y - k*TILE*0.32, TILE*0.36, k*TILE*0.32);
-      } else if (pl.status === 'fail') {
-        ctx.fillStyle = "#382a1d";
-        ctx.beginPath();
-        ctx.arc(pl.x, pl.y, TILE*0.3, 0, Math.PI*2);
-        ctx.fill();
+    // Steine & Erdbrocken (verschiedene Modelle/Farben)
+    for (const s of state.stones){
+      if (s.type === 'stone'){
+        ctx.fillStyle="#b9c2cc";
+        ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.36, TILE*0.28, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle="#88929e";
+        ctx.beginPath(); ctx.ellipse(s.x - TILE*0.12, s.y - TILE*0.08, TILE*0.12, TILE*0.09, 0, 0, Math.PI*2); ctx.fill();
+      } else { // dirt
+        ctx.fillStyle="#7a5a3a";
+        ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.34, TILE*0.26, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle="#5c4128";
+        ctx.beginPath(); ctx.ellipse(s.x - TILE*0.08, s.y - TILE*0.05, TILE*0.1, TILE*0.08, -0.2, 0, Math.PI*2); ctx.fill();
+        // kleine Krümel
+        ctx.fillStyle="#4a3521"; ctx.beginPath();
+        ctx.arc(s.x+TILE*0.12, s.y+TILE*0.05, 2.2, 0, Math.PI*2); ctx.fill();
+        ctx.arc(s.x-TILE*0.14, s.y+TILE*0.04, 1.8, 0, Math.PI*2); ctx.fill();
       }
     }
 
-    // ready corns
-    for (const c of state.corns) {
-      // draw a simple corn icon
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.fillStyle = "#f2d24b"; // cob
-      ctx.beginPath();
-      ctx.ellipse(0, -TILE*0.05, TILE*0.16, TILE*0.26, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = "#5cbc6b"; // husk
-      ctx.beginPath();
-      ctx.moveTo(-TILE*0.22, 0);
-      ctx.quadraticCurveTo(0, -TILE*0.35, TILE*0.22, 0);
-      ctx.quadraticCurveTo(0, TILE*0.05, -TILE*0.22, 0);
-      ctx.fill();
+    // Pflanzen / Erde
+    for (const pl of state.plants){
+      if (pl.status==='growing'){
+        const t=Math.max(0, pl.readyAt-performance.now()); const k=1 - (t/CORN_TIME_MS);
+        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(pl.x,pl.y,TILE*0.34,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle="#63d16e"; ctx.fillRect(pl.x-TILE*0.18, pl.y - k*TILE*0.32, TILE*0.36, k*TILE*0.32);
+      } else if (pl.status==='fail'){
+        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(pl.x,pl.y,TILE*0.3,0,Math.PI*2); ctx.fill();
+      }
+    }
+
+    // Fertiger Mais
+    for (const c of state.corns){
+      ctx.save(); ctx.translate(c.x,c.y);
+      ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.16, TILE*0.26, 0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.22,0); ctx.quadraticCurveTo(0,-TILE*0.35, TILE*0.22,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.22,0); ctx.fill();
       ctx.restore();
     }
 
-    // player (Poopboy) as visible circle with face
-    ctx.save();
-    ctx.translate(state.player.x, state.player.y);
-    // body
-    ctx.fillStyle = "#e6b35a";
-    ctx.beginPath();
-    ctx.arc(0, 0, state.player.r, 0, Math.PI*2);
-    ctx.fill();
-    // eyes
-    ctx.fillStyle = "#111";
+    // Spieler
+    ctx.save(); ctx.translate(state.player.x, state.player.y);
+    ctx.fillStyle="#e6b35a"; ctx.beginPath(); ctx.arc(0,0,state.player.r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#111";
     ctx.beginPath(); ctx.arc(-state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc( state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
-    // smile
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "#111";
+    ctx.lineWidth=3; ctx.strokeStyle="#111";
     ctx.beginPath(); ctx.arc(0, state.player.r*0.05, state.player.r*0.45, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
     ctx.restore();
 
     ctx.restore();
   }
 
-  // Kick off
+  // Start
   loop();
 })();
 </script>
