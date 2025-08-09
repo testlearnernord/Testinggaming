@@ -388,7 +388,16 @@
   window.addEventListener('pointerup', e=>{ if(ui.joy.active&&e.pointerId===ui.joy.id){ ui.joy.active=false; ui.joy.id=null; ui.joy.vx=ui.joy.vy=0; } });
 
   // ===== Kontextbutton =====
-  function nearestBoulderIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.boulders.length;k++){ const b=state.boulders[k]; const d=dist(state.player.x,state.player.y,b.x,b.y); if(d<T*0.8 && d<bd){i=k;bd=d;} } return i; }
+  function nearestBoulderIndex(){
+  let best = -1, bestD = 1e9;
+  const reach = T * 1.3;          // vorher ~0.8T
+  for (let i = 0; i < state.boulders.length; i++) {
+    const b = state.boulders[i];
+    const d = dist(state.player.x, state.player.y, b.x, b.y);
+    if (d < reach && d < bestD) { best = i; bestD = d; }
+  }
+  return best;
+}
   function canPlaceBoulder(px,py){
     if(rectsOverlap({x:px-T*0.5,y:py-T*0.5,w:T,h:T},POND)) return false;
     if(inStoneYard(px,py)) return false;
@@ -531,13 +540,25 @@
     ellipse(ex+sx*off, ey+sy*off, eR, eR, "#fff"); ellipse(ex-sx*off, ey-sy*off, eR, eR, "#fff");
     ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
     ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
-    // Mund
-    ctx.strokeStyle="#3b2a18"; ctx.lineWidth=2;
-    if (state.carry.has){ ctx.beginPath(); ctx.moveTo(p.x-6,p.y+10); ctx.quadraticCurveTo(p.x,p.y+16,p.x+6,p.y+10); ctx.stroke(); ctx.fillStyle="rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x+10,p.y-2,2,3,0,0,Math.PI*2); ctx.fill(); }
-    else { ctx.beginPath(); ctx.moveTo(p.x-6,p.y+12); ctx.quadraticCurveTo(p.x,p.y+8,p.x+6,p.y+12); ctx.stroke(); }
-    if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
-  }
-
+    // Mund (ersetzt den bisherigen Mund-Teil)
+ctx.strokeStyle = "#3b2a18";
+ctx.lineWidth = 2;
+if (state.carry.has) {
+  // angestrengt = klarer "U"-Bogen nach unten (müde)
+  ctx.beginPath();
+  ctx.moveTo(p.x - 6, p.y + 10);
+  ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10);
+  ctx.stroke();
+  // Schweißtropfen
+  ctx.fillStyle = "rgba(180,220,255,0.85)";
+  ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+} else {
+  // lächelnd = "∩"-Bogen (deutlich freundlicher)
+  ctx.beginPath();
+  ctx.moveTo(p.x - 6, p.y + 10);
+  ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10);
+  ctx.stroke();
+}
   function drawPlants(){
     for(const p of state.plants){
       if(p.type==="corn"){
