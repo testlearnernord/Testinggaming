@@ -3,96 +3,153 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
-<title>Mais & 💩 — Tag/Nacht + Uhr</title>
+<title>Poopboy — Farming RPG</title>
 <style>
   :root { --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-top: env(safe-area-inset-top, 0px); }
   html, body { margin:0; padding:0; background:#0b0f12; color:#f2f2f2; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; height:100%; }
   #canvas { display:block; width:100vw; height:100vh; touch-action:none; background:#0b0f12; }
-  #ui { position: fixed; top: calc(0px + var(--safe-top)); left: 0; right: 0; display:flex; gap:.5rem; padding:.55rem .6rem; align-items:center; flex-wrap:wrap; background: rgba(0,0,0,.45); backdrop-filter: blur(8px); z-index:10; }
-  .pill { padding:.45rem .65rem; border:1px solid #33404d; border-radius: 999px; background:#18222c; font-weight:700; }
-  .btn { padding:.7rem 1rem; border-radius:1rem; background:#2563eb; border:none; color:#fff; font-weight:800; box-shadow: 0 3px 0 #1b48a8; z-index:11; }
-  .btn:disabled { background:#3b4551; box-shadow:none; opacity:.8; }
-  #hud { margin-left:auto; display:flex; gap:.5rem; align-items:center; font-weight:600; }
-  #toast { position:fixed; bottom: calc(10.5rem + var(--safe-bottom)); left:50%; transform: translateX(-50%); background:rgba(0,0,0,.8); padding:.7rem 1rem; border-radius:.9rem; opacity:0; transition: opacity .3s; font-weight:800; z-index:10; }
+
+  /* HUD – RPG-Inventar */
+  #hudbar { position:fixed; top:calc(0px + var(--safe-top)); left:0; right:0; display:flex; align-items:center; gap:.5rem; padding:.5rem .6rem; z-index:20;
+            background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.25)); backdrop-filter: blur(8px); border-bottom:1px solid #2a3440; }
+  .pill { display:flex; align-items:center; gap:.4rem; padding:.45rem .65rem; border:1px solid #33404d; border-radius:12px; background:#18222c; font-weight:700; }
+  .pill b { font-weight:800; }
+  #dayhint { margin-left:auto; opacity:.95; font-weight:600; }
+  #clockwrap { display:flex; align-items:center; gap:.35rem; font-weight:800; }
 
   /* Joystick */
   #stick { position:fixed; bottom: calc(2.2rem + var(--safe-bottom)); left:1rem; width:140px; height:140px; z-index:11; }
   .ring { position:absolute; inset:0; border-radius:999px; background:rgba(24,34,44,.55); border:2px solid #33404d; }
   .knob { position:absolute; width:64px; height:64px; left:38px; top:38px; border-radius:999px; background:#1f2937; border:2px solid #556070; box-shadow: inset 0 0 8px rgba(0,0,0,.4); touch-action:none; }
+
+  /* Context Buttons (unten rechts) */
   #actions { position:fixed; bottom: calc(2.2rem + var(--safe-bottom)); right:1rem; display:flex; flex-direction:column; gap:10px; z-index:11; }
-  #debug { position:fixed; bottom: calc(0.5rem + var(--safe-bottom)); left: 0.6rem; right: 0.6rem; display:flex; gap:.5rem; justify-content:space-between; z-index:12; }
-  #debug button { background:#11181f; color:#d0e1ff; border:1px solid #33404d; border-radius:.7rem; padding:.5rem .7rem; font-weight:700; }
+  .btn { padding:.7rem 1rem; border-radius:1rem; background:#2563eb; border:none; color:#fff; font-weight:800; box-shadow: 0 3px 0 #1b48a8; }
+  .btn:disabled { background:#3b4551; box-shadow:none; opacity:.8; }
+
+  /* Toast */
+  #toast { position:fixed; bottom: calc(10.5rem + var(--safe-bottom)); left:50%; transform: translateX(-50%); background:rgba(0,0,0,.85); padding:.7rem 1rem; border-radius:.9rem; opacity:0; transition: opacity .3s; font-weight:800; z-index:25; }
+
+  /* Modal – Händler Popup (RPG Stil) */
+  #modalBackdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
+  #modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.98); width:min(94vw, 520px); background:#0f141a; border:2px solid #3a2a18; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.5), inset 0 0 0 4px #22170d; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:41; }
+  #modal.open, #modalBackdrop.open { opacity:1; pointer-events:auto; }
+  #modal.open { transform:translate(-50%,-50%) scale(1); }
+  .modal-head { display:flex; gap:.8rem; align-items:center; padding:12px 14px; border-bottom:2px solid #3a2a18; background:linear-gradient(180deg,#1a1f25,#12171c); }
+  .portrait { width:56px; height:56px; border-radius:8px; background:#2b1c11; display:grid; place-items:center; font-size:28px; border:2px solid #6b4630; }
+  .m-title { font-weight:900; font-size:18px; }
+  .m-sub { opacity:.8; font-size:13px; }
+  .shoplist { max-height:50vh; overflow:auto; padding:10px 14px; display:flex; flex-direction:column; gap:10px; }
+  .item { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid #2a3440; border-radius:10px; background:#121a22; }
+  .i-ic { width:44px; height:44px; border-radius:8px; display:grid; place-items:center; font-size:24px; background:#19222b; border:1px solid #2c3743; }
+  .i-body { flex:1; }
+  .i-name { font-weight:800; }
+  .i-desc { opacity:.85; font-size:12px; }
+  .i-price { font-weight:800; }
+  .i-col { display:flex; align-items:center; gap:10px; }
+  .modal-foot { display:flex; justify-content:flex-end; gap:10px; padding:10px 14px; border-top:2px solid #3a2a18; }
+  .btn-ghost { background:#1a242e; border:1px solid #2f3b48; color:#d7e7ff; border-radius:10px; padding:.6rem .9rem; font-weight:800; }
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
 
-<div id="ui">
-  <span class="pill">🕒 <b id="clock">06:00</b> <span id="dayicon">🌞</span></span>
-  <span class="pill">🪨 Steine: <b id="stones">0</b></span>
-  <span class="pill">💩 Kacke: <b id="poops">0</b></span>
-  <span class="pill">🌽 Mais: <b id="corns">0</b></span>
-  <span class="pill">⏱️ Pflanzungen: <b id="plants">0</b></span>
-  <div id="hud" class="hint">Tag: Anbau erlaubt, Fecalfred offen.</div>
+<!-- HUD -->
+<div id="hudbar">
+  <span id="clockwrap" class="pill">🕒 <b id="clock">06:00</b> <span id="dayicon">🌞</span></span>
+  <span class="pill">🪨 <b id="v_stone">0</b></span>
+  <span class="pill">💩 <b id="v_poop">0</b></span>
+  <span class="pill">🌽 <b id="v_corn">0</b></span>
+  <span class="pill">🥬 <b id="v_cabbage">0</b></span>
+  <span class="pill">💶 <b id="v_euro">0</b></span>
+  <span class="pill">💧 <b id="v_can">0/0</b></span>
+  <div id="dayhint">Tag: Anbau & Handel geöffnet.</div>
 </div>
 
-<div id="toast"></div>
+<!-- Context Buttons -->
+<div id="actions">
+  <button class="btn" id="actPlantPoop" disabled>💩 Pflanzen</button>
+  <button class="btn" id="actPlantCabbage" disabled>🥬 Säen</button>
+  <button class="btn" id="actWater" disabled>💧 Gießen</button>
+  <button class="btn" id="actHarvest" disabled>🌾 Ernten</button>
+</div>
 
 <!-- Joystick -->
-<div id="stick" aria-label="Joystick">
-  <div class="ring"></div>
-  <div class="knob" id="knob"></div>
+<div id="stick" aria-label="Joystick"><div class="ring"></div><div class="knob" id="knob"></div></div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Modal (Shop) -->
+<div id="modalBackdrop"></div>
+<div id="modal">
+  <div class="modal-head">
+    <div class="portrait" id="m_portrait">🧑‍🌾</div>
+    <div>
+      <div class="m-title" id="m_title">Händler</div>
+      <div class="m-sub" id="m_sub">Öffnungszeiten: Tag</div>
+    </div>
+  </div>
+  <div class="shoplist" id="m_list"></div>
+  <div class="modal-foot">
+    <button class="btn-ghost" id="m_close">Schließen</button>
+  </div>
 </div>
 
-<div id="actions">
-  <button class="btn" id="btnPlant" disabled>🌱 Düngen (1 💩)</button>
-  <button class="btn" id="btnTrade" disabled>🤝 5 🪨 → 1 💩</button>
-  <button class="btn" id="btnSellCorn" disabled>💸 1 🌽 → 5 💩</button>
-</div>
-
-<div id="debug">
-  <button id="btnCenter">🔎 Spieler zentrieren</button>
-  <button id="btnReset">♻️ Neustart</button>
+<!-- Controls bottom helpers -->
+<div style="position:fixed; bottom: calc(0.5rem + var(--safe-bottom)); left:0.6rem; right:0.6rem; display:flex; gap:.5rem; justify-content:space-between; z-index:12;">
+  <button class="btn-ghost" id="btnCenter">🔎 Spieler zentrieren</button>
+  <button class="btn-ghost" id="btnReset">♻️ Neustart</button>
 </div>
 
 <script>
 (() => {
-  // === TUNING ===
+  // ========= CONFIG =========
   const TILE = 48;
   const MAP_W = 40, MAP_H = 24;
 
-  const ROCK_SPAWN = 200;
+  // Economy & Timers
+  const CORN_TIME = 40_000;          // 40s
+  const CORN_CHANCE = 0.60;          // 60% chance to yield corn
+  const CABBAGE_TIME = 120_000;      // 120s
+  const CABBAGE_WATERED_TOTAL = 40_000; // watered -> 40s total
+
+  const DAY_TOTAL_MS = 180_000;      // 3 min
+  const DAYLIGHT_MS  = 120_000;      // 2 min day, 1 min night
+
+  const SPEED_BASE = 3.6;
+  const SHOES_MULT = 1.35;
+
+  // Rocks
+  const ROCK_SPAWN = 200;  // rarer
   const ROCK_MAX   = 90;
   const START_ROCKS = 40;
-  const DIRT_RATIO = 0.35;
+  const DIRT_RATIO = 0.35; // some rocks are dirt (worthless)
 
-  const MOVE_SPEED = 3.6;
-  const CORN_TIME_MS = 60_000;
-  const CORN_CHANCE  = 0.6;
-  const NEAR_DIST = TILE * 1.3;
+  // Interact distances
+  const NEAR_DIST  = TILE * 1.2; // merchants
+  const PICK_DIST  = TILE * 0.5; // harvest / pickup
+  const PLANT_DIST = TILE * 0.8; // interact with plot
+  const POND_DIST  = TILE * 2.0; // refill can
 
-  // Day/Night: 3 min total, 2 min day (open, plantable), 1 min night (closed, not plantable)
-  const DAY_TOTAL_MS = 180000;
-  const DAYLIGHT_MS  = 120000;
-  const startTime = performance.now();
+  // Farm fence + gate
+  const FARM_W = 6, FARM_H = 4;
+  const FENCE_THICK = 12;
+  const GATE_WIDTH = TILE * 1.2;
 
-  // Farmzone (rechteckig) in der Nähe des Händlers (eingezäunt)
-  const FARM_W = 6, FARM_H = 4; // in Tiles
-  const FENCE_THICK = 12;       // Kollision/Breite
-  const GATE_WIDTH = TILE * 1.2;// Öffnung unten mittig
-
+  // ========= STATE =========
   const camera = { x:0, y:0 };
-
   const state = {
     player: { x: TILE*2, y: TILE*2, r: TILE*0.38 },
+    speedMult: 1.0,
     merchant: { x: TILE*(MAP_W-5), y: TILE*(MAP_H-5), name: "Fecalfred" },
-    farmRect: null,
-    fenceRects: [], // Zaun-Kollision (mit Torlücke)
-    houseRect: null,
+    artist:   { x: TILE*(2),       y: TILE*(2),       name: "Berta Brown" },
+    pond:     { x: TILE*(MAP_W-3), y: TILE*(2) },
+    farmRect: null, fenceRects: [], houseRect: null, _gateLeft:0, _gateRight:0,
     stones: [],     // {x,y,type:'stone'|'dirt'}
-    plants: [],
-    corns: [],
-    inv: { stone:0, poop:0, corn:0 },
+    plants: [],     // {x,y,type:'corn'|'cabbage', plantedAt, readyAt, stage, watered:boolean}
+    crops: [],      // dropped harvest (not used now – we harvest into inv directly)
+    inv: { stone:0, poop:0, corn:0, cabbage:0, euro:0, hasCan:false, can:0, canMax:13, hasShoes:false, cabbageSeed:0 },
     smoke: [],
     frame: 0,
     keys: new Set(),
@@ -100,29 +157,75 @@
     rngSeed: (Date.now() ^ 0x9e3779b9) >>> 0,
     debugCenter: true,
     isDay: true,
-    clockText: "06:00"
+    clockText: "06:00",
+    lastTimeBase: performance.now()
   };
 
   function rand(){ let x=state.rngSeed; x^=x<<13; x^=x>>>17; x^=x<<5; state.rngSeed=x>>>0; return (state.rngSeed%1_000_000)/1_000_000; }
 
+  // ========= CANVAS =========
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { alpha:false });
   function resize(){ const dpr=Math.max(1,window.devicePixelRatio||1); const w=Math.floor(window.innerWidth), h=Math.floor(window.innerHeight);
     canvas.style.width=w+"px"; canvas.style.height=h+"px"; canvas.width=Math.floor(w*dpr); canvas.height=Math.floor(h*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); }
   window.addEventListener('resize', resize, {passive:true}); resize();
 
-  // UI refs
+  // ========= UI refs =========
+  const toast = document.getElementById('toast');
   const lblClock = document.getElementById('clock');
   const lblIcon  = document.getElementById('dayicon');
-  const lblStones=document.getElementById('stones'), lblPoops=document.getElementById('poops'), lblCorns=document.getElementById('corns'), lblPlants=document.getElementById('plants');
-  const btnPlant=document.getElementById('btnPlant'), btnTrade=document.getElementById('btnTrade'), btnSell=document.getElementById('btnSellCorn');
-  const btnCenter=document.getElementById('btnCenter'), btnReset=document.getElementById('btnReset');
-  const toast=document.getElementById('toast'), hud=document.getElementById('hud');
+  const dayHint  = document.getElementById('dayhint');
+  const vStone = document.getElementById('v_stone');
+  const vPoop  = document.getElementById('v_poop');
+  const vCorn  = document.getElementById('v_corn');
+  const vCabb  = document.getElementById('v_cabbage');
+  const vEuro  = document.getElementById('v_euro');
+  const vCan   = document.getElementById('v_can');
 
-  btnCenter.addEventListener('click', ()=>{ state.debugCenter=true; say("Ansicht zentriert."); });
-  btnReset.addEventListener('click', ()=>{ localStorage.removeItem('mk_save'); location.reload(); });
+  const btnCenter = document.getElementById('btnCenter');
+  const btnReset  = document.getElementById('btnReset');
 
-  // Farmrechteck + Zaun (mit Gate) + Haus-Kollision
+  const btnPlantPoop = document.getElementById('actPlantPoop');
+  const btnPlantCabb = document.getElementById('actPlantCabbage');
+  const btnWater     = document.getElementById('actWater');
+  const btnHarvest   = document.getElementById('actHarvest');
+
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const modal = document.getElementById('modal');
+  const mPortrait = document.getElementById('m_portrait');
+  const mTitle    = document.getElementById('m_title');
+  const mSub      = document.getElementById('m_sub');
+  const mList     = document.getElementById('m_list');
+  const mClose    = document.getElementById('m_close');
+
+  // ========= Helpers =========
+  const say=(m)=>{ toast.textContent=m; toast.style.opacity='1'; clearTimeout(say._t); say._t=setTimeout(()=>toast.style.opacity='0',1700); };
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx, ay-by);
+  const isNear = (obj, d=NEAR_DIST)=> dist(state.player.x,state.player.y,obj.x,obj.y) < d;
+
+  function updateClock(){
+    const elapsed = (performance.now() - state.lastTimeBase) % DAY_TOTAL_MS;
+    state.isDay = elapsed < DAYLIGHT_MS;
+    const hoursFloat = 24 * (elapsed / DAY_TOTAL_MS);
+    const hh = Math.floor(hoursFloat);
+    const mm = Math.floor((hoursFloat - hh) * 60);
+    state.clockText = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    lblClock.textContent = state.clockText;
+    lblIcon.textContent = state.isDay ? "🌞" : "🌙";
+    dayHint.textContent = state.isDay ? "Tag: Anbau & Handel geöffnet." : "Nacht: Kein Anbau, Läden geschlossen.";
+  }
+
+  function updateHUD(){
+    vStone.textContent = state.inv.stone;
+    vPoop .textContent = state.inv.poop;
+    vCorn .textContent = state.inv.corn;
+    vCabb .textContent = state.inv.cabbage;
+    vEuro .textContent = state.inv.euro.toFixed(0);
+    vCan  .textContent = state.inv.hasCan ? `${state.inv.can}/${state.inv.canMax}` : "0/0";
+  }
+
+  // ========= Areas: farm fence, house, pond =========
   (function setupAreas(){
     const hx = state.merchant.x - TILE, hy = state.merchant.y - TILE;
     state.houseRect = { x1: hx - TILE*0.5, y1: hy - TILE*0.5, x2: hx - TILE*0.5 + TILE*2, y2: hy - TILE*0.5 + TILE*2 };
@@ -133,43 +236,211 @@
 
     const f = state.farmRect;
     const gateCenter = (f.x1 + f.x2) / 2;
-    const gateLeft = gateCenter - GATE_WIDTH/2;
-    const gateRight = gateCenter + GATE_WIDTH/2;
-
+    const gateLeft = gateCenter - GATE_WIDTH/2, gateRight = gateCenter + GATE_WIDTH/2;
     const t = FENCE_THICK;
-    const pushRect = (x1,y1,x2,y2)=> state.fenceRects.push({x1,y1,x2,y2});
-    // oben
-    pushRect(f.x1 - t, f.y1 - t, f.x2 + t, f.y1 + t);
-    // unten – links vom Tor
-    pushRect(f.x1 - t, f.y2 - t, gateLeft, f.y2 + t);
-    // unten – rechts vom Tor
-    pushRect(gateRight, f.y2 - t, f.x2 + t, f.y2 + t);
-    // links
-    pushRect(f.x1 - t, f.y1 - t, f.x1 + t, f.y2 + t);
-    // rechts
-    pushRect(f.x2 - t, f.y1 - t, f.x2 + t, f.y2 + t);
-
+    const push = (x1,y1,x2,y2)=> state.fenceRects.push({x1,y1,x2,y2});
+    // top
+    push(f.x1 - t, f.y1 - t, f.x2 + t, f.y1 + t);
+    // bottom (with gate)
+    push(f.x1 - t, f.y2 - t, gateLeft, f.y2 + t);
+    push(gateRight, f.y2 - t, f.x2 + t, f.y2 + t);
+    // left/right
+    push(f.x1 - t, f.y1 - t, f.x1 + t, f.y2 + t);
+    push(f.x2 - t, f.y1 - t, f.x2 + t, f.y2 + t);
     state._gateLeft = gateLeft; state._gateRight = gateRight;
   })();
 
-  function pointRectCollidesCircle(px,py, r, rect){
-    const cx = Math.max(rect.x1, Math.min(px, rect.x2));
-    const cy = Math.max(rect.y1, Math.min(py, rect.y2));
+  function circleRectCollision(px,py,r, rc){
+    const cx = Math.max(rc.x1, Math.min(px, rc.x2));
+    const cy = Math.max(rc.y1, Math.min(py, rc.y2));
     return Math.hypot(px - cx, py - cy) < r;
   }
-  const collidesHouse = (x,y)=> pointRectCollidesCircle(x,y,state.player.r, state.houseRect);
-  const collidesFence = (x,y)=> state.fenceRects.some(rc=>pointRectCollidesCircle(x,y,state.player.r, rc));
+  const collidesHouse = (x,y)=> circleRectCollision(x,y,state.player.r, state.houseRect);
+  const collidesFence = (x,y)=> state.fenceRects.some(rc => circleRectCollision(x,y,state.player.r, rc));
   const collidesAny   = (x,y)=> collidesHouse(x,y) || collidesFence(x,y);
+  const inFarm = (x,y)=> { const f=state.farmRect; return x>=f.x1&&x<=f.x2&&y>=f.y1&&y<=f.y2; };
 
+  // ========= Rocks =========
   function randomEmptyTile(){ return { x: Math.floor(rand()*MAP_W)*TILE + TILE/2, y: Math.floor(rand()*MAP_H)*TILE + TILE/2 }; }
   function spawnRock(){ const p=randomEmptyTile(); const type=(rand()<DIRT_RATIO)?'dirt':'stone'; state.stones.push({x:p.x,y:p.y,type}); }
-  for (let i=0;i<START_ROCKS;i++){ spawnRock(); }
+  for(let i=0;i<START_ROCKS;i++) spawnRock();
 
-  // Tastatur
-  window.addEventListener('keydown', e=>state.keys.add(e.key.toLowerCase()));
-  window.addEventListener('keyup',   e=>state.keys.delete(e.key.toLowerCase()));
+  // ========= Plants =========
+  function plantPoop(){
+    if (!state.isDay) return say("Nacht: Kein Anbau.");
+    if (state.inv.poop<=0) return say("Du brauchst 💩.");
+    if (!inFarm(state.player.x, state.player.y)) return say("Nur im eingezäunten Feld pflanzen!");
+    const tx = Math.round(state.player.x/TILE)*TILE + TILE/2;
+    const ty = Math.round(state.player.y/TILE)*TILE + TILE/2;
+    if (state.plants.some(p => dist(p.x,p.y,tx,ty) < TILE*0.25)) return say("Hier wächst bereits etwas.");
+    state.inv.poop--;
+    const now = performance.now();
+    // Corn with 40s timer; success roll happens at ready time
+    state.plants.push({ x:tx, y:ty, type:'corn', plantedAt:now, readyAt:now + CORN_TIME, stage:0, watered:false });
+    updateHUD(); say("💩 gesetzt – Mais sprießt… (40s)");
+    save();
+  }
 
-  // Joystick
+  function plantCabbage(){
+    if (!state.isDay) return say("Nacht: Kein Anbau.");
+    if (state.inv.cabbageSeed<=0) return say("Keine 🥬-Saat. Kauf bei Fecalfred (4€).");
+    if (!inFarm(state.player.x, state.player.y)) return say("Nur im eingezäunten Feld pflanzen!");
+    const tx = Math.round(state.player.x/TILE)*TILE + TILE/2;
+    const ty = Math.round(state.player.y/TILE)*TILE + TILE/2;
+    if (state.plants.some(p => dist(p.x,p.y,tx,ty) < TILE*0.25)) return say("Hier wächst bereits etwas.");
+    state.inv.cabbageSeed--;
+    const now = performance.now();
+    state.plants.push({ x:tx, y:ty, type:'cabbage', plantedAt:now, readyAt:now + CABBAGE_TIME, stage:0, watered:false });
+    updateHUD(); say("🥬 Saat gelegt – Kohl wächst… (120s)");
+    save();
+  }
+
+  function findNearbyPlant(){
+    let best=null, bestD=9999;
+    for (const p of state.plants){
+      const d = dist(p.x,p.y,state.player.x,state.player.y);
+      if (d<PLANT_DIST && d<bestD) { best=p; bestD=d; }
+    }
+    return best;
+  }
+
+  function waterPlant(){
+    if (!state.inv.hasCan) return say("Keine Gießkanne.");
+    if (state.inv.can<=0) return say("Gießkanne leer – am Teich auffüllen.");
+    const p = findNearbyPlant();
+    if (!p) return say("Geh näher an die Pflanze.");
+    if (p.stage>=3) return say("Diese Pflanze ist reif.");
+    if (p.watered) return say("Schon gegossen.");
+    p.watered = true;
+    if (p.type==='corn'){
+      // reduce remaining by 30s, but ensure at least 10s left
+      const now = performance.now();
+      const newReady = Math.max(now + 10_000, p.readyAt - 30_000);
+      p.readyAt = newReady;
+      say("💧 Mais bewässert: -30s.");
+    } else {
+      // cabbage -> total 40s since planted
+      p.readyAt = Math.min(p.readyAt, p.plantedAt + CABBAGE_WATERED_TOTAL);
+      say("💧 Kohl bewässert: Gesamtzeit 40s.");
+    }
+    state.inv.can--;
+    updateHUD(); save();
+  }
+
+  function harvestPlant(){
+    const p = findNearbyPlant();
+    if (!p) return say("Geh näher an die Pflanze.");
+    if (p.stage<3) return say("Noch nicht reif.");
+    // harvest result
+    if (p.type==='corn'){
+      // 60% chance yield
+      if (rand() < CORN_CHANCE){ state.inv.corn++; say("🌽 +1 Mais"); }
+      else say("🌽 Ernte fehlgeschlagen.");
+    } else {
+      state.inv.cabbage++; say("🥬 +1 Kohl");
+    }
+    // remove plant
+    const i = state.plants.indexOf(p);
+    if (i>=0) state.plants.splice(i,1);
+    updateHUD(); save();
+  }
+
+  function updatePlants(){
+    const now = performance.now();
+    for (const p of state.plants){
+      const t = p.readyAt - now;
+      const total = (p.type==='corn') ? CORN_TIME : (p.watered ? CABBAGE_WATERED_TOTAL : CABBAGE_TIME);
+      const prog = clamp(1 - (t/total), 0, 1);
+      // 3 growth stages -> 0..3
+      if (prog < 0.33) p.stage = 0;
+      else if (prog < 0.66) p.stage = 1;
+      else if (prog < 0.99) p.stage = 2;
+      else p.stage = 3;
+    }
+  }
+
+  // ========= Shops =========
+  function openShop(kind){
+    if (!state.isDay){ say("Geschlossen – Nacht."); return; }
+    if (kind==='fecal' && !isNear(state.merchant)) return say("Geh näher zu Fecalfred.");
+    if (kind==='berta' && !isNear(state.artist)) return say("Geh näher zu Berta Brown.");
+    mList.innerHTML = "";
+    if (kind==='fecal'){
+      mPortrait.textContent = "🧑‍🌾";
+      mTitle.textContent = "Fecalfred";
+      mSub.textContent = "Tausch & Saat (tagsüber)";
+      // Trade row
+      addItem({
+        icon:"🔁", name:"Tausch: 10 🪨 → 1 💩", desc:"Steine gegen Dünger.",
+        price:"—", actionText:"Tauschen", disabled: state.inv.stone<10,
+        onClick:()=>{ state.inv.stone-=10; state.inv.poop+=1; updateHUD(); say("10 🪨 → 1 💩"); save(); renderShopBody(); }
+      });
+      // Buy cabbage seed
+      addItem({
+        icon:"🥬", name:"Kohl-Saat", desc:"Für dein Feld.", price:"4 €",
+        actionText:"Kaufen", disabled: state.inv.euro<4,
+        onClick:()=>{ if (state.inv.euro>=4){ state.inv.euro-=4; state.inv.cabbageSeed++; updateHUD(); say("🥬 Saat +1"); save(); renderShopBody(); } }
+      });
+      // Sell corn
+      addItem({
+        icon:"🌽", name:"Mais verkaufen", desc:"+1 € pro Stück.", price:"+1 €",
+        actionText:"Verkaufen", disabled: state.inv.corn<1,
+        onClick:()=>{ if (state.inv.corn>0){ state.inv.corn--; state.inv.euro += 1; updateHUD(); say("🌽 verkauft: +1 €"); save(); renderShopBody(); } }
+      });
+      // Sell cabbage
+      addItem({
+        icon:"🥬", name:"Kohl verkaufen", desc:"+7 € pro Stück.", price:"+7 €",
+        actionText:"Verkaufen", disabled: state.inv.cabbage<1,
+        onClick:()=>{ if (state.inv.cabbage>0){ state.inv.cabbage--; state.inv.euro += 7; updateHUD(); say("🥬 verkauft: +7 €"); save(); renderShopBody(); } }
+      });
+    } else {
+      mPortrait.textContent = "👩‍🎨";
+      mTitle.textContent = "Berta Brown";
+      mSub.textContent = "Kunst & Upgrades (tagsüber)";
+      // Watering can
+      addItem({
+        icon:"💧", name:"Gießkanne", desc:"Permanent, 13 Nutzungen. Am Teich auffüllbar.",
+        price:"5 €", actionText: state.inv.hasCan ? "Gekauft" : "Kaufen",
+        disabled: state.inv.hasCan || state.inv.euro<5,
+        onClick:()=>{ if (!state.inv.hasCan && state.inv.euro>=5){ state.inv.hasCan=true; state.inv.euro-=5; state.inv.can=state.inv.canMax; updateHUD(); say("💧 Gießkanne gekauft"); save(); renderShopBody(); } }
+      });
+      // Shoes
+      addItem({
+        icon:"👟", name:"Schnelle Schuhe", desc:"+35% Laufgeschwindigkeit.",
+        price:"7 €", actionText: state.inv.hasShoes ? "Gekauft" : "Kaufen",
+        disabled: state.inv.hasShoes || state.inv.euro<7,
+        onClick:()=>{ if (!state.inv.hasShoes && state.inv.euro>=7){ state.inv.hasShoes=true; state.inv.euro-=7; state.speedMult = SHOES_MULT; updateHUD(); say("👟 Geschwindigkeit +35%"); save(); renderShopBody(); } }
+      });
+    }
+    function renderShopBody(){ openShop(kind); } // re-render to refresh disabled states
+    openModal();
+  }
+
+  function addItem({icon,name,desc,price,actionText,disabled,onClick}){
+    const row = document.createElement('div');
+    row.className = "item";
+    row.innerHTML = `
+      <div class="i-ic">${icon}</div>
+      <div class="i-body">
+        <div class="i-name">${name}</div>
+        <div class="i-desc">${desc}</div>
+      </div>
+      <div class="i-col">
+        <div class="i-price">${price}</div>
+        <button class="btn"${disabled?' disabled':''}>${actionText}</button>
+      </div>
+    `;
+    const btn = row.querySelector('button');
+    if (!disabled) btn.addEventListener('click', onClick);
+    mList.appendChild(row);
+  }
+
+  function openModal(){ modal.classList.add('open'); modalBackdrop.classList.add('open'); }
+  function closeModal(){ modal.classList.remove('open'); modalBackdrop.classList.remove('open'); }
+  mClose.addEventListener('click', closeModal);
+  modalBackdrop.addEventListener('click', closeModal);
+
+  // ========= Joystick & Keys =========
   const stick=document.getElementById('stick'), knob=document.getElementById('knob');
   function setKnob(dx,dy){ const m=Math.hypot(dx,dy), cl=Math.min(m,state.joy.max); const nx=(dx===0&&dy===0)?0:(dx/m*cl), ny=(dx===0&&dy===0)?0:(dy/m*cl); knob.style.transform=`translate(${nx}px, ${ny}px)`; }
   function joyVecFrom(dx,dy){ const m=Math.hypot(dx,dy); if(m<state.joy.dead) return {vx:0,vy:0}; const s=Math.min(1,m/state.joy.max); return {vx:(dx/m)*s, vy:(dy/m)*s}; }
@@ -179,129 +450,115 @@
   stick.addEventListener('touchend',(e)=>{ if([...e.changedTouches].some(t=>t.identifier===state.joy.id)) joyEnd(); },{passive:false});
   stick.addEventListener('touchcancel',(e)=>{ if([...e.changedTouches].some(t=>t.identifier===state.joy.id)) joyEnd(); },{passive:false});
 
-  // Aktionen
-  const say=(m)=>{ toast.textContent=m; toast.style.opacity='1'; clearTimeout(say._t); say._t=setTimeout(()=>toast.style.opacity='0',1700); };
-  const isNear=()=>Math.hypot(state.player.x-state.merchant.x, state.player.y-state.merchant.y) < NEAR_DIST;
+  window.addEventListener('keydown', e=>state.keys.add(e.key.toLowerCase()));
+  window.addEventListener('keyup',   e=>state.keys.delete(e.key.toLowerCase()));
 
-  document.getElementById('btnPlant').addEventListener('click', ()=>{
-    if (!state.isDay) return say("Nacht: Kein Anbau.");
-    if (state.inv.poop<=0) return;
-    if (!inFarm(state.player.x, state.player.y)) return say("Nur im eingezäunten Feld pflanzen!");
-    const tileX=Math.round(state.player.x/TILE)*TILE + TILE/2, tileY=Math.round(state.player.y/TILE)*TILE + TILE/2;
-    if (state.plants.some(p=>Math.hypot(p.x-tileX,p.y-tileY) < TILE*0.25)) return say("Hier wächst bereits etwas.");
-    state.inv.poop--; const now=performance.now();
-    state.plants.push({x:tileX,y:tileY,plantedAt:now,readyAt:now+CORN_TIME_MS,status:'growing'}); updateHUD(); say("💩 Gedüngt! In ~1 Min könnte 🌽 wachsen…"); save();
-  });
+  // ========= Actions (UI) =========
+  btnCenter.addEventListener('click', ()=>{ state.debugCenter=true; say("Ansicht zentriert."); });
+  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save'); location.reload(); });
 
-  document.getElementById('btnTrade').addEventListener('click', ()=>{
-    if (!state.isDay) return say("Nacht: Fecalfred schläft.");
-    if (!isNear()) return say("Geh näher an Fecalfred.");
-    if (state.inv.stone>=5){ state.inv.stone-=5; state.inv.poop+=1; updateHUD(); say("🤝 5 🪨 → 1 💩"); save(); }
-    else say("Du brauchst 5 🪨 für 1 💩.");
-  });
+  btnPlantPoop.addEventListener('click', plantPoop);
+  btnPlantCabb.addEventListener('click', plantCabbage);
+  btnWater    .addEventListener('click', waterPlant);
+  btnHarvest  .addEventListener('click', harvestPlant);
 
-  document.getElementById('btnSellCorn').addEventListener('click', ()=>{
-    if (!state.isDay) return say("Nacht: Fecalfred schläft.");
-    if (!isNear()) return say("Geh näher an Fecalfred.");
-    if (state.inv.corn>=1){ state.inv.corn-=1; state.inv.poop+=5; updateHUD(); say("💸 1 🌽 → 5 💩"); save(); }
-    else say("Du hast keinen 🌽.");
-  });
-
-  function inFarm(x,y){ const f=state.farmRect; return x>=f.x1 && x<=f.x2 && y>=f.y1 && y<=f.y2; }
-
-  function updateClock(){
-    const elapsed = (performance.now() - startTime) % DAY_TOTAL_MS;
-    state.isDay = elapsed < DAYLIGHT_MS;
-    // Map 0..DAY_TOTAL_MS -> 0..24h
-    const hoursFloat = 24 * (elapsed / DAY_TOTAL_MS);
-    const hh = Math.floor(hoursFloat);
-    const mm = Math.floor((hoursFloat - hh) * 60);
-    state.clockText = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-    lblClock.textContent = state.clockText;
-    lblIcon.textContent = state.isDay ? "🌞" : "🌙";
-    hud.textContent = state.isDay ? "Tag: Anbau erlaubt, Fecalfred offen." : "Nacht: Kein Anbau, Fecalfred geschlossen.";
+  // ========= Save/Load =========
+  function save(){
+    try { localStorage.setItem('mk_save_v3', JSON.stringify({
+      inv:state.inv, plants:state.plants, speedMult:state.speedMult, lastTimeBase: state.lastTimeBase
+    })); } catch {}
   }
+  (function load(){
+    try {
+      const d = JSON.parse(localStorage.getItem('mk_save_v3')||"null");
+      if (!d) return;
+      if (d.inv) state.inv = d.inv;
+      if (Array.isArray(d.plants)) state.plants = d.plants;
+      if (d.speedMult) state.speedMult = d.speedMult;
+      if (d.lastTimeBase) state.lastTimeBase = d.lastTimeBase;
+    } catch {}
+  })();
 
-  function updateHUD(){
-    lblStones.textContent=state.inv.stone; lblPoops.textContent=state.inv.poop; lblCorns.textContent=state.inv.corn; lblPlants.textContent=state.plants.length;
-    const near=isNear();
-    btnTrade.disabled = !near || !state.isDay;
-    btnSell.disabled  = !near || !state.isDay;
-    btnPlant.disabled = !(state.isDay && state.inv.poop>0 && inFarm(state.player.x,state.player.y));
-  }
-
-  function save(){ try { localStorage.setItem('mk_save', JSON.stringify({ inv:state.inv, plants:state.plants, corns:state.corns })); } catch{} }
-  (function load(){ try{ const d=JSON.parse(localStorage.getItem('mk_save')||"null"); if(!d) return; if(d.inv) state.inv=d.inv; if(Array.isArray(d.plants)) state.plants=d.plants; if(Array.isArray(d.corns)) state.corns=d.corns; }catch{} })();
-
-  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
-
+  // ========= Loop =========
   function loop(){
     state.frame++;
-
-    // Clock & HUD (einmal pro Frame updaten ist fein)
     updateClock();
 
-    // Bewegung (mit Kollisionen & Sliding)
-    let vx=state.joy.vx, vy=state.joy.vy;
+    // Movement with collisions
+    let vx = state.joy.vx, vy = state.joy.vy;
     if (state.keys.has('arrowup')||state.keys.has('w')) vy -= 1;
     if (state.keys.has('arrowdown')||state.keys.has('s')) vy += 1;
     if (state.keys.has('arrowleft')||state.keys.has('a')) vx -= 1;
     if (state.keys.has('arrowright')||state.keys.has('d')) vx += 1;
 
-    const len=Math.hypot(vx,vy); const spd=MOVE_SPEED*(len>1?1:len);
+    const len=Math.hypot(vx,vy); const speed = SPEED_BASE * state.speedMult * (len>1?1:len);
     let nx=state.player.x, ny=state.player.y;
     if (len>0){
-      const tx=clamp(nx + (vx/len)*spd, TILE/2, MAP_W*TILE - TILE/2);
+      const tx=clamp(nx + (vx/len)*speed, TILE/2, MAP_W*TILE - TILE/2);
       if (!collidesAny(tx, ny)) nx = tx;
-      const ty=clamp(ny + (vy/len)*spd, TILE/2, MAP_H*TILE - TILE/2);
+      const ty=clamp(ny + (vy/len)*speed, TILE/2, MAP_H*TILE - TILE/2);
       if (!collidesAny(nx, ty)) ny = ty;
     }
     state.player.x=nx; state.player.y=ny;
 
-    // Kamera
+    // Camera
     if (state.debugCenter){
       camera.x=clamp(state.player.x - canvas.clientWidth/2, 0, MAP_W*TILE - canvas.clientWidth);
       camera.y=clamp(state.player.y - canvas.clientHeight/2, 0, MAP_H*TILE - canvas.clientHeight);
     }
 
-    // Aufheben: Stein vs Erdbrocken
+    // Pickup stones (stone vs dirt)
     for (let i=state.stones.length-1;i>=0;i--){
       const s=state.stones[i];
-      if (dist(s.x,s.y,state.player.x,state.player.y) < TILE*0.5){
+      if (dist(s.x,s.y,state.player.x,state.player.y) < PICK_DIST){
         state.stones.splice(i,1);
-        if (s.type==='dirt'){ say("🪵 Erdbrocken – wertlos."); }
-        else { state.inv.stone++; say("+1 🪨"); save(); }
+        if (s.type==='dirt') say("🪵 Erdbrocken – wertlos.");
+        else { state.inv.stone++; say("+1 🪨"); updateHUD(); save(); }
       }
     }
+    if (state.frame % ROCK_SPAWN === 0 && state.stones.length < ROCK_MAX){ for(let k=0;k<2;k++) spawnRock(); }
 
-    // Respawn
-    if (state.frame % ROCK_SPAWN === 0 && state.stones.length < ROCK_MAX){ for (let k=0;k<2;k++) spawnRock(); }
+    // Plants
+    updatePlants();
 
-    // Pflanzen-Update (wachsen dürfen auch nachts)
-    const now=performance.now();
-    for (const pl of state.plants){
-      if (pl.status==='growing' && now >= pl.readyAt){
-        pl.status=(rand()<CORN_CHANCE)?'ready':'fail';
-        if (pl.status==='ready'){ state.corns.push({x:pl.x,y:pl.y}); say("🌽 Ein Mais ist gewachsen!"); }
-        else { say("🙃 Diesmal ist nichts gewachsen."); }
-        save();
-      }
-    }
-
-    // Mais einsammeln
-    for (let i=state.corns.length-1;i>=0;i--){
-      const c=state.corns[i];
-      if (dist(c.x,c.y,state.player.x,state.player.y) < TILE*0.5){ state.corns.splice(i,1); state.inv.corn++; say("+1 🌽 (bei Fecalfred 5 💩 wert)"); save(); }
-    }
-
-    // Rauch
+    // Smoke
     if (state.frame % 20 === 0) spawnSmoke();
 
-    draw(); updateHUD();
+    // Context buttons enablement
+    const p = findNearbyPlant();
+    btnHarvest.disabled = !(p && p.stage>=3);
+    btnWater.disabled = !(state.inv.hasCan && state.inv.can>0 && p && p.stage<3 && !p.watered);
+    btnPlantPoop.disabled = !(state.isDay && state.inv.poop>0 && inFarm(state.player.x,state.player.y));
+    btnPlantCabb.disabled = !(state.isDay && state.inv.cabbageSeed>0 && inFarm(state.player.x,state.player.y));
+
+    // Shops open on tap proximity – use click handler on canvas (simple proximity)
+    // Refill at pond
+    if (state.inv.hasCan && state.inv.can < state.inv.canMax && state.isDay && isNear(state.pond, POND_DIST)){
+      // auto show hint via toast sometimes
+      if (state.frame % 120 === 0) say("💧 Hier kannst du die Gießkanne auffüllen (Tippe auf mich)!");
+    }
+
+    draw();
+    updateHUD();
     requestAnimationFrame(loop);
   }
 
+  // ========= Click interactions (shops, pond) =========
+  canvas.addEventListener('click', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) + camera.x;
+    const y = (e.clientY - rect.top) + camera.y;
+    // If near merchants, open respective shop
+    if (isNear(state.merchant)) openShop('fecal');
+    else if (isNear(state.artist)) openShop('berta');
+    else if (isNear(state.pond, POND_DIST)){
+      if (!state.inv.hasCan) return say("Keine Gießkanne.");
+      if (!state.isDay) return say("Nacht: Der Teich ist still…");
+      state.inv.can = state.inv.canMax; updateHUD(); say("💧 Gießkanne aufgefüllt!"); save();
+    }
+  });
+
+  // ========= Smoke =========
   function spawnSmoke(){
     const hx = state.merchant.x - TILE, hy = state.merchant.y - TILE;
     const sx = state.merchant.x + TILE*0.7;
@@ -310,23 +567,27 @@
     state.smoke = state.smoke.filter(s => s.a > 0.05);
   }
 
-  function drawFenceRectWithGate(f){
-    // Fläche leicht grün
+  // ========= Draw =========
+  function drawFenceWithGate(f){
+    // field fill
     ctx.fillStyle = "rgba(120, 220, 140, 0.14)";
     ctx.fillRect(f.x1, f.y1, f.x2-f.x1, f.y2-f.y1);
-
-    // Linien + Pfosten; unten Lücke fürs Tor
     const gateLeft = state._gateLeft, gateRight = state._gateRight;
 
     ctx.strokeStyle = "#916c3b"; ctx.lineWidth = 4;
-    // oben
-    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y1); ctx.stroke();
-    // unten: zwei Segmente (Toröffnung frei)
-    ctx.beginPath(); ctx.moveTo(f.x1, f.y2); ctx.lineTo(gateLeft, f.y2); ctx.moveTo(gateRight, f.y2); ctx.lineTo(f.x2, f.y2); ctx.stroke();
-    // links/rechts
-    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x1, f.y2); ctx.moveTo(f.x2, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+    // edges
+    ctx.beginPath();
+    // top
+    ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y1);
+    // left/right
+    ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x1, f.y2);
+    ctx.moveTo(f.x2, f.y1); ctx.lineTo(f.x2, f.y2);
+    // bottom separated by gate
+    ctx.moveTo(f.x1, f.y2); ctx.lineTo(gateLeft, f.y2);
+    ctx.moveTo(gateRight, f.y2); ctx.lineTo(f.x2, f.y2);
+    ctx.stroke();
 
-    // Streben
+    // rails
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(f.x1, f.y1+TILE*0.35); ctx.lineTo(f.x2, f.y1+TILE*0.35);
@@ -334,11 +595,11 @@
     ctx.moveTo(gateRight, f.y2-TILE*0.35); ctx.lineTo(f.x2, f.y2-TILE*0.35);
     ctx.stroke();
 
-    // Pfosten (inkl. Torpfosten)
+    // posts
     ctx.fillStyle = "#a77b44";
     for (let x=f.x1; x<=f.x2; x+=TILE){ ctx.fillRect(x-3, f.y1-6, 6, 12); ctx.fillRect(x-3, f.y2-6, 6, 12); }
     for (let y=f.y1; y<=f.y2; y+=TILE){ ctx.fillRect(f.x1-6, y-3, 12, 6); ctx.fillRect(f.x2-6, y-3, 12, 6); }
-    // Torpfosten extra
+    // gate posts
     ctx.fillRect(gateLeft-4,  f.y2-10, 8, 20);
     ctx.fillRect(gateRight-4, f.y2-10, 8, 20);
   }
@@ -347,83 +608,115 @@
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    // Tageslichtfarbe (leicht wärmer am Tag, dunkler in der Nacht)
+    // Background tiles (day/night tint)
     const bgA = state.isDay ? "#0d3316" : "#08190c";
     const bgB = state.isDay ? "#12401e" : "#0c2013";
+    for (let y=0;y<MAP_H;y++) for (let x=0;x<MAP_W;x++){
+      const px=x*TILE, py=y*TILE; ctx.fillStyle = ((x+y)%2===0)?bgA:bgB; ctx.fillRect(px,py,TILE,TILE);
+    }
 
-    // Grid
-    for (let y=0;y<MAP_H;y++){ for (let x=0;x<MAP_W;x++){ const px=x*TILE, py=y*TILE; ctx.fillStyle=((x+y)%2===0)?bgA:bgB; ctx.fillRect(px,py,TILE,TILE); } }
-
-    // Händler-Areal: Weg
+    // Path near Fecalfred
     ctx.fillStyle = "#6c543a";
     ctx.fillRect(state.merchant.x - TILE*1.2, state.merchant.y + TILE*0.9, TILE*2.4, TILE*0.6);
 
-    // Farm-Zone + Zaun (mit Gate)
-    drawFenceRectWithGate(state.farmRect);
+    // Farm fenced field
+    drawFenceWithGate(state.farmRect);
 
-    // Fecalfreds Hütte (markant)
+    // Fecalfred's house (blocking)
     const hx=state.merchant.x - TILE, hy=state.merchant.y - TILE;
-    // Wände
     ctx.fillStyle="#6b4630"; ctx.fillRect(state.houseRect.x1, state.houseRect.y1, state.houseRect.x2-state.houseRect.x1, state.houseRect.y2-state.houseRect.y1);
-    // Dach
     ctx.fillStyle="#9b3b2e"; ctx.fillRect(hx - TILE*0.5, hy - TILE*0.95, TILE*2, TILE*0.45);
     ctx.fillStyle="rgba(0,0,0,0.15)"; for (let i=0;i<12;i++){ ctx.fillRect(hx - TILE*0.5 + i*TILE*0.16, hy - TILE*0.95, TILE*0.12, TILE*0.45); }
-    // Tür + Fenster
+    // door
     ctx.fillStyle="#2b1c11"; ctx.fillRect(hx + TILE*0.2, hy + TILE*0.5, TILE*0.5, TILE*0.7);
-    // Fenster: tags hellblau, nachts gelblich
+    // window (day blue / night warm)
     if (state.isDay){
       ctx.fillStyle="#d7e7ff"; ctx.fillRect(hx + TILE*1.0, hy + TILE*0.2, TILE*0.6, TILE*0.45);
-      ctx.fillStyle="#94b8ff"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18);
-      ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18);
+      ctx.fillStyle="#94b8ff"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18); ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18);
     } else {
       ctx.fillStyle="#ffd46a"; ctx.fillRect(hx + TILE*1.0, hy + TILE*0.2, TILE*0.6, TILE*0.45);
-      ctx.fillStyle="rgba(255,255,210,0.55)"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18);
-      ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18);
+      ctx.fillStyle="rgba(255,255,210,0.55)"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18); ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18);
     }
-    // SCHILD groß, zentriert
+    // sign large
     const signW = TILE*2.8, signH = TILE*0.75;
     ctx.fillStyle="#f8f5e7"; ctx.fillRect(state.merchant.x - signW/2, hy + TILE*1.25, signW, signH);
     ctx.fillStyle="#2b2b2b";
     ctx.font = `bold ${Math.floor(TILE*0.38)}px system-ui`;
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText("FECALFRED", state.merchant.x, hy + TILE*1.25 + signH/2);
-    // Schornstein + Rauch
-    const cx = state.merchant.x + TILE*0.7, cy = hy - TILE*0.95;
-    ctx.fillStyle="#4b2f1b"; ctx.fillRect(cx, cy - TILE*0.2, TILE*0.25, TILE*0.35);
-    for (const s of state.smoke){ s.x += 0.05; s.y += s.vy; s.a *= 0.985; s.r = (s.r||5)*1.01; ctx.fillStyle=`rgba(220,220,220,${s.a})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); }
 
-    // Steine & Erdbrocken
+    // Portrait markers (for proximity click)
+    ctx.font = `${Math.floor(TILE*0.9)}px system-ui`;
+    ctx.fillText("🧑‍🌾", state.merchant.x, state.merchant.y - TILE*0.5);
+
+    // Berta Brown stand (artist, top-left)
+    const ax = state.artist.x, ay = state.artist.y;
+    // easel
+    ctx.fillStyle="#8b5a2b"; ctx.fillRect(ax - TILE*0.8, ay - TILE*0.6, TILE*0.15, TILE*1.3);
+    ctx.fillRect(ax + TILE*0.65, ay - TILE*0.6, TILE*0.15, TILE*1.3);
+    ctx.fillStyle="#f0e0c0"; ctx.fillRect(ax - TILE*0.5, ay - TILE*0.9, TILE*1.1, TILE*0.8);
+    ctx.fillStyle="#d88"; ctx.fillRect(ax - TILE*0.48, ay - TILE*0.88, TILE*0.52, TILE*0.3);
+    ctx.fillStyle="#8ad"; ctx.fillRect(ax + TILE*0.08, ay - TILE*0.88, TILE*0.5, TILE*0.3);
+    ctx.fillStyle="#444"; ctx.fillRect(ax - TILE*0.48, ay - TILE*0.5, TILE*1.06, TILE*0.38);
+    // sign name
+    ctx.fillStyle="#f8f5e7"; ctx.fillRect(ax - TILE*1.2, ay + TILE*0.8, TILE*2.4, TILE*0.45);
+    ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.34)}px system-ui`; ctx.fillText("BERTA BROWN", ax, ay + TILE*1.02);
+    ctx.fillText("👩‍🎨", ax, ay - TILE*0.5);
+
+    // Pond (top-right)
+    const px = state.pond.x, py = state.pond.y;
+    const pondW=TILE*2.4, pondH=TILE*1.6;
+    ctx.fillStyle="#1b4d6b"; ctx.beginPath(); ctx.ellipse(px, py, pondW, pondH, 0, 0, Math.PI*2); ctx.fill();
+    // waves
+    ctx.strokeStyle="rgba(180,220,255,0.25)"; ctx.lineWidth=2;
+    for(let i=0;i<5;i++){ ctx.beginPath(); ctx.ellipse(px, py, pondW*0.8*(i+1)/5, pondH*0.8*(i+1)/5, 0, 0, Math.PI*2); ctx.stroke(); }
+    // reeds
+    ctx.fillStyle="#2e6b2e"; for(let i=-2;i<=2;i++){ ctx.fillRect(px + i*20, py+pondH-6, 4, 16); }
+
+    // Stones
     for (const s of state.stones){
       if (s.type==='stone'){
         ctx.fillStyle="#b9c2cc"; ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.36, TILE*0.28, 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle="#88929e"; ctx.beginPath(); ctx.ellipse(s.x - TILE*0.12, s.y - TILE*0.08, TILE*0.12, TILE*0.09, 0, 0, Math.PI*2); ctx.fill();
-      } else { // dirt
+      } else {
         ctx.fillStyle="#7a5a3a"; ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.34, TILE*0.26, 0.2, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle="#5c4128"; ctx.beginPath(); ctx.ellipse(s.x - TILE*0.08, s.y - TILE*0.05, TILE*0.1, TILE*0.08, -0.2, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle="#4a3521"; ctx.beginPath(); ctx.arc(s.x+TILE*0.12, s.y+TILE*0.05, 2.2, 0, Math.PI*2); ctx.fill(); ctx.arc(s.x-TILE*0.14, s.y+TILE*0.04, 1.8, 0, Math.PI*2); ctx.fill();
       }
     }
 
-    // Pflanzen / Erde
-    for (const pl of state.plants){
-      if (pl.status==='growing'){
-        const t=Math.max(0, pl.readyAt-performance.now()); const k=1 - (t/CORN_TIME_MS);
-        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(pl.x,pl.y,TILE*0.34,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle="#63d16e"; ctx.fillRect(pl.x-TILE*0.18, pl.y - k*TILE*0.32, TILE*0.36, k*TILE*0.32);
-      } else if (pl.status==='fail'){
-        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(pl.x,pl.y,TILE*0.3,0,Math.PI*2); ctx.fill();
+    // Plants (corn & cabbage)
+    for (const p of state.plants){
+      if (p.type==='corn'){
+        // dirt patch
+        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(p.x,p.y,TILE*0.28,0,Math.PI*2); ctx.fill();
+        // stages
+        if (p.stage===0){ ctx.fillStyle="#63d16e"; ctx.fillRect(p.x-TILE*0.08, p.y-TILE*0.10, TILE*0.16, TILE*0.10); }
+        else if (p.stage===1){ ctx.fillStyle="#58b368"; ctx.fillRect(p.x-TILE*0.12, p.y-TILE*0.20, TILE*0.24, TILE*0.22); }
+        else if (p.stage===2){ ctx.save(); ctx.translate(p.x,p.y); ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.10, TILE*0.20, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.18,0); ctx.quadraticCurveTo(0,-TILE*0.30, TILE*0.18,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.18,0); ctx.fill(); ctx.restore(); }
+        else { // ready
+          ctx.save(); ctx.translate(p.x,p.y); ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.16, TILE*0.26, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.22,0); ctx.quadraticCurveTo(0,-TILE*0.35, TILE*0.22,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.22,0); ctx.fill(); ctx.restore(); }
+      } else { // cabbage
+        // dirt patch
+        ctx.fillStyle="#352519"; ctx.beginPath(); ctx.arc(p.x,p.y,TILE*0.28,0,Math.PI*2); ctx.fill();
+        // 3 growth animations + ready
+        if (p.stage===0){
+          ctx.fillStyle="#4e8f4e"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.10, 0, Math.PI*2); ctx.fill();
+        } else if (p.stage===1){
+          ctx.fillStyle="#4fa65b"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.16, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle="#3d7f43"; ctx.beginPath(); ctx.arc(p.x-6, p.y-2, 5, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+6, p.y+3, 4, 0, Math.PI*2); ctx.fill();
+        } else if (p.stage===2){
+          ctx.fillStyle="#58bb68"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.22, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle="#3d944a"; ctx.beginPath(); ctx.arc(p.x-8, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+8, p.y, 6, 0, Math.PI*2); ctx.fill();
+        } else { // ready – leafy head
+          ctx.fillStyle="#6bd17a"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.26, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle="#44a457"; ctx.beginPath(); ctx.arc(p.x-9, p.y-2, 7, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+9, p.y+2, 7, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle="rgba(255,255,255,0.08)"; ctx.beginPath(); ctx.arc(p.x, p.y-5, 8, 0, Math.PI*2); ctx.fill();
+        }
       }
     }
 
-    // Fertiger Mais
-    for (const c of state.corns){
-      ctx.save(); ctx.translate(c.x,c.y);
-      ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.16, TILE*0.26, 0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.22,0); ctx.quadraticCurveTo(0,-TILE*0.35, TILE*0.22,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.22,0); ctx.fill();
-      ctx.restore();
-    }
-
-    // Spieler
+    // Player
     ctx.save(); ctx.translate(state.player.x, state.player.y);
     ctx.fillStyle="#e6b35a"; ctx.beginPath(); ctx.arc(0,0,state.player.r,0,Math.PI*2); ctx.fill();
     ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
@@ -431,16 +724,20 @@
     ctx.lineWidth=3; ctx.strokeStyle="#111"; ctx.beginPath(); ctx.arc(0, state.player.r*0.05, state.player.r*0.45, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
     ctx.restore();
 
-    // Nacht-Overlay
-    if (!state.isDay){
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(camera.x, camera.y, canvas.clientWidth, canvas.clientHeight);
-    }
+    // Night overlay
+    if (!state.isDay){ ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(camera.x, camera.y, canvas.clientWidth, canvas.clientHeight); }
+
+    // Smoke draw
+    const hy2=state.merchant.y - TILE;
+    const cx2 = state.merchant.x + TILE*0.7, cy2 = hy2 - TILE*0.95;
+    ctx.fillStyle="#4b2f1b"; ctx.fillRect(cx2, cy2 - TILE*0.2, TILE*0.25, TILE*0.35);
+    for (const s of state.smoke){ s.x += 0.05; s.y += s.vy; s.a *= 0.985; s.r = (s.r||5)*1.01; ctx.fillStyle=`rgba(220,220,220,${s.a})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); }
 
     ctx.restore();
   }
 
-  // Start
+  // ========= Start =========
+  updateHUD();
   loop();
 })();
 </script>
