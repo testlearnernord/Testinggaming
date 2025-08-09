@@ -48,22 +48,22 @@
   #contextBtn:disabled{ background:#3b4551; box-shadow:none; opacity:.6; }
 
   /* Helpers oben links */
-  #helpers{ position:fixed; left:.6rem; top:calc(3.2rem + var(--safe-top)); display:flex; gap:.5rem; z-index:12; }
+  #helpers{ position:fixed; left:.6rem; top:calc(3.2rem + var(--safe-top)); display:flex; gap:.5rem; z-index:50; }
   .btn-ghost { background:#1a242e; border:1px solid #2f3b48; color:#d7e7ff; border-radius:10px; padding:.6rem .9rem; font-weight:800; }
 
   /* Toast */
   #toast { position:fixed; bottom: calc(10.5rem + var(--safe-bottom)); left:50%; transform: translateX(-50%); background:rgba(0,0,0,.85); padding:.7rem 1rem; border-radius:.9rem; opacity:0; transition: opacity .3s; font-weight:800; z-index:25; }
 
-  /* Modal – Händler Popup */
+  /* Modal – Händler/Debug Popup */
   #modalBackdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
-  #modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.98); width:min(94vw, 520px); background:#0f141a; border:2px solid #3a2a18; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.5), inset 0 0 0 4px #22170d; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:41; }
+  #modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.98); width:min(94vw, 560px); background:#0f141a; border:2px solid #3a2a18; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.5), inset 0 0 0 4px #22170d; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:41; }
   #modal.open, #modalBackdrop.open { opacity:1; pointer-events:auto; }
   #modal.open { transform:translate(-50%,-50%) scale(1); }
   .modal-head { display:flex; gap:.8rem; align-items:center; padding:12px 14px; border-bottom:2px solid #3a2a18; background:linear-gradient(180deg,#1a1f25,#12171c); }
   .portrait { width:56px; height:56px; border-radius:8px; background:#2b1c11; display:grid; place-items:center; font-size:28px; border:2px solid #6b4630; }
   .m-title { font-weight:900; font-size:18px; }
   .m-sub { opacity:.8; font-size:13px; }
-  .shoplist { max-height:50vh; overflow:auto; padding:10px 14px; display:flex; flex-direction:column; gap:10px; }
+  .shoplist { max-height:58vh; overflow:auto; padding:10px 14px; display:flex; flex-direction:column; gap:10px; }
   .item { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid #2a3440; border-radius:10px; background:#121a22; }
   .i-ic { width:44px; height:44px; border-radius:8px; display:grid; place-items:center; font-size:24px; background:#19222b; border:1px solid #2c3743; }
   .i-body { flex:1; }
@@ -82,7 +82,7 @@
   <span class="pill">❤️ <b id="v_hp">3</b></span>
   <span class="pill">💶 <b id="v_euro">0</b></span>
 
-  <!-- Saat/Platzierung: aktivierbare Slots -->
+  <!-- aktivierbare Slots -->
   <span class="pill slot" data-item="poop">💩 <b id="v_poop">0</b></span>
   <span class="pill slot" data-item="cabbageSeed">🥬 <b id="v_cabbageSeed">0</b></span>
   <span class="pill slot" data-item="stone">🪨 <b id="v_stone">0</b></span>
@@ -103,7 +103,7 @@
 <!-- Toast -->
 <div id="toast"></div>
 
-<!-- Modal (Shop) -->
+<!-- Modal (Shops & Cheats) -->
 <div id="modalBackdrop"></div>
 <div id="modal">
   <div class="modal-head">
@@ -138,10 +138,10 @@
   const DAY_TOTAL_MS = 180_000;         // 3 min
   const DAYLIGHT_MS  = 120_000;         // 2 min day, 1 min night
 
-  const SPEED_BASE = 3.6;
+  const SPEED_BASE = 3.6;               // Bewegungspixel pro Framegrundlage
   const SHOES_MULT = 1.35;
 
-  // Stones
+  // Rocks
   const ROCK_SPAWN = 200;
   const ROCK_MAX   = 90;
   const START_ROCKS = 40;
@@ -149,7 +149,7 @@
 
   // Interact distances
   const NEAR_DIST  = TILE * 1.2;
-  const PICK_DIST  = TILE * 0.6;     // etwas größer fürs Aufheben
+  const PICK_DIST  = TILE * 0.6;
   const PLANT_DIST = TILE * 0.8;
   const POND_DIST  = TILE * 2.0;
 
@@ -167,6 +167,15 @@
   const BULLET_SPEED = 7.5;
   const BULLET_LIFE = 1600;             // ms
 
+  // ========= TIME SYSTEM (skalierbar) =========
+  const time = {
+    scale: 1,
+    t0: performance.now(),
+    offset: 0,
+    now(){ return (performance.now() - this.t0) * this.scale + this.offset; },
+    setScale(s){ const cur = this.now(); this.t0 = performance.now(); this.offset = cur; this.scale = s; }
+  };
+
   // ========= STATE =========
   const camera = { x:0, y:0 };
   const state = {
@@ -174,12 +183,13 @@
     speedMult: 1.0,
     merchant: { x: TILE*(MAP_W-5), y: TILE*(MAP_H-5), name: "Fecalfred" },
     artist:   { x: TILE*6,         y: TILE*7,         name: "Berta Brown" },
-    pond:     { x: TILE*(MAP_W-3), y: TILE*(5) }, // ⬇️ Teich tiefer gesetzt
+    cheat:    { x: TILE*(MAP_W-3), y: TILE*(MAP_H/2), name: "Stefan Spielverderber" },
+    pond:     { x: TILE*(MAP_W-3), y: TILE*(5) }, // tiefer gesetzt
     farmRect: null, fenceRects: [], houseRect: null, _gateLeft:0, _gateRight:0,
     clearingRect: null,
 
     stones: [],     // natürliche Steine/Erdbrocken: {x,y,type:'stone'|'dirt'}
-    blocks: [],     // vom Spieler platzierte Steine: {x,y}  (blocken)
+    blocks: [],     // vom Spieler platzierte Steine: {x,y}
 
     plants: [],     // {x,y,type:'corn'|'cabbage', plantedAt, readyAt, stage, watered}
     inv: { stone:0, poop:0, corn:0, cabbage:0, euro:0, hasCan:false, can:0, canMax:13, hasShoes:false, cabbageSeed:0 },
@@ -191,10 +201,10 @@
     debugCenter: true,
     isDay: true, wasDayLastFrame: true,
     clockText: "06:00",
-    lastTimeBase: performance.now(),
+    lastTimeBase: time.now(),
 
     // Combat
-    hp: 3, invincibleUntil: 0,
+    hp: 3, invincibleUntil: 0, god:false,
     monsters: [], bullets: [],
 
     // UI
@@ -242,8 +252,9 @@
   const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx, ay-by);
   const isNear = (obj, d=NEAR_DIST)=> dist(state.player.x,state.player.y,obj.x,obj.y) < d;
 
+  // ---- Zeit / Uhr ----
   function updateClock(){
-    const elapsed = (performance.now() - state.lastTimeBase) % DAY_TOTAL_MS;
+    const elapsed = (time.now() - state.lastTimeBase) % DAY_TOTAL_MS;
     state.isDay = elapsed < DAYLIGHT_MS;
     const hoursFloat = 24 * (elapsed / DAY_TOTAL_MS);
     const hh = Math.floor(hoursFloat), mm = Math.floor((hoursFloat - hh) * 60);
@@ -264,7 +275,7 @@
     vCabb .textContent = state.inv.cabbage;
     vEuro .textContent = state.inv.euro.toFixed(0);
     vCan  .textContent = state.inv.hasCan ? `${state.inv.can}/${state.inv.canMax}` : "0/0";
-    vHp.textContent = state.hp;
+    vHp.textContent = state.hp + (state.god ? " (👑)" : "");
     if (vSeed) vSeed.textContent = state.inv.cabbageSeed;
   }
 
@@ -281,7 +292,7 @@
     });
   });
 
-  // ========= Areas: farm, fence, house, pond, clearing =========
+  // ========= Areas: farm, fence, houses, pond, clearing =========
   (function setupAreas(){
     const hx = state.merchant.x - TILE, hy = state.merchant.y - TILE;
     state.houseRect = { x1: hx - TILE*0.5, y1: hy - TILE*0.5, x2: hx - TILE*0.5 + TILE*2, y2: hy - TILE*0.5 + TILE*2 };
@@ -295,39 +306,23 @@
     const cx2 = Math.max(TILE, state.farmRect.x1 - TILE*(CLEAR_W + 2));
     const cy2 = clamp(state.farmRect.y1 + TILE, TILE, MAP_H*TILE - TILE*(CLEAR_H+2));
     state.clearingRect = { x1:cx2, y1:cy2, x2:cx2 + CLEAR_W*TILE, y2:cy2 + CLEAR_H*TILE };
-
-    // Zaun mit Tor unten
-    const f = state.farmRect;
-    const gateCenter = (f.x1 + f.x2) / 2;
-    const gateLeft = gateCenter - GATE_WIDTH/2, gateRight = gateCenter + GATE_WIDTH/2;
-    const t = FENCE_THICK;
-    const push = (x1,y1,x2,y2)=> state.fenceRects.push({x1,y1,x2,y2});
-    push(f.x1 - t, f.y1 - t, f.x2 + t, f.y1 + t);                  // top
-    push(f.x1 - t, f.y2 - t, gateLeft, f.y2 + t);                   // bottom left
-    push(gateRight, f.y2 - t, f.x2 + t, f.y2 + t);                  // bottom right
-    push(f.x1 - t, f.y1 - t, f.x1 + t, f.y2 + t);                   // left
-    push(f.x2 - t, f.y1 - t, f.x2 + t, f.y2 + t);                   // right
-    state._gateLeft = gateLeft; state._gateRight = gateRight;
   })();
 
   function circleRectCollision(px,py,r, rc){
-    const cx = Math.max(rc.x1, Math.min(px, rc.x2));
-    const cy = Math.max(rc.y1, Math.min(py, rc.y2));
+    const cx = Math.max(rc?.x1 ?? -1e9, Math.min(px, rc?.x2 ?? 1e9));
+    const cy = Math.max(rc?.y1 ?? -1e9, Math.min(py, rc?.y2 ?? 1e9));
     return Math.hypot(px - cx, py - cy) < r;
   }
   const collidesHouse = (x,y)=> circleRectCollision(x,y,state.player.r, state.houseRect);
-  const collidesFence = (x,y)=> state.fenceRects.some(rc => circleRectCollision(x,y,state.player.r, rc));
+  const collidesFence = (x,y)=> state.fenceRects?.some(rc => circleRectCollision(x,y,state.player.r, rc));
   const collidesAnyRect = (x,y)=> collidesHouse(x,y) || collidesFence(x,y);
   const inFarm = (x,y)=> { const f=state.farmRect; return x>=f.x1&&x<=f.x2&&y>=f.y1&&y<=f.y2; };
   function insideRect(x,y,rc){ return x>=rc.x1 && x<=rc.x2 && y>=rc.y1 && y<=rc.y2; }
 
   // ==== Blocking durch Steine (natürlich & platziert) ====
   function isBlockedCircle(x,y,r){
-    // Haus/Zaun
     if (collidesAnyRect(x,y)) return true;
-    // natürliche Steine
     for (const s of state.stones){ if (s.type==='stone' && Math.hypot(x - s.x, y - s.y) < (r + TILE*0.36)) return true; }
-    // platzierte Steine
     for (const b of state.blocks){ if (Math.hypot(x - b.x, y - b.y) < (r + TILE*0.36)) return true; }
     return false;
   }
@@ -343,6 +338,8 @@
   for(let i=0;i<START_ROCKS;i++) spawnRock();
 
   // ========= Plants =========
+  function snapToTile(x,y){ return { tx: Math.round(x/TILE)*TILE + TILE/2, ty: Math.round(y/TILE)*TILE + TILE/2 }; }
+
   function plantPoop(){
     if (!state.isDay) return say("Nacht: Kein Anbau.");
     if (state.inv.poop<=0) return say("Du brauchst 💩.");
@@ -351,7 +348,7 @@
     if (state.plants.some(p => dist(p.x,p.y,tx,ty) < TILE*0.25)) return say("Hier wächst bereits etwas.");
     if (isBlockedCircle(tx,ty, TILE*0.2)) return say("Hier ist blockiert.");
     state.inv.poop--;
-    const now = performance.now();
+    const now = time.now();
     state.plants.push({ x:tx, y:ty, type:'corn', plantedAt:now, readyAt:now + CORN_TIME, stage:0, watered:false });
     updateHUD(); say("💩 gesetzt – Mais sprießt… (40s)"); save();
   }
@@ -363,7 +360,7 @@
     if (state.plants.some(p => dist(p.x,p.y,tx,ty) < TILE*0.25)) return say("Hier wächst bereits etwas.");
     if (isBlockedCircle(tx,ty, TILE*0.2)) return say("Hier ist blockiert.");
     state.inv.cabbageSeed--;
-    const now = performance.now();
+    const now = time.now();
     state.plants.push({ x:tx, y:ty, type:'cabbage', plantedAt:now, readyAt:now + CABBAGE_TIME, stage:0, watered:false });
     updateHUD(); say("🥬 Saat gelegt – Kohl wächst… (120s)"); save();
   }
@@ -384,7 +381,7 @@
     if (p.watered) return say("Schon gegossen.");
     p.watered = true;
     if (p.type==='corn'){
-      const now = performance.now();
+      const now = time.now();
       p.readyAt = Math.max(now + 10_000, p.readyAt - 30_000);
       say("💧 Mais bewässert: -30s.");
     } else {
@@ -403,7 +400,7 @@
     updateHUD(); save();
   }
   function updatePlants(){
-    const now = performance.now();
+    const now = time.now();
     for (const p of state.plants){
       const t = p.readyAt - now;
       const total = (p.type==='corn') ? CORN_TIME : (p.watered ? CABBAGE_WATERED_TOTAL : CABBAGE_TIME);
@@ -417,9 +414,10 @@
 
   // ========= Shops =========
   function openShop(kind){
-    if (!state.isDay){ say("Geschlossen – Nacht."); return; }
+    if (kind!=='cheat' && !state.isDay){ say("Geschlossen – Nacht."); return; }
     if (kind==='fecal' && !isNear(state.merchant)) return say("Geh näher zu Fecalfred.");
     if (kind==='berta' && !isNear(state.artist)) return say("Geh näher zu Berta Brown.");
+    if (kind==='cheat' && !isNear(state.cheat)) return say("Geh näher zu Stefan.");
     mList.innerHTML = "";
     if (kind==='fecal'){
       mPortrait.textContent = "🧑‍🌾"; mTitle.textContent = "Fecalfred"; mSub.textContent = "Tausch & Saat (tagsüber)";
@@ -431,7 +429,7 @@
         onClick:()=>{ if (state.inv.corn>0){ state.inv.corn--; state.inv.euro += 1; updateHUD(); say("🌽 verkauft: +1 €"); save(); renderShopBody(); } } });
       addItem({ icon:"🥬", name:"Kohl verkaufen", desc:"+7 € pro Stück.", price:"+7 €", actionText:"Verkaufen", disabled: state.inv.cabbage<1,
         onClick:()=>{ if (state.inv.cabbage>0){ state.inv.cabbage--; state.inv.euro += 7; updateHUD(); say("🥬 verkauft: +7 €"); save(); renderShopBody(); } } });
-    } else {
+    } else if (kind==='berta') {
       mPortrait.textContent = "👩‍🎨"; mTitle.textContent = "Berta Brown"; mSub.textContent = "Kunst & Upgrades (tagsüber)";
       addItem({ icon:"💧", name:"Gießkanne", desc:"Permanent, 13 Nutzungen. Am Teich auffüllbar.", price:"5 €",
         actionText: state.inv.hasCan ? "Gekauft" : "Kaufen", disabled: state.inv.hasCan || state.inv.euro<5,
@@ -439,13 +437,40 @@
       addItem({ icon:"👟", name:"Schnelle Schuhe", desc:"+35% Laufgeschwindigkeit.", price:"7 €",
         actionText: state.inv.hasShoes ? "Gekauft" : "Kaufen", disabled: state.inv.hasShoes || state.inv.euro<7,
         onClick:()=>{ if (!state.inv.hasShoes && state.inv.euro>=7){ state.inv.hasShoes=true; state.inv.euro-=7; state.speedMult = SHOES_MULT; updateHUD(); say("👟 Geschwindigkeit +35%"); save(); renderShopBody(); } } });
+    } else {
+      // Stefan Spielverderber – Cheat-Menü
+      mPortrait.textContent = "🧙‍♂️"; mTitle.textContent = "Stefan Spielverderber"; mSub.textContent = "Debug/QA Tools (nur Test)";
+      addItem({ icon:"💶", name:"+50 €", desc:"Geld für Tests.", price:"", actionText:"+50 €", disabled:false,
+        onClick:()=>{ state.inv.euro+=50; updateHUD(); say("💶 +50"); }});
+      addItem({ icon:"🪨", name:"+20 Steine", desc:"Für Barrikaden/Schüsse.", price:"", actionText:"+20", disabled:false,
+        onClick:()=>{ state.inv.stone+=20; updateHUD(); say("🪨 +20"); }});
+      addItem({ icon:"💩", name:"+10 Poop", desc:"Schneller Mais.", price:"", actionText:"+10", disabled:false,
+        onClick:()=>{ state.inv.poop+=10; updateHUD(); say("💩 +10"); }});
+      addItem({ icon:"🥬", name:"+10 Kohl-Saat", desc:"Für Felder.", price:"", actionText:"+10", disabled:false,
+        onClick:()=>{ state.inv.cabbageSeed+=10; updateHUD(); say("🥬 +10"); }});
+      addItem({ icon:"💧", name:"Gießkanne geben & füllen", desc:"Instant Can 13/13.", price:"", actionText:"Give/Fill", disabled:false,
+        onClick:()=>{ state.inv.hasCan=true; state.inv.can=state.inv.canMax; updateHUD(); say("💧 Can 13/13"); }});
+      addItem({ icon: state.god?"🛡️":"🗡️", name:"Godmode", desc:"Unverwundbar umschalten.", price:"", actionText: state.god?"AUS":"AN", disabled:false,
+        onClick:()=>{ state.god=!state.god; updateHUD(); renderShopBody(); say(state.god?"👑 Godmode an":"🛡️ Godmode aus"); }});
+      addItem({ icon:"⏱️", name:"Zeitfaktor", desc:"0.5× / 1.5× / 2× / 3×", price:"", actionText:"0.5×", disabled:false,
+        onClick:()=>{ time.setScale(0.5); say("⏱️ Zeit 0.5×"); }});
+      addItem({ icon:"⏱️", name:"Zeitfaktor", desc:"Schneller", price:"", actionText:"1.5×", disabled:false,
+        onClick:()=>{ time.setScale(1.5); say("⏱️ Zeit 1.5×"); }});
+      addItem({ icon:"⏱️", name:"Zeitfaktor", desc:"Noch schneller", price:"", actionText:"2×", disabled:false,
+        onClick:()=>{ time.setScale(2); say("⏱️ Zeit 2×"); }});
+      addItem({ icon:"⏱️", name:"Zeitfaktor", desc:"Turbo", price:"", actionText:"3×", disabled:false,
+        onClick:()=>{ time.setScale(3); say("⏱️ Zeit 3×"); }});
+      addItem({ icon:"🌞", name:"Zu Tag wechseln", desc:"Killt Monster.", price:"", actionText:"Tag", disabled:false,
+        onClick:()=>{ state.lastTimeBase = time.now() - 0; state.monsters.length=0; state.wasDayLastFrame=false; say("🌞 Tag!"); }});
+      addItem({ icon:"🌙", name:"Zu Nacht wechseln", desc:"Spawn aktiviert.", price:"", actionText:"Nacht", disabled:false,
+        onClick:()=>{ state.lastTimeBase = time.now() - (DAYLIGHT_MS - 1); state.wasDayLastFrame=true; say("🌙 Nacht!"); }});
     }
     function renderShopBody(){ openShop(kind); }
     openModal();
   }
   function addItem({icon,name,desc,price,actionText,disabled,onClick}){
     const row = document.createElement('div'); row.className = "item";
-    row.innerHTML = `<div class="i-ic">${icon}</div><div class="i-body"><div class="i-name">${name}</div><div class="i-desc">${desc}</div></div><div class="i-col"><div class="i-price">${price}</div><button class="btn-ghost"${disabled?' disabled':''}>${actionText}</button></div>`;
+    row.innerHTML = `<div class="i-ic">${icon}</div><div class="i-body"><div class="i-name">${name}</div><div class="i-desc">${desc}</div></div><div class="i-col"><div class="i-price">${price||""}</div><button class="btn-ghost"${disabled?' disabled':''}>${actionText}</button></div>`;
     const btn = row.querySelector('button'); if (!disabled) btn.addEventListener('click', onClick); mList.appendChild(row);
   }
   function openModal(){ modal.classList.add('open'); modalBackdrop.classList.add('open'); }
@@ -466,17 +491,17 @@
 
   // ========= Helpers =========
   btnCenter.addEventListener('click', ()=>{ state.debugCenter=true; say("Ansicht zentriert."); });
-  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save_v5'); location.reload(); });
+  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save_v6'); location.reload(); });
 
   // ========= Save/Load =========
   function save(){
-    try { localStorage.setItem('mk_save_v5', JSON.stringify({
-      inv:state.inv, plants:state.plants, speedMult:state.speedMult, lastTimeBase: state.lastTimeBase, hp: state.hp, blocks: state.blocks
+    try { localStorage.setItem('mk_save_v6', JSON.stringify({
+      inv:state.inv, plants:state.plants, speedMult:state.speedMult, lastTimeBase: state.lastTimeBase, hp: state.hp, blocks: state.blocks, god: state.god
     })); } catch {}
   }
   (function load(){
     try {
-      const d = JSON.parse(localStorage.getItem('mk_save_v5')||"null");
+      const d = JSON.parse(localStorage.getItem('mk_save_v6')||"null");
       if (!d) return;
       if (d.inv) state.inv = d.inv;
       if (Array.isArray(d.plants)) state.plants = d.plants;
@@ -484,6 +509,7 @@
       if (d.speedMult) state.speedMult = d.speedMult;
       if (d.lastTimeBase) state.lastTimeBase = d.lastTimeBase;
       if (typeof d.hp === "number") state.hp = d.hp;
+      if (typeof d.god === "boolean") state.god = d.god;
     } catch {}
   })();
 
@@ -499,14 +525,12 @@
     return idx;
   }
   function canPlaceStoneAt(tx,ty){
-    // keine Überlappung mit existierenden Steinen/Blöcken/Farm-Pflanzen/Haus/Zaun
     if (collidesAnyRect(tx,ty)) return false;
     for (const s of state.stones){ if (s.type==='stone' && dist(tx,ty,s.x,s.y) < TILE*0.7) return false; }
     for (const b of state.blocks){ if (dist(tx,ty,b.x,b.y) < TILE*0.7) return false; }
     if (state.plants.some(p=>dist(tx,ty,p.x,p.y)<TILE*0.6)) return false;
     return true;
   }
-  function snapToTile(x,y){ return { tx: Math.round(x/TILE)*TILE + TILE/2, ty: Math.round(y/TILE)*TILE + TILE/2 }; }
 
   function updateContextButton(){
     let icon = "❓", enabled=false, action=null;
@@ -514,26 +538,23 @@
     // Händler in Nähe?
     if (state.isDay && isNear(state.merchant)) { icon="🛒"; enabled=true; action=()=>openShop('fecal'); }
     else if (state.isDay && isNear(state.artist)) { icon="🛒"; enabled=true; action=()=>openShop('berta'); }
+    else if (isNear(state.cheat)) { icon="🧙‍♂️"; enabled=true; action=()=>openShop('cheat'); }
     else {
       const p = findNearbyPlant();
-      // Pflanz-/Pflegeaktionen
       if (p && p.stage>=3){ icon="🌾"; enabled=true; action=harvestPlant; }
       else if (p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=waterPlant; }
       else {
-        // Stein aufheben?
         const sIdx = getNearbyStoneIndex();
         if (sIdx >= 0){
           icon = "🪨"; enabled=true; action = ()=>{ state.inv.stone++; state.stones.splice(sIdx,1); updateHUD(); say("🪨 Stein aufgehoben."); save(); };
         } else {
-          // Leeres Feld -> ggf. Pflanzen oder Stein setzen
           const {tx,ty} = snapToTile(state.player.x, state.player.y);
           const tileFreeForPlant = inFarm(tx,ty) && !state.plants.some(pl => dist(pl.x,pl.y,tx,ty) < TILE*0.25) && !isBlockedCircle(tx,ty,TILE*0.2);
           if (state.isDay && tileFreeForPlant && state.activeSeed){
             if (state.activeSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=plantPoop; }
             else if (state.activeSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=plantCabbage; }
           } else if (state.activeSeed==="stone" && state.inv.stone>0){
-            const {tx:gx,ty:gy} = snapToTile(state.player.x, state.player.y);
-            if (canPlaceStoneAt(gx,gy)){ icon="📦"; enabled=true; action=()=>{ state.inv.stone--; state.blocks.push({x:gx,y:gy}); updateHUD(); say("🪨 platziert."); save(); }; }
+            if (canPlaceStoneAt(tx,ty)){ icon="📦"; enabled=true; action=()=>{ state.inv.stone--; state.blocks.push({x:tx,y:ty}); updateHUD(); say("🪨 platziert."); save(); }; }
           }
         }
       }
@@ -572,7 +593,7 @@
       camera.y=clamp(state.player.y - canvas.clientHeight/2, 0, MAP_H*TILE - canvas.clientHeight);
     }
 
-    // Erdbrocken (autopick + Poop-Chance), Steine NICHT autopick
+    // Erdbrocken (autopick + Poop-Chance) – Steine NICHT autopick
     for (let i=state.stones.length-1;i>=0;i--){
       const s=state.stones[i];
       if (s.type==='dirt' && dist(s.x,s.y,state.player.x,state.player.y) < PICK_DIST*0.8){
@@ -583,7 +604,7 @@
     }
     if (state.frame % ROCK_SPAWN === 0 && state.stones.length < ROCK_MAX){ for(let k=0;k<2;k++) spawnRock(); }
 
-    // Plants
+    // Pflanzen
     updatePlants();
 
     // ===== MONSTER SPAWN (nur nachts)
@@ -616,8 +637,8 @@
     for (const m of state.monsters){
       const d = Math.hypot(state.player.x - m.x, state.player.y - m.y);
       if (d < (state.player.r + m.r)){
-        const now = performance.now();
-        if (now >= state.invincibleUntil){
+        const now = time.now();
+        if (now >= state.invincibleUntil && !state.god){
           state.hp = Math.max(0, state.hp - 1);
           state.invincibleUntil = now + MONSTER_DAMAGE_COOLDOWN;
           const kx = (state.player.x - m.x) / (d || 1), ky = (state.player.y - m.y) / (d || 1);
@@ -634,8 +655,246 @@
     }
 
     // ===== BULLETS UPDATE
-    const nowB = performance.now();
+    const nowB = time.now();
     for (let i = state.bullets.length-1; i>=0; i--){
       const b = state.bullets[i];
       if (nowB >= b.dieAt){ state.bullets.splice(i,1); continue; }
-      // Kollision mit Steinen/Blöcken? -> abprallen/stoppen
+
+      // nächster Schritt
+      let nx = b.x + b.vx, ny = b.y + b.vy;
+
+      // Kollision mit platzierten/natürlichen Steinen -> stoppen
+      let stopped = false;
+      for (const bl of state.blocks){ if (Math.hypot(nx - bl.x, ny - bl.y) < TILE*0.36){ stopped = true; break; } }
+      if (!stopped){
+        for (const s of state.stones){ if (s.type==='stone' && Math.hypot(nx - s.x, ny - s.y) < TILE*0.36){ stopped = true; break; } }
+      }
+      if (stopped){ state.bullets.splice(i,1); continue; }
+
+      // bewegen
+      b.x = nx; b.y = ny;
+
+      // Monster-Treffer?
+      let hit = false;
+      for (let j = state.monsters.length-1; j>=0; j--){
+        const m = state.monsters[j];
+        if (Math.hypot(b.x - m.x, b.y - m.y) < m.r){
+          hit = true;
+          state.bullets.splice(i,1);
+          m.hp -= 1;
+          if (m.hp <= 0){
+            const roll = rand();
+            if (roll < 0.33){ state.inv.poop += 1; say("💩 Beute!"); }
+            else if (roll < 0.66){ state.inv.cabbageSeed += 1; say("🥬 Saat-Beute!"); }
+            else { const euro = 1 + Math.floor(rand()*3); state.inv.euro += euro; say(`💶 +${euro}€ Beute!`); }
+            state.monsters.splice(j,1);
+            updateHUD(); save();
+          }
+          break;
+        }
+      }
+      if (hit) continue;
+    }
+
+    // Rauch
+    if (state.frame % 20 === 0) spawnSmoke();
+
+    draw();
+    updateHUD();
+    updateContextButton();
+    requestAnimationFrame(loop);
+  }
+
+  // ========= Click interactions (shooting at night, shops & pond by day) =========
+  canvas.addEventListener('click', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const gx = (e.clientX - rect.left) + camera.x;
+    const gy = (e.clientY - rect.top) + camera.y;
+
+    // nachts: schießen
+    if (!state.isDay){
+      if (state.inv.stone > 0){
+        const dx = gx - state.player.x, dy = gy - state.player.y, d = Math.hypot(dx,dy) || 1;
+        const vx = (dx/d) * BULLET_SPEED, vy = (dy/d) * BULLET_SPEED;
+        state.inv.stone -= 1;
+        state.bullets.push({ x:state.player.x, y:state.player.y, vx, vy, dieAt: time.now() + BULLET_LIFE });
+        updateHUD(); return;
+      } else { say("🪨 Keine Steine zum Schießen!"); }
+    }
+
+    // tagsüber: Händler/Teich/Cheat
+    if (isNear(state.merchant)) openShop('fecal');
+    else if (isNear(state.artist)) openShop('berta');
+    else if (isNear(state.cheat)) openShop('cheat');
+    else if (isNear(state.pond, POND_DIST)){
+      if (!state.inv.hasCan) return say("Keine Gießkanne.");
+      if (!state.isDay) return say("Nacht: Der Teich ist still…");
+      state.inv.can = state.inv.canMax; updateHUD(); say("💧 Gießkanne aufgefüllt!"); save();
+    }
+  });
+
+  // ========= Smoke =========
+  function spawnSmoke(){
+    const hx = state.merchant.x - TILE, hy = state.merchant.y - TILE;
+    const sx = state.merchant.x + TILE*0.7, sy = hy - TILE*0.95;
+    state.smoke.push({ x:sx, y:sy, r:4+rand()*5, a: state.isDay ? 0.6 : 0.85, vy:-0.3-rand()*0.2 });
+    state.smoke = state.smoke.filter(s => s.a > 0.05);
+  }
+
+  // ========= Draw =========
+  function drawFenceWithGate(f){
+    // Fences aus Rects ableiten
+    const gateCenter = (f.x1 + f.x2) / 2;
+    const gateLeft = gateCenter - GATE_WIDTH/2, gateRight = gateCenter + GATE_WIDTH/2;
+    state.fenceRects = []; const t = FENCE_THICK;
+    const push = (x1,y1,x2,y2)=> state.fenceRects.push({x1,y1,x2,y2});
+    push(f.x1 - t, f.y1 - t, f.x2 + t, f.y1 + t);
+    push(f.x1 - t, f.y2 - t, gateLeft, f.y2 + t);
+    push(gateRight, f.y2 - t, f.x2 + t, f.y2 + t);
+    push(f.x1 - t, f.y1 - t, f.x1 + t, f.y2 + t);
+    push(f.x2 - t, f.y1 - t, f.x2 + t, f.y2 + t);
+
+    // Visuals
+    ctx.fillStyle = "rgba(120, 220, 140, 0.14)"; ctx.fillRect(f.x1, f.y1, f.x2-f.x1, f.y2-f.y1);
+    ctx.strokeStyle = "#916c3b"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(f.x1, f.y2); ctx.lineTo(gateLeft, f.y2); ctx.moveTo(gateRight, f.y2); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x1, f.y2); ctx.moveTo(f.x2, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+    ctx.lineWidth = 3; ctx.beginPath();
+    ctx.moveTo(f.x1, f.y1+TILE*0.35); ctx.lineTo(f.x2, f.y1+TILE*0.35);
+    ctx.moveTo(f.x1, f.y2-TILE*0.35); ctx.lineTo(gateLeft, f.y2-TILE*0.35);
+    ctx.moveTo(gateRight, f.y2-TILE*0.35); ctx.lineTo(f.x2, f.y2-TILE*0.35); ctx.stroke();
+    ctx.fillStyle = "#a77b44";
+    for (let x=f.x1; x<=f.x2; x+=TILE){ ctx.fillRect(x-3, f.y1-6, 6, 12); ctx.fillRect(x-3, f.y2-6, 6, 12); }
+    for (let y=f.y1; y<=f.y2; y+=TILE){ ctx.fillRect(f.x1-6, y-3, 12, 6); ctx.fillRect(f.x2-6, y-3, 12, 6); }
+    ctx.fillRect(gateLeft-4,  f.y2-10, 8, 20); ctx.fillRect(gateRight-4, f.y2-10, 8, 20);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save(); ctx.translate(-camera.x, -camera.y);
+
+    // Hintergrund-Schachbrett (day/night tint)
+    const bgA = state.isDay ? "#0d3316" : "#08190c", bgB = state.isDay ? "#12401e" : "#0c2013";
+    for (let y=0;y<MAP_H;y++) for (let x=0;x<MAP_W;x++){ const px=x*TILE, py=y*TILE; ctx.fillStyle = ((x+y)%2===0)?bgA:bgB; ctx.fillRect(px,py,TILE,TILE); }
+
+    // Lichtung
+    const clr = state.clearingRect;
+    ctx.fillStyle = "#1a5a2d"; ctx.fillRect(clr.x1, clr.y1, clr.x2-clr.x1, clr.y2-clr.y1);
+    ctx.strokeStyle = "rgba(180,220,150,0.35)"; ctx.strokeRect(clr.x1, clr.y1, clr.x2-clr.x1, clr.y2-clr.y1);
+    ctx.fillStyle = "#2c7a39"; for(let i=0;i<8;i++){ const rx = clr.x1 + 8 + (i%4)*((clr.x2-clr.x1-16)/3); const ry = (i<4? clr.y1-6 : clr.y2-6); ctx.beginPath(); ctx.ellipse(rx, ry, 8, 6, 0, 0, Math.PI*2); ctx.fill(); }
+
+    // Farm-Feld mit Zaun
+    drawFenceWithGate(state.farmRect);
+
+    // Fecalfreds Haus
+    const hx=state.merchant.x - TILE, hy=state.merchant.y - TILE;
+    ctx.fillStyle="#6b4630"; state.houseRect && ctx.fillRect(state.houseRect.x1, state.houseRect.y1, state.houseRect.x2-state.houseRect.x1, state.houseRect.y2-state.houseRect.y1);
+    ctx.fillStyle="#9b3b2e"; ctx.fillRect(hx - TILE*0.5, hy - TILE*0.95, TILE*2, TILE*0.45);
+    ctx.fillStyle="rgba(0,0,0,0.15)"; for (let i=0;i<12;i++){ ctx.fillRect(hx - TILE*0.5 + i*TILE*0.16, hy - TILE*0.95, TILE*0.12, TILE*0.45); }
+    ctx.fillStyle="#2b1c11"; ctx.fillRect(hx + TILE*0.2, hy + TILE*0.5, TILE*0.5, TILE*0.7);
+    const signW = TILE*2.8, signH = TILE*0.75;
+    ctx.fillStyle="#f8f5e7"; ctx.fillRect(state.merchant.x - signW/2, hy + TILE*1.25, signW, signH);
+    ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.38)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("FECALFRED", state.merchant.x, hy + TILE*1.25 + signH/2);
+    ctx.font = `${Math.floor(TILE*0.9)}px system-ui`; ctx.fillText("🧑‍🌾", state.merchant.x, state.merchant.y - TILE*0.5);
+
+    // Berta Brown – Staffelei
+    const ax = state.artist.x, ay = state.artist.y;
+    ctx.fillStyle="#8b5a2b"; ctx.fillRect(ax - TILE*0.8, ay - TILE*0.6, TILE*0.15, TILE*1.3); ctx.fillRect(ax + TILE*0.65, ay - TILE*0.6, TILE*0.15, TILE*1.3);
+    ctx.fillStyle="#f0e0c0"; ctx.fillRect(ax - TILE*0.5, ay - TILE*0.9, TILE*1.1, TILE*0.8);
+    ctx.fillStyle="#d88"; ctx.fillRect(ax - TILE*0.48, ay - TILE*0.88, TILE*0.52, TILE*0.3); ctx.fillStyle="#8ad"; ctx.fillRect(ax + TILE*0.08, ay - TILE*0.88, TILE*0.5, TILE*0.3);
+    ctx.fillStyle="#444"; ctx.fillRect(ax - TILE*0.48, ay - TILE*0.5, TILE*1.06, TILE*0.38);
+    ctx.fillStyle="#f8f5e7"; ctx.fillRect(ax - TILE*1.2, ay + TILE*0.8, TILE*2.4, TILE*0.45);
+    ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.34)}px system-ui`; ctx.fillText("BERTA BROWN", ax, ay + TILE*1.02);
+    ctx.font = `${Math.floor(TILE*0.9)}px system-ui`; ctx.fillText("👩‍🎨", ax, ay - TILE*0.5);
+
+    // Stefan Spielverderber – goldenes Haus
+    const cx = state.cheat.x, cy = state.cheat.y;
+    ctx.fillStyle = "#9c7a00"; ctx.fillRect(cx - TILE*0.9, cy - TILE*0.9, TILE*1.8, TILE*1.1);
+    ctx.fillStyle = "#ffd54a"; ctx.fillRect(cx - TILE*1.2, cy - TILE*1.25, TILE*2.4, TILE*0.5);
+    ctx.fillStyle = "#2b1c11"; ctx.fillRect(cx - TILE*0.2, cy - TILE*0.1, TILE*0.4, TILE*0.6);
+    ctx.fillStyle="#f8f5e7"; ctx.fillRect(cx - TILE*1.4, cy + TILE*0.8, TILE*2.8, TILE*0.45);
+    ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.32)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("STEFAN SPIELVERDERBER", cx, cy + TILE*1.02);
+    ctx.font = `${Math.floor(TILE*0.9)}px system-ui`; ctx.fillText("🧙‍♂️", cx, cy - TILE*0.5);
+
+    // Pond (top-right)
+    const px = state.pond.x, py = state.pond.y; const pondW=TILE*2.4, pondH=TILE*1.6;
+    ctx.fillStyle="#1b4d6b"; ctx.beginPath(); ctx.ellipse(px, py, pondW, pondH, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(180,220,255,0.25)"; ctx.lineWidth=2; for(let i=0;i<5;i++){ ctx.beginPath(); ctx.ellipse(px, py, pondW*0.8*(i+1)/5, pondH*0.8*(i+1)/5, 0, 0, Math.PI*2); ctx.stroke(); }
+    ctx.fillStyle="#2e6b2e"; for(let i=-2;i<=2;i++){ ctx.fillRect(px + i*20, py+pondH-6, 4, 16); }
+
+    // natürliche Steine / Erdbrocken
+    for (const s of state.stones){
+      if (s.type==='stone'){
+        ctx.fillStyle="#b9c2cc"; ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.36, TILE*0.28, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle="#88929e"; ctx.beginPath(); ctx.ellipse(s.x - TILE*0.12, s.y - TILE*0.08, TILE*0.12, TILE*0.09, 0, 0, Math.PI*2); ctx.fill();
+      } else {
+        ctx.fillStyle="#7a5a3a"; ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.34, TILE*0.26, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle="#5c4128"; ctx.beginPath(); ctx.ellipse(s.x - TILE*0.08, s.y - TILE*0.05, TILE*0.1, TILE*0.08, -0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle="#4a3521"; ctx.beginPath(); ctx.arc(s.x+TILE*0.12, s.y+TILE*0.05, 2.2, 0, Math.PI*2); ctx.fill(); ctx.arc(s.x-TILE*0.14, s.y+TILE*0.04, 1.8, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    // platzierte Steine (Blocks)
+    for (const bl of state.blocks){
+      ctx.fillStyle="#8d97a3"; ctx.beginPath(); ctx.ellipse(bl.x, bl.y, TILE*0.36, TILE*0.28, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle="#6f7a86"; ctx.beginPath(); ctx.ellipse(bl.x - TILE*0.12, bl.y - TILE*0.08, TILE*0.12, TILE*0.09, 0, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Plants
+    for (const p of state.plants){
+      if (p.type==='corn'){
+        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(p.x,p.y,TILE*0.28,0,Math.PI*2); ctx.fill();
+        if (p.stage===0){ ctx.fillStyle="#63d16e"; ctx.fillRect(p.x-TILE*0.08, p.y-TILE*0.10, TILE*0.16, TILE*0.10); }
+        else if (p.stage===1){ ctx.fillStyle="#58b368"; ctx.fillRect(p.x-TILE*0.12, p.y-TILE*0.20, TILE*0.24, TILE*0.22); }
+        else if (p.stage===2){ ctx.save(); ctx.translate(p.x,p.y); ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.10, TILE*0.20, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.18,0); ctx.quadraticCurveTo(0,-TILE*0.30, TILE*0.18,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.18,0); ctx.fill(); ctx.restore(); }
+        else { ctx.save(); ctx.translate(p.x,p.y); ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.16, TILE*0.26, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.22,0); ctx.quadraticCurveTo(0,-TILE*0.35, TILE*0.22,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.22,0); ctx.fill(); ctx.restore(); }
+      } else {
+        ctx.fillStyle="#352519"; ctx.beginPath(); ctx.arc(p.x,p.y,TILE*0.28,0,Math.PI*2); ctx.fill();
+        if (p.stage===0){ ctx.fillStyle="#4e8f4e"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.10, 0, Math.PI*2); ctx.fill(); }
+        else if (p.stage===1){ ctx.fillStyle="#4fa65b"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.16, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#3d7f43"; ctx.beginPath(); ctx.arc(p.x-6, p.y-2, 5, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+6, p.y+3, 4, 0, Math.PI*2); ctx.fill(); }
+        else if (p.stage===2){ ctx.fillStyle="#58bb68"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.22, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#3d944a"; ctx.beginPath(); ctx.arc(p.x-8, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+8, p.y, 6, 0, Math.PI*2); ctx.fill(); }
+        else { ctx.fillStyle="#6bd17a"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.26, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#44a457"; ctx.beginPath(); ctx.arc(p.x-9, p.y-2, 7, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+9, p.y+2, 7, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="rgba(255,255,255,0.08)"; ctx.beginPath(); ctx.arc(p.x, p.y-5, 8, 0, Math.PI*2); ctx.fill(); }
+      }
+    }
+
+    // Monster
+    for (const m of state.monsters){
+      ctx.save(); ctx.translate(m.x, m.y);
+      ctx.fillStyle = state.isDay ? "#444" : "#5f1044"; ctx.beginPath(); ctx.arc(0,0,m.r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(-6,-5,4,0,Math.PI*2); ctx.arc(6,-5,4,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-6,-5,2,0,Math.PI*2); ctx.arc(6,-5,2,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Spieler
+    ctx.save(); ctx.translate(state.player.x, state.player.y);
+    ctx.fillStyle="#e6b35a"; ctx.beginPath(); ctx.arc(0,0,state.player.r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle="#111"; ctx.beginPath(); ctx.arc(0, state.player.r*0.05, state.player.r*0.45, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+    ctx.restore();
+
+    // Projektile
+    ctx.fillStyle="#b9c2cc";
+    for (const b of state.bullets){ ctx.beginPath(); ctx.ellipse(b.x, b.y, 6, 4, 0, 0, Math.PI*2); ctx.fill(); }
+
+    // Nacht-Overlay
+    if (!state.isDay){ ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(camera.x, camera.y, canvas.clientWidth, canvas.clientHeight); }
+
+    // Schornsteinrauch
+    const hy2=state.merchant.y - TILE; const cx2 = state.merchant.x + TILE*0.7, cy2 = hy2 - TILE*0.95;
+    ctx.fillStyle="#4b2f1b"; ctx.fillRect(cx2, cy2 - TILE*0.2, TILE*0.25, TILE*0.35);
+    for (const s of state.smoke){ s.x += 0.05; s.y += s.vy; s.a *= 0.985; s.r = (s.r||5)*1.01; ctx.fillStyle=`rgba(220,220,220,${s.a})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); }
+
+    ctx.restore();
+  }
+
+  // ========= Start =========
+  function spawnSmoke(){ /* handled in loop via push */ }
+  updateHUD(); loop();
+})();
+</script>
+</body>
+</html>
