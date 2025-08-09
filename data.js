@@ -1,13 +1,13 @@
 /* ========= GAME DATA ========= */
-const GAME_VERSION = "v0.5.3";
+const GAME_VERSION = "v0.6.0";
 
 /* Welt in Tiles (w*h) + Tilegröße in px */
 const WORLD = { W: 40, H: 24, TILE: 48 };
 
-/* Map – angepasst wie im Screenshot:
+/* Map – angepasst:
    - BERTA links/oben
    - Feld mittig links
-   - Lichtung (Haus) rechts vom Feld
+   - Lichtung (Shack/Toolbox) rechts vom Feld
    - Teich oben rechts
    - Fred links unten
    - Stefan rechts unten */
@@ -38,5 +38,5 @@ const PLANTS = {
 const CAN_MAX = 13;
 
 /* Tag/Nacht */
-const DAY_TOTAL_MS = 180000; // 3 Min
+const DAY_TOTAL_MS = 180000; // 3 Min total
 const DAYLIGHT_MS  = 120000; // 2 Min Tag
