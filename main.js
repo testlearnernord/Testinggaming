@@ -1,12 +1,9 @@
 /* =========================================================================
-   Poopboy v0.7.3
-   - Fix: Gesicht richtig (smile idle, angestrengt beim Tragen)
-   - Fix: Augen beim Tragen schauen immer nach unten
-   - HUD: zeigt 💩 und 🔹(Munition)
-   - Nacht & Monster deaktiviert (bis Ammo-Flow final)
-   - Neuer Berta-Upgrade: Steinzerkleinerer (6€) → 1 Felsen = 🔹8 Munition,
-     nutzbar auf der Lichtung via Kontextbutton.
-   - Felsen tragen/abstellen/abgeben unverändert, alle Felsen blocken.
+   Poopboy v0.7.4
+   Fixes:
+   - Gesicht richtig (smile idle, angestrengt beim Tragen; Augen beim Tragen nach unten)
+   - Kontextbutton zeigt im Feld 💩/🥬 zum Pflanzen (wenn verfügbar)
+   - Nacht & Monster weiterhin deaktiviert
    ========================================================================= */
 (() => {
   // ===== Canvas & UI =====
@@ -73,15 +70,13 @@
     inv:{
       poop:0, corn:0, cabbage:0, euro:0, cabbageSeed:0,
       hasCan:false, can:0, canMax:CAN_MAX, hasShoes:false,
-      cart:false,
-      hasCrusher:false, ammo:0        // 🔹 Munition
+      cart:false, hasCrusher:false, ammo:0
     },
     hearts:3, speedMult:1.0,
-    // Nacht/Monster vorübergehend aus
-    isDay:true, prevIsDay:true, dayBase:performance.now(), timeScale:1.0,
+    isDay:true, prevIsDay:true, dayBase:performance.now(), timeScale:1.0, // Nacht off
     boulders:[], dirts:[], plants:[],
     monsters:[], bullets:[],
-    carry:{ has:false }, // trägt Felsen?
+    carry:{ has:false },
     farm:{ ...BASE_FARM },
     clear:{ ...BASE_CLEAR },
     shackBuilt:false,
@@ -163,12 +158,19 @@
   }
 
   // ===== Day/Night (deaktiviert) =====
-  function updateDay(){ state.prevIsDay = state.isDay; state.isDay = true; } // immer Tag
+  function updateDay(){ state.prevIsDay = state.isDay; state.isDay = true; }
 
   // ===== Pflanzen =====
   function inFarm(x,y){ const f=state.farm; return x>=f.x&&x<=f.x+f.w&&y>=f.y&&y<=f.y+f.h; }
   function inClear(x,y){ const c=state.clear; return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
   function findNearbyPlant(){ let best=null,bd=1e9; for(const p of state.plants){ const d=dist(state.player.x,state.player.y,p.x,p.y); if(d<T*0.9 && d<bd){bd=d;best=p;} } return best; }
+  function tileFreeForPlantAtPlayer(){
+    const {x,y}=tileCenterFromPx(state.player.x,state.player.y);
+    if(!inFarm(x,y)) return false;
+    if(state.plants.some(p=>p.x===x&&p.y===y)) return false;
+    for(const b of state.boulders) if(Math.hypot(x-b.x,y-b.y)<T*0.5) return false;
+    return true;
+  }
   function plant(type){
     if(!inFarm(state.player.x,state.player.y)) return say("Nur im Feld!");
     const {x,y}=tileCenterFromPx(state.player.x,state.player.y);
@@ -224,9 +226,9 @@
     save();
   }
 
-  // ===== Monster & Slingshot (deaktiviert + Munition vorbereitet) =====
+  // ===== Monster & Slingshot (deaktiviert, Munition vorhanden) =====
   function maintainMonsters(){ state.monsters.length = 0; }
-  function updateMonsters(){ /* noop (deaktiviert) */ }
+  function updateMonsters(){ /* noop */ }
   function fireTowards(tx,ty){
     if(state.carry.has) return say("Zu schwer: Felsen erst ablegen!");
     if(state.inv.ammo<=0) return say("Keine Munition (🔹)!");
@@ -324,9 +326,7 @@
     }
     if(dist(x,y,ui.ctxBtn.x,ui.ctxBtn.y)<=ui.ctxBtn.r){ if(ui.ctxBtn.enabled&&ui.ctxBtn.action) ui.ctxBtn.action(); return; }
     if(dist(x,y,ui.joy.cx,ui.joy.cy)<=ui.joy.r){ ui.joy.active=true; ui.joy.id=e.pointerId; const dx=x-ui.joy.cx,dy=y-ui.joy.cy,m=Math.hypot(dx,dy),s=Math.min(1,m/(ui.joy.r-8)); ui.joy.vx=(m<8?0:dx/m)*s; ui.joy.vy=(m<8?0:dy/m)*s; return; }
-    // Schießen (Ammo wird abgezogen; Monster sind zZt. aus)
-    fireTowards(x,y);
-    if(ui.tutorial) ui.tutorial=false;
+    fireTowards(x,y); if(ui.tutorial) ui.tutorial=false;
   });
   cv.addEventListener('pointermove', e=>{
     if(!ui.joy.active||e.pointerId!==ui.joy.id) return;
@@ -339,7 +339,7 @@
   // ===== Kontextbutton =====
   function nearestBoulderIndex(){
     let best = -1, bestD = 1e9;
-    const reach = T * 1.3; // größerer Aufheb-Radius
+    const reach = T * 1.3;
     for (let i=0;i<state.boulders.length;i++){
       const b = state.boulders[i];
       const d = dist(state.player.x, state.player.y, b.x, b.y);
@@ -349,7 +349,7 @@
   }
   function canPlaceBoulder(px,py){
     if(rectsOverlap({x:px-T*0.5,y:py-T*0.5,w:T,h:T},POND)) return false;
-    if(inStoneYard(px,py)) return false; // Yard = nur Abgeben
+    if(inStoneYard(px,py)) return false;
     if(Math.hypot(px-state.player.x,py-state.player.y) < state.player.r + BOULDER_R + 4) return false;
     for(const b of state.boulders) if(Math.hypot(px-b.x,py-b.y)<BOULDER_R*2-6) return false;
     for(const p of state.plants)   if(Math.hypot(px-p.x,py-p.y)<T*0.5) return false;
@@ -391,8 +391,7 @@
       mPortrait.textContent="👩‍🎨"; mTitle.textContent="Berta Brown"; mSub.textContent="Upgrades (Tag)";
       addRow({icon:"💧", name:"Gießkanne", desc:"Permanent. 13 Nutzungen. Am Teich auffüllen.", price:"5 €", button: state.inv.hasCan?"Gekauft":"Kaufen", disabled: state.inv.hasCan || state.inv.euro<5, onClick:()=>{ state.inv.hasCan=true; state.inv.can=state.inv.canMax; state.inv.euro-=5; save(); openShop('berta'); }});
       addRow({icon:"👟", name:"Schnelle Schuhe", desc:"+35% Laufgeschwindigkeit", price:"7 €", button: state.inv.hasShoes?"Gekauft":"Kaufen", disabled: state.inv.hasShoes || state.inv.euro<7, onClick:()=>{ state.inv.hasShoes=true; state.speedMult=1.35; state.inv.euro-=7; save(); openShop('berta'); }});
-      // Neu: Steinzerkleinerer
-      addRow({icon:"🪓", name:"Steinzerkleinerer", desc:"Auf der Lichtung: getragener Felsen → 🔹8 Munition.", price:"6 €",
+      addRow({icon:"🪓", name:"Steinzerkleinerer", desc:"Auf der Lichtung: getragener Felsen → 🔹×8 Munition.", price:"6 €",
         button: state.inv.hasCrusher?"Gekauft":"Kaufen",
         disabled: state.inv.hasCrusher || state.inv.euro<6,
         onClick:()=>{ state.inv.hasCrusher=true; state.inv.euro-=6; save(); openShop('berta'); }
@@ -404,7 +403,7 @@
       addRow({icon:"🥬", name:"+10 Kohlsaat", button:"+10", onClick:()=>{ state.inv.cabbageSeed+=10; save(); openShop('stefan'); }});
       addRow({icon:"🔹", name:"+20 Munition", button:"+20", onClick:()=>{ state.inv.ammo+=20; save(); openShop('stefan'); }});
       addRow({icon: state.god?"🛡️":"🗡️", name:"Godmode", button: state.god?"AUS":"AN", onClick:()=>{ state.god=!state.god; save(); openShop('stefan'); }});
-      addRow({icon:"🌞", name:"Tag halten", desc:"Nacht/Monster sind bereits aus.", price:"—", button:"OK"});
+      addRow({icon:"🌞", name:"Tag halten", desc:"Nacht/Monster sind aus.", price:"—", button:"OK"});
     }
     openModal();
   }
@@ -433,10 +432,15 @@
         const bi=nearestBoulderIndex();
         if (bi>=0){ icon="🪨"; enabled=true; action=()=>{ const b=state.boulders[bi]; state.boulders.splice(bi,1); state.carry.has=true; if(SFX)SFX.play("pickup"); }; }
         else {
+          // Pflanzen? (im Feld, Tile frei)
+          if (tileFreeForPlantAtPlayer()){
+            if (state.inv.poop>0){ icon="💩"; enabled=true; action=()=>plant("corn"); }
+            else if (state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=()=>plant("cabbage"); }
+          }
           const p=findNearbyPlant();
-          if(p && p.stage>=3){ icon="🌾"; enabled=true; action=harvest; }
-          else if(p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=water; }
-          else {
+          if(!enabled && p && p.stage>=3){ icon="🌾"; enabled=true; action=harvest; }
+          else if(!enabled && p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=water; }
+          else if(!enabled){
             const di=(function(){ let i=-1,bd=1e9; for(let k=0;k<state.dirts.length;k++){ const d=state.dirts[k]; const dd=dist(state.player.x,state.player.y,d.x,d.y); if(dd<T*0.7&&dd<bd){i=k;bd=dd;} } return i; })();
             if(di>=0){ icon="🪵"; enabled=true; action=()=>{ state.dirts.splice(di,1); const chance=0.10+rnd()*0.05; if(rnd()<chance){ state.inv.poop++; say("💩 Glück gehabt!"); } else say("🪵 Erdbrocken."); save(); if(SFX)SFX.play("pickup"); }; }
             else { icon="🚫"; enabled=false; }
@@ -488,8 +492,7 @@
   function drawPlayer(){
     const p=state.player; ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
 
-    // Blickrichtung der Augen:
-    // normal: folgt der Laufrichtung; beim Tragen: immer nach unten.
+    // Augen: beim Tragen immer nach unten, sonst Laufrichtung
     let fx=0,fy=0;
     if (state.carry.has) { fx=0; fy=1; }
     else { if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1; }
@@ -499,16 +502,17 @@
     ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
     ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
 
-    // Mund: lächelnd wenn NICHT trägt, angestrengt wenn trägt
+    // Mund: smile idle (Control-Punkt tiefer), angestrengt beim Tragen (höher)
     ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
     if (state.carry.has) {
-      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); ctx.stroke();
+      // angestrengt / müde (leichter "Dach"-Bogen)
+      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
       ctx.fillStyle = "rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
     } else {
-      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
+      // lächeln (U-Bogen → Control-Punkt unterhalb der Mundlinie)
+      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); ctx.stroke();
     }
 
-    // Trägt-Felsen sichtbar
     if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
   }
 
@@ -547,19 +551,12 @@
     ctx.textAlign="right"; ctx.fillText(`🌞`, cv.clientWidth-16, y); ctx.textAlign="left";
     ctx.fillStyle="#ddd"; ctx.font="12px system-ui"; ctx.fillText(state.version, 10, cv.clientHeight-10);
 
-    // Joystick
     ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r,ui.joy.r,"rgba(24,34,44,.55)"); ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r-6,ui.joy.r-6,"rgba(60,80,96,.18)");
     ellipse(ui.joy.cx+ui.joy.vx*(ui.joy.r-12), ui.joy.cy+ui.joy.vy*(ui.joy.r-12), 32,32, "#1f2937");
-
-    // Kontextbutton
     ellipse(ui.ctxBtn.x,ui.ctxBtn.y,ui.ctxBtn.r,ui.ctxBtn.r,ui.ctxBtn.enabled?"#2563eb":"#3b4551");
     ctx.fillStyle="#fff"; ctx.font="28px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(ui.ctxBtn.icon, ui.ctxBtn.x, ui.ctxBtn.y+2);
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-
-    // Neustart
     ellipse(ui.restart.x, ui.restart.y, ui.restart.r, "#3b4551"); ctx.fillStyle="#fff"; ctx.font="18px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🔄", ui.restart.x, ui.restart.y+1); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-
-    // Toast
     if(TOAST.t>0){ ctx.fillStyle="rgba(0,0,0,.8)"; const tw=ctx.measureText(TOAST.text).width+22; ctx.fillRect((cv.clientWidth-tw)/2, cv.clientHeight-120, tw, 30); ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui"; ctx.fillText(TOAST.text, (cv.clientWidth-tw)/2+11, cv.clientHeight-100); }
   }
 
@@ -577,7 +574,7 @@
     ctx.font=`${Math.floor(T*0.20)}px system-ui`; ctx.textAlign="left";
     const lines=[
       "FELSEN: Space = aufnehmen / abstellen.",
-      "Auf LICHTUNG (grün): 🪓 Felsen → 🔹×8 Munition.",
+      "Auf LICHTUNG: 🪓 Felsen → 🔹×8 (mit Upgrade).",
       "Bei FRED abgeben: 5 Felsen = 1💩  •  20 ⇒ Shop-Upgrade.",
       "💩 → 🌽 säen  •  🥬-Saat bei FRED  •  Nacht aus."
     ];
@@ -590,7 +587,6 @@
     for (let i=state.bullets.length-1;i>=0;i--){
       const b=state.bullets[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
       if (b.life<=0 || b.x<0||b.y<0||b.x>MAP_W*T||b.y>MAP_H*T){ state.bullets.splice(i,1); continue; }
-      // Monster deaktiviert → kein Treffercheck
     }
   }
 
@@ -615,7 +611,7 @@
 
   function cullOutOfWorld(){ const min=T/2, maxX=MAP_W*T - T/2, maxY=MAP_H*T - T/2;
     state.boulders = state.boulders.filter(s => s.x>=min && s.x<=maxX && s.y>=min && s.y<=maxY);
-    state.dirts    = state.dirts.filter(s => s.x>=min && s.x<=maxX && s.y>=min && s.y<=maxY);
+    state.dirts    = state.dirts.filter(s => s.x>=min && s.y>=min && s.x<=maxX && s.y<=maxY);
     state.plants   = state.plants.filter(p => p.x>=min && p.x<=maxX && p.y>=min && p.y<=maxY);
   }
 
