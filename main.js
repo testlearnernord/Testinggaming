@@ -1,9 +1,10 @@
 /* =========================================================================
-   Poopboy v0.7.1
+   Poopboy v0.7.2
    - Felsen tragen (Space/Kontext), sichtbar, blockend
    - Stein-Yard bei Fred mit Tor (unten), 5=1💩, 20=Shop-Upgrade
    - Highlighter vor dem Spieler; Neustart-Button (mit Bestätigung)
    - Spieler lächelt normal, angestrengt beim Tragen + langsamer
+   - Fix: größerer Pickup-Radius; Mund-Lächeln korrekt
    - Alle Felsen blocken; Berta-Blockade = Felsen
    ========================================================================= */
 (() => {
@@ -197,7 +198,7 @@
     const p=findNearbyPlant(); if(!p) return;
     if(p.stage<3) return say("Noch nicht reif.");
     if(p.type==="corn"){ if(rnd()<PLANTS.corn.chance){ state.inv.corn++; say("🌽 +1"); } else say("🌽 Ernte fehlgeschlagen."); }
-    else state.inv.cabbage++, say("🥬 +1");
+    else { state.inv.cabbage++; say("🥬 +1"); }
     state.plants.splice(state.plants.indexOf(p),1); save();
   }
   function updatePlants(){
@@ -389,18 +390,18 @@
 
   // ===== Kontextbutton =====
   function nearestBoulderIndex(){
-  let best = -1, bestD = 1e9;
-  const reach = T * 1.3;          // vorher ~0.8T
-  for (let i = 0; i < state.boulders.length; i++) {
-    const b = state.boulders[i];
-    const d = dist(state.player.x, state.player.y, b.x, b.y);
-    if (d < reach && d < bestD) { best = i; bestD = d; }
+    let best = -1, bestD = 1e9;
+    const reach = T * 1.3; // größerer Aufheb-Radius
+    for (let i=0;i<state.boulders.length;i++){
+      const b = state.boulders[i];
+      const d = dist(state.player.x, state.player.y, b.x, b.y);
+      if (d < reach && d < bestD){ best = i; bestD = d; }
+    }
+    return best;
   }
-  return best;
-}
   function canPlaceBoulder(px,py){
     if(rectsOverlap({x:px-T*0.5,y:py-T*0.5,w:T,h:T},POND)) return false;
-    if(inStoneYard(px,py)) return false;
+    if(inStoneYard(px,py)) return false; // Yard ist zum Abgeben, nicht Platzieren
     if(Math.hypot(px-state.player.x,py-state.player.y) < state.player.r + BOULDER_R + 4) return false;
     for(const b of state.boulders) if(Math.hypot(px-b.x,py-b.y)<BOULDER_R*2-6) return false;
     for(const p of state.plants)   if(Math.hypot(px-p.x,py-p.y)<T*0.5) return false;
@@ -540,25 +541,17 @@
     ellipse(ex+sx*off, ey+sy*off, eR, eR, "#fff"); ellipse(ex-sx*off, ey-sy*off, eR, eR, "#fff");
     ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
     ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
-    // Mund (ersetzt den bisherigen Mund-Teil)
-ctx.strokeStyle = "#3b2a18";
-ctx.lineWidth = 2;
-if (state.carry.has) {
-  // angestrengt = klarer "U"-Bogen nach unten (müde)
-  ctx.beginPath();
-  ctx.moveTo(p.x - 6, p.y + 10);
-  ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10);
-  ctx.stroke();
-  // Schweißtropfen
-  ctx.fillStyle = "rgba(180,220,255,0.85)";
-  ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
-} else {
-  // lächelnd = "∩"-Bogen (deutlich freundlicher)
-  ctx.beginPath();
-  ctx.moveTo(p.x - 6, p.y + 10);
-  ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10);
-  ctx.stroke();
-}
+    // Mund: lächelnd wenn NICHT trägt, angestrengt wenn trägt
+    ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
+    if (state.carry.has) {
+      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); ctx.stroke();
+      ctx.fillStyle = "rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
+    }
+    if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
+  }
+
   function drawPlants(){
     for(const p of state.plants){
       if(p.type==="corn"){
