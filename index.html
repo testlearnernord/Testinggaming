@@ -9,7 +9,7 @@
   html, body { margin:0; padding:0; background:#0b0f12; color:#f2f2f2; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; height:100%; }
   #canvas { display:block; width:100vw; height:100vh; touch-action:none; background:#0b0f12; }
 
-  /* HUD – RPG-Inventar (wrap + scroll) */
+  /* HUD – Inventar (wrap + scroll) */
   #hudbar{
     position:fixed; top:calc(0px + var(--safe-top)); left:0; right:0;
     display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
@@ -24,7 +24,7 @@
   #clockwrap { display:flex; align-items:center; gap:.35rem; font-weight:800; min-width:max-content; }
   @media (max-width: 390px){ .pill{ padding:.35rem .5rem; } #clockwrap{ font-size:.95em; } }
 
-  /* Saat-Auswahl (klickbare HUD-Slots) */
+  /* Inventar-Highlights (Saat/Stein auswählbar) */
   .slot { cursor:pointer; user-select:none; }
   .slot.active { border-color:#ffcc00; box-shadow:0 0 8px rgba(255,204,0,.7); }
 
@@ -71,7 +71,6 @@
   .i-desc { opacity:.85; font-size:12px; }
   .i-price { font-weight:800; }
   .i-col { display:flex; align-items:center; gap:10px; }
-
 </style>
 </head>
 <body>
@@ -83,11 +82,11 @@
   <span class="pill">❤️ <b id="v_hp">3</b></span>
   <span class="pill">💶 <b id="v_euro">0</b></span>
 
-  <!-- Saat-Slots sind klickbar (Highlight wählt aktive Saat) -->
+  <!-- Saat/Platzierung: aktivierbare Slots -->
   <span class="pill slot" data-item="poop">💩 <b id="v_poop">0</b></span>
   <span class="pill slot" data-item="cabbageSeed">🥬 <b id="v_cabbageSeed">0</b></span>
+  <span class="pill slot" data-item="stone">🪨 <b id="v_stone">0</b></span>
 
-  <span class="pill">🪨 <b id="v_stone">0</b></span>
   <span class="pill">🌽 <b id="v_corn">0</b></span>
   <span class="pill">🥬 <b id="v_cabbage">0</b></span>
   <span class="pill">💧 <b id="v_can">0/0</b></span>
@@ -142,7 +141,7 @@
   const SPEED_BASE = 3.6;
   const SHOES_MULT = 1.35;
 
-  // Rocks
+  // Stones
   const ROCK_SPAWN = 200;
   const ROCK_MAX   = 90;
   const START_ROCKS = 40;
@@ -150,7 +149,7 @@
 
   // Interact distances
   const NEAR_DIST  = TILE * 1.2;
-  const PICK_DIST  = TILE * 0.5;
+  const PICK_DIST  = TILE * 0.6;     // etwas größer fürs Aufheben
   const PLANT_DIST = TILE * 0.8;
   const POND_DIST  = TILE * 2.0;
 
@@ -175,11 +174,14 @@
     speedMult: 1.0,
     merchant: { x: TILE*(MAP_W-5), y: TILE*(MAP_H-5), name: "Fecalfred" },
     artist:   { x: TILE*6,         y: TILE*7,         name: "Berta Brown" },
-    pond:     { x: TILE*(MAP_W-3), y: TILE*(2) },
+    pond:     { x: TILE*(MAP_W-3), y: TILE*(5) }, // ⬇️ Teich tiefer gesetzt
     farmRect: null, fenceRects: [], houseRect: null, _gateLeft:0, _gateRight:0,
     clearingRect: null,
-    stones: [],
-    plants: [], // {x,y,type:'corn'|'cabbage', plantedAt, readyAt, stage, watered}
+
+    stones: [],     // natürliche Steine/Erdbrocken: {x,y,type:'stone'|'dirt'}
+    blocks: [],     // vom Spieler platzierte Steine: {x,y}  (blocken)
+
+    plants: [],     // {x,y,type:'corn'|'cabbage', plantedAt, readyAt, stage, watered}
     inv: { stone:0, poop:0, corn:0, cabbage:0, euro:0, hasCan:false, can:0, canMax:13, hasShoes:false, cabbageSeed:0 },
     smoke: [],
     frame: 0,
@@ -190,11 +192,13 @@
     isDay: true, wasDayLastFrame: true,
     clockText: "06:00",
     lastTimeBase: performance.now(),
+
     // Combat
     hp: 3, invincibleUntil: 0,
     monsters: [], bullets: [],
+
     // UI
-    activeSeed: null // "poop" | "cabbageSeed" | null
+    activeSeed: null // "poop" | "cabbageSeed" | "stone" | null
   };
 
   function rand(){ let x=state.rngSeed; x^=x<<13; x^=x>>>17; x^=x<<5; state.rngSeed=x>>>0; return (state.rngSeed%1_000_000)/1_000_000; }
@@ -248,7 +252,6 @@
     lblIcon.textContent = state.isDay ? "🌞" : "🌙";
     dayHint.textContent = state.isDay ? "Tag: Anbau & Handel geöffnet." : "Nacht: Monster unterwegs!";
 
-    // Wechsel-Effekte
     if (state.wasDayLastFrame && !state.isDay) state._monsterSpawnTick = 0;
     if (!state.wasDayLastFrame && state.isDay) { if (state.monsters.length) say("💥 Die Sonne verbrennt die Monster!"); state.monsters.length = 0; }
     state.wasDayLastFrame = state.isDay;
@@ -265,7 +268,7 @@
     if (vSeed) vSeed.textContent = state.inv.cabbageSeed;
   }
 
-  // Saat-Auswahl
+  // Saat/Stein-Auswahl
   document.querySelectorAll('.slot').forEach(slot=>{
     slot.addEventListener('click', ()=>{
       const item = slot.dataset.item;
@@ -314,15 +317,26 @@
   }
   const collidesHouse = (x,y)=> circleRectCollision(x,y,state.player.r, state.houseRect);
   const collidesFence = (x,y)=> state.fenceRects.some(rc => circleRectCollision(x,y,state.player.r, rc));
-  const collidesAny   = (x,y)=> collidesHouse(x,y) || collidesFence(x,y);
+  const collidesAnyRect = (x,y)=> collidesHouse(x,y) || collidesFence(x,y);
   const inFarm = (x,y)=> { const f=state.farmRect; return x>=f.x1&&x<=f.x2&&y>=f.y1&&y<=f.y2; };
   function insideRect(x,y,rc){ return x>=rc.x1 && x<=rc.x2 && y>=rc.y1 && y<=rc.y2; }
+
+  // ==== Blocking durch Steine (natürlich & platziert) ====
+  function isBlockedCircle(x,y,r){
+    // Haus/Zaun
+    if (collidesAnyRect(x,y)) return true;
+    // natürliche Steine
+    for (const s of state.stones){ if (s.type==='stone' && Math.hypot(x - s.x, y - s.y) < (r + TILE*0.36)) return true; }
+    // platzierte Steine
+    for (const b of state.blocks){ if (Math.hypot(x - b.x, y - b.y) < (r + TILE*0.36)) return true; }
+    return false;
+  }
 
   // ========= Rocks =========
   function randomEmptyTile(){ return { x: Math.floor(rand()*MAP_W)*TILE + TILE/2, y: Math.floor(rand()*MAP_H)*TILE + TILE/2 }; }
   function spawnRock(){
     let tries=10, p;
-    do { p = randomEmptyTile(); } while (tries-- > 0 && insideRect(p.x,p.y,state.clearingRect));
+    do { p = randomEmptyTile(); } while (tries-- > 0 && (insideRect(p.x,p.y,state.clearingRect) || circleRectCollision(p.x,p.y,TILE*0.36, state.houseRect)));
     const type=(rand()<DIRT_RATIO)?'dirt':'stone';
     state.stones.push({x:p.x,y:p.y,type});
   }
@@ -333,9 +347,9 @@
     if (!state.isDay) return say("Nacht: Kein Anbau.");
     if (state.inv.poop<=0) return say("Du brauchst 💩.");
     if (!inFarm(state.player.x, state.player.y)) return say("Nur im eingezäunten Feld!");
-    const tx = Math.round(state.player.x/TILE)*TILE + TILE/2;
-    const ty = Math.round(state.player.y/TILE)*TILE + TILE/2;
+    const {tx,ty} = snapToTile(state.player.x, state.player.y);
     if (state.plants.some(p => dist(p.x,p.y,tx,ty) < TILE*0.25)) return say("Hier wächst bereits etwas.");
+    if (isBlockedCircle(tx,ty, TILE*0.2)) return say("Hier ist blockiert.");
     state.inv.poop--;
     const now = performance.now();
     state.plants.push({ x:tx, y:ty, type:'corn', plantedAt:now, readyAt:now + CORN_TIME, stage:0, watered:false });
@@ -343,11 +357,11 @@
   }
   function plantCabbage(){
     if (!state.isDay) return say("Nacht: Kein Anbau.");
-    if (state.inv.cabbageSeed<=0) return say("Keine 🥬-Saat. Kauf bei Fecalfred (4€).");
+    if (state.inv.cabbageSeed<=0) return say("Keine 🥬-Saat.");
     if (!inFarm(state.player.x, state.player.y)) return say("Nur im eingezäunten Feld!");
-    const tx = Math.round(state.player.x/TILE)*TILE + TILE/2;
-    const ty = Math.round(state.player.y/TILE)*TILE + TILE/2;
+    const {tx,ty} = snapToTile(state.player.x, state.player.y);
     if (state.plants.some(p => dist(p.x,p.y,tx,ty) < TILE*0.25)) return say("Hier wächst bereits etwas.");
+    if (isBlockedCircle(tx,ty, TILE*0.2)) return say("Hier ist blockiert.");
     state.inv.cabbageSeed--;
     const now = performance.now();
     state.plants.push({ x:tx, y:ty, type:'cabbage', plantedAt:now, readyAt:now + CABBAGE_TIME, stage:0, watered:false });
@@ -452,20 +466,21 @@
 
   // ========= Helpers =========
   btnCenter.addEventListener('click', ()=>{ state.debugCenter=true; say("Ansicht zentriert."); });
-  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save_v4'); location.reload(); });
+  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save_v5'); location.reload(); });
 
   // ========= Save/Load =========
   function save(){
-    try { localStorage.setItem('mk_save_v4', JSON.stringify({
-      inv:state.inv, plants:state.plants, speedMult:state.speedMult, lastTimeBase: state.lastTimeBase, hp: state.hp
+    try { localStorage.setItem('mk_save_v5', JSON.stringify({
+      inv:state.inv, plants:state.plants, speedMult:state.speedMult, lastTimeBase: state.lastTimeBase, hp: state.hp, blocks: state.blocks
     })); } catch {}
   }
   (function load(){
     try {
-      const d = JSON.parse(localStorage.getItem('mk_save_v4')||"null");
+      const d = JSON.parse(localStorage.getItem('mk_save_v5')||"null");
       if (!d) return;
       if (d.inv) state.inv = d.inv;
       if (Array.isArray(d.plants)) state.plants = d.plants;
+      if (Array.isArray(d.blocks)) state.blocks = d.blocks;
       if (d.speedMult) state.speedMult = d.speedMult;
       if (d.lastTimeBase) state.lastTimeBase = d.lastTimeBase;
       if (typeof d.hp === "number") state.hp = d.hp;
@@ -473,6 +488,26 @@
   })();
 
   // ========= Kontext-Button Logik =========
+  function getNearbyStoneIndex(){ // natürliche Steine
+    let idx=-1, best=9999;
+    for (let i=0;i<state.stones.length;i++){
+      const s = state.stones[i];
+      if (s.type!=='stone') continue;
+      const d = dist(s.x,s.y,state.player.x,state.player.y);
+      if (d < PICK_DIST && d<best){ best=d; idx=i; }
+    }
+    return idx;
+  }
+  function canPlaceStoneAt(tx,ty){
+    // keine Überlappung mit existierenden Steinen/Blöcken/Farm-Pflanzen/Haus/Zaun
+    if (collidesAnyRect(tx,ty)) return false;
+    for (const s of state.stones){ if (s.type==='stone' && dist(tx,ty,s.x,s.y) < TILE*0.7) return false; }
+    for (const b of state.blocks){ if (dist(tx,ty,b.x,b.y) < TILE*0.7) return false; }
+    if (state.plants.some(p=>dist(tx,ty,p.x,p.y)<TILE*0.6)) return false;
+    return true;
+  }
+  function snapToTile(x,y){ return { tx: Math.round(x/TILE)*TILE + TILE/2, ty: Math.round(y/TILE)*TILE + TILE/2 }; }
+
   function updateContextButton(){
     let icon = "❓", enabled=false, action=null;
 
@@ -481,14 +516,25 @@
     else if (state.isDay && isNear(state.artist)) { icon="🛒"; enabled=true; action=()=>openShop('berta'); }
     else {
       const p = findNearbyPlant();
+      // Pflanz-/Pflegeaktionen
       if (p && p.stage>=3){ icon="🌾"; enabled=true; action=harvestPlant; }
       else if (p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=waterPlant; }
       else {
-        // pflanzen auf leerem Feld?
-        const onField = inFarm(state.player.x, state.player.y) && !state.plants.some(pl => dist(pl.x,pl.y, Math.round(state.player.x/TILE)*TILE + TILE/2, Math.round(state.player.y/TILE)*TILE + TILE/2) < TILE*0.25);
-        if (state.isDay && onField && state.activeSeed){
-          if (state.activeSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=plantPoop; }
-          else if (state.activeSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=plantCabbage; }
+        // Stein aufheben?
+        const sIdx = getNearbyStoneIndex();
+        if (sIdx >= 0){
+          icon = "🪨"; enabled=true; action = ()=>{ state.inv.stone++; state.stones.splice(sIdx,1); updateHUD(); say("🪨 Stein aufgehoben."); save(); };
+        } else {
+          // Leeres Feld -> ggf. Pflanzen oder Stein setzen
+          const {tx,ty} = snapToTile(state.player.x, state.player.y);
+          const tileFreeForPlant = inFarm(tx,ty) && !state.plants.some(pl => dist(pl.x,pl.y,tx,ty) < TILE*0.25) && !isBlockedCircle(tx,ty,TILE*0.2);
+          if (state.isDay && tileFreeForPlant && state.activeSeed){
+            if (state.activeSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=plantPoop; }
+            else if (state.activeSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=plantCabbage; }
+          } else if (state.activeSeed==="stone" && state.inv.stone>0){
+            const {tx:gx,ty:gy} = snapToTile(state.player.x, state.player.y);
+            if (canPlaceStoneAt(gx,gy)){ icon="📦"; enabled=true; action=()=>{ state.inv.stone--; state.blocks.push({x:gx,y:gy}); updateHUD(); say("🪨 platziert."); save(); }; }
+          }
         }
       }
     }
@@ -503,7 +549,7 @@
     state.frame++;
     updateClock();
 
-    // Movement + collisions
+    // Movement + collisions (Spieler)
     let vx = state.joy.vx, vy = state.joy.vy;
     if (state.keys.has('arrowup')||state.keys.has('w')) vy -= 1;
     if (state.keys.has('arrowdown')||state.keys.has('s')) vy += 1;
@@ -514,9 +560,9 @@
     let nx=state.player.x, ny=state.player.y;
     if (len>0){
       const tx=clamp(nx + (vx/len)*speed, TILE/2, MAP_W*TILE - TILE/2);
-      if (!collidesAny(tx, ny)) nx = tx;
+      if (!isBlockedCircle(tx, ny, state.player.r)) nx = tx;
       const ty=clamp(ny + (vy/len)*speed, TILE/2, MAP_H*TILE - TILE/2);
-      if (!collidesAny(nx, ty)) ny = ty;
+      if (!isBlockedCircle(nx, ty, state.player.r)) ny = ty;
     }
     state.player.x=nx; state.player.y=ny;
 
@@ -526,15 +572,13 @@
       camera.y=clamp(state.player.y - canvas.clientHeight/2, 0, MAP_H*TILE - canvas.clientHeight);
     }
 
-    // Pickup stones + dirt (mit Poop-Chance bei Erdbrocken)
+    // Erdbrocken (autopick + Poop-Chance), Steine NICHT autopick
     for (let i=state.stones.length-1;i>=0;i--){
       const s=state.stones[i];
-      if (dist(s.x,s.y,state.player.x,state.player.y) < PICK_DIST){
+      if (s.type==='dirt' && dist(s.x,s.y,state.player.x,state.player.y) < PICK_DIST*0.8){
         state.stones.splice(i,1);
-        if (s.type==='dirt'){
-          if (rand() < ERD_POOP_CHANCE){ state.inv.poop++; say("💩 Glücksfund im Erdbrocken! +1"); updateHUD(); save(); }
-          else { say("🪵 Erdbrocken – nix drin."); }
-        } else { state.inv.stone++; say("+1 🪨"); updateHUD(); save(); }
+        if (rand() < ERD_POOP_CHANCE){ state.inv.poop++; say("💩 Glücksfund im Erdbrocken! +1"); updateHUD(); save(); }
+        else say("🪵 Erdbrocken – nix drin.");
       }
     }
     if (state.frame % ROCK_SPAWN === 0 && state.stones.length < ROCK_MAX){ for(let k=0;k<2;k++) spawnRock(); }
@@ -557,12 +601,15 @@
       }
     }
 
-    // ===== MONSTER AI
+    // ===== MONSTER AI (blockend an Steinen/Blöcken)
     for (const m of state.monsters){
       const dx = state.player.x - m.x, dy = state.player.y - m.y;
       const d = Math.hypot(dx,dy) || 1;
       const sp = SPEED_BASE * state.speedMult * MONSTER_SPEED_FACTOR;
-      m.x += (dx/d) * sp; m.y += (dy/d) * sp;
+      const nx = m.x + (dx/d) * sp;
+      const ny = m.y + (dy/d) * sp;
+      if (!isBlockedCircle(nx, m.y, m.r)) m.x = nx;
+      if (!isBlockedCircle(m.x, ny, m.r)) m.y = ny;
     }
 
     // ===== MONSTER ↔ SPIELER KOLLISION
@@ -577,7 +624,6 @@
           state.player.x += kx * MONSTER_TOUCH_KNOCKBACK; state.player.y += ky * MONSTER_TOUCH_KNOCKBACK;
           say(`💥 Treffer! Leben: ${state.hp}`);
           if (state.hp <= 0){
-            // KO -> zur Farm, reset Monster
             state.player.x = state.farmRect.x1 + (state.farmRect.x2-state.farmRect.x1)/2;
             state.player.y = state.farmRect.y1 + (state.farmRect.y2-state.farmRect.y1)/2;
             state.hp = 3; state.monsters.length=0;
@@ -592,198 +638,4 @@
     for (let i = state.bullets.length-1; i>=0; i--){
       const b = state.bullets[i];
       if (nowB >= b.dieAt){ state.bullets.splice(i,1); continue; }
-      b.x += b.vx; b.y += b.vy;
-
-      // hit vs monsters
-      let hit = false;
-      for (let j = state.monsters.length-1; j>=0; j--){
-        const m = state.monsters[j];
-        if (Math.hypot(b.x - m.x, b.y - m.y) < (m.r)){
-          hit = true; state.bullets.splice(i,1);
-          m.hp -= 1;
-          if (m.hp <= 0){
-            // loot
-            const roll = rand();
-            if (roll < 0.33){ state.inv.poop += 1; say("💩 Beute!"); }
-            else if (roll < 0.66){ state.inv.cabbageSeed += 1; say("🥬 Saat-Beute!"); }
-            else { const euro = 1 + Math.floor(rand()*3); state.inv.euro += euro; say(`💶 +${euro}€ Beute!`); }
-            state.monsters.splice(j,1);
-            updateHUD(); save();
-          }
-          break;
-        }
-      }
-      if (hit) continue;
-    }
-
-    // Rauch
-    if (state.frame % 20 === 0) spawnSmoke();
-
-    draw();
-    updateHUD();
-    updateContextButton();
-    requestAnimationFrame(loop);
-  }
-
-  // ========= Click interactions (shooting at night, shops & pond by day) =========
-  canvas.addEventListener('click', (e)=>{
-    const rect = canvas.getBoundingClientRect();
-    const gx = (e.clientX - rect.left) + camera.x;
-    const gy = (e.clientY - rect.top) + camera.y;
-
-    // nachts: schießen
-    if (!state.isDay){
-      if (state.inv.stone > 0){
-        const dx = gx - state.player.x, dy = gy - state.player.y, d = Math.hypot(dx,dy) || 1;
-        const vx = (dx/d) * BULLET_SPEED, vy = (dy/d) * BULLET_SPEED;
-        state.inv.stone -= 1;
-        state.bullets.push({ x:state.player.x, y:state.player.y, vx, vy, dieAt: performance.now() + BULLET_LIFE });
-        updateHUD(); return;
-      } else { say("🪨 Keine Steine zum Schießen!"); }
-    }
-
-    // tagsüber: Händler/Teich
-    if (isNear(state.merchant)) openShop('fecal');
-    else if (isNear(state.artist)) openShop('berta');
-    else if (isNear(state.pond, POND_DIST)){
-      if (!state.inv.hasCan) return say("Keine Gießkanne.");
-      if (!state.isDay) return say("Nacht: Der Teich ist still…");
-      state.inv.can = state.inv.canMax; updateHUD(); say("💧 Gießkanne aufgefüllt!"); save();
-    }
-  });
-
-  // ========= Smoke =========
-  function spawnSmoke(){
-    const hx = state.merchant.x - TILE, hy = state.merchant.y - TILE;
-    const sx = state.merchant.x + TILE*0.7, sy = hy - TILE*0.95;
-    state.smoke.push({ x:sx, y:sy, r:4+rand()*5, a: state.isDay ? 0.6 : 0.85, vy:-0.3-rand()*0.2 });
-    state.smoke = state.smoke.filter(s => s.a > 0.05);
-  }
-
-  // ========= Draw =========
-  function drawFenceWithGate(f){
-    ctx.fillStyle = "rgba(120, 220, 140, 0.14)"; ctx.fillRect(f.x1, f.y1, f.x2-f.x1, f.y2-f.y1);
-    const gateLeft = state._gateLeft, gateRight = state._gateRight;
-    ctx.strokeStyle = "#916c3b"; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y1); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(f.x1, f.y2); ctx.lineTo(gateLeft, f.y2); ctx.moveTo(gateRight, f.y2); ctx.lineTo(f.x2, f.y2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x1, f.y2); ctx.moveTo(f.x2, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
-    ctx.lineWidth = 3; ctx.beginPath();
-    ctx.moveTo(f.x1, f.y1+TILE*0.35); ctx.lineTo(f.x2, f.y1+TILE*0.35);
-    ctx.moveTo(f.x1, f.y2-TILE*0.35); ctx.lineTo(gateLeft, f.y2-TILE*0.35);
-    ctx.moveTo(gateRight, f.y2-TILE*0.35); ctx.lineTo(f.x2, f.y2-TILE*0.35); ctx.stroke();
-    ctx.fillStyle = "#a77b44";
-    for (let x=f.x1; x<=f.x2; x+=TILE){ ctx.fillRect(x-3, f.y1-6, 6, 12); ctx.fillRect(x-3, f.y2-6, 6, 12); }
-    for (let y=f.y1; y<=f.y2; y+=TILE){ ctx.fillRect(f.x1-6, y-3, 12, 6); ctx.fillRect(f.x2-6, y-3, 12, 6); }
-    ctx.fillRect(gateLeft-4,  f.y2-10, 8, 20); ctx.fillRect(gateRight-4, f.y2-10, 8, 20);
-  }
-
-  function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.save(); ctx.translate(-camera.x, -camera.y);
-
-    // Background tiles (day/night tint)
-    const bgA = state.isDay ? "#0d3316" : "#08190c", bgB = state.isDay ? "#12401e" : "#0c2013";
-    for (let y=0;y<MAP_H;y++) for (let x=0;x<MAP_W;x++){ const px=x*TILE, py=y*TILE; ctx.fillStyle = ((x+y)%2===0)?bgA:bgB; ctx.fillRect(px,py,TILE,TILE); }
-
-    // Lichtung
-    const clr = state.clearingRect;
-    ctx.fillStyle = "#1a5a2d"; ctx.fillRect(clr.x1, clr.y1, clr.x2-clr.x1, clr.y2-clr.y1);
-    ctx.strokeStyle = "rgba(180,220,150,0.35)"; ctx.strokeRect(clr.x1, clr.y1, clr.x2-clr.x1, clr.y2-clr.y1);
-    ctx.fillStyle = "#2c7a39"; for(let i=0;i<8;i++){ const rx = clr.x1 + 8 + (i%4)*((clr.x2-clr.x1-16)/3); const ry = (i<4? clr.y1-6 : clr.y2-6); ctx.beginPath(); ctx.ellipse(rx, ry, 8, 6, 0, 0, Math.PI*2); ctx.fill(); }
-
-    // Weg & Farm
-    ctx.fillStyle = "#6c543a"; ctx.fillRect(state.merchant.x - TILE*1.2, state.merchant.y + TILE*0.9, TILE*2.4, TILE*0.6);
-    drawFenceWithGate(state.farmRect);
-
-    // Fecalfred Haus + Schild
-    const hx=state.merchant.x - TILE, hy=state.merchant.y - TILE;
-    ctx.fillStyle="#6b4630"; ctx.fillRect(state.houseRect.x1, state.houseRect.y1, state.houseRect.x2-state.houseRect.x1, state.houseRect.y2-state.houseRect.y1);
-    ctx.fillStyle="#9b3b2e"; ctx.fillRect(hx - TILE*0.5, hy - TILE*0.95, TILE*2, TILE*0.45);
-    ctx.fillStyle="rgba(0,0,0,0.15)"; for (let i=0;i<12;i++){ ctx.fillRect(hx - TILE*0.5 + i*TILE*0.16, hy - TILE*0.95, TILE*0.12, TILE*0.45); }
-    ctx.fillStyle="#2b1c11"; ctx.fillRect(hx + TILE*0.2, hy + TILE*0.5, TILE*0.5, TILE*0.7);
-    if (state.isDay){ ctx.fillStyle="#d7e7ff"; ctx.fillRect(hx + TILE*1.0, hy + TILE*0.2, TILE*0.6, TILE*0.45); ctx.fillStyle="#94b8ff"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18); ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18); }
-    else { ctx.fillStyle="#ffd46a"; ctx.fillRect(hx + TILE*1.0, hy + TILE*0.2, TILE*0.6, TILE*0.45); ctx.fillStyle="rgba(255,255,210,0.55)"; ctx.fillRect(hx + TILE*1.03, hy + TILE*0.23, TILE*0.25, TILE*0.18); ctx.fillRect(hx + TILE*1.35, hy + TILE*0.23, TILE*0.21, TILE*0.18); }
-    const signW = TILE*2.8, signH = TILE*0.75;
-    ctx.fillStyle="#f8f5e7"; ctx.fillRect(state.merchant.x - signW/2, hy + TILE*1.25, signW, signH);
-    ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.38)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("FECALFRED", state.merchant.x, hy + TILE*1.25 + signH/2);
-    ctx.font = `${Math.floor(TILE*0.9)}px system-ui`; ctx.fillText("🧑‍🌾", state.merchant.x, state.merchant.y - TILE*0.5);
-
-    // Berta Brown (Staffelei)
-    const ax = state.artist.x, ay = state.artist.y;
-    ctx.fillStyle="#8b5a2b"; ctx.fillRect(ax - TILE*0.8, ay - TILE*0.6, TILE*0.15, TILE*1.3); ctx.fillRect(ax + TILE*0.65, ay - TILE*0.6, TILE*0.15, TILE*1.3);
-    ctx.fillStyle="#f0e0c0"; ctx.fillRect(ax - TILE*0.5, ay - TILE*0.9, TILE*1.1, TILE*0.8);
-    ctx.fillStyle="#d88"; ctx.fillRect(ax - TILE*0.48, ay - TILE*0.88, TILE*0.52, TILE*0.3); ctx.fillStyle="#8ad"; ctx.fillRect(ax + TILE*0.08, ay - TILE*0.88, TILE*0.5, TILE*0.3);
-    ctx.fillStyle="#444"; ctx.fillRect(ax - TILE*0.48, ay - TILE*0.5, TILE*1.06, TILE*0.38);
-    ctx.fillStyle="#f8f5e7"; ctx.fillRect(ax - TILE*1.2, ay + TILE*0.8, TILE*2.4, TILE*0.45);
-    ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.34)}px system-ui`; ctx.fillText("BERTA BROWN", ax, ay + TILE*1.02);
-    ctx.font = `${Math.floor(TILE*0.9)}px system-ui`; ctx.fillText("👩‍🎨", ax, ay - TILE*0.5);
-
-    // Pond
-    const px = state.pond.x, py = state.pond.y; const pondW=TILE*2.4, pondH=TILE*1.6;
-    ctx.fillStyle="#1b4d6b"; ctx.beginPath(); ctx.ellipse(px, py, pondW, pondH, 0, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle="rgba(180,220,255,0.25)"; ctx.lineWidth=2; for(let i=0;i<5;i++){ ctx.beginPath(); ctx.ellipse(px, py, pondW*0.8*(i+1)/5, pondH*0.8*(i+1)/5, 0, 0, Math.PI*2); ctx.stroke(); }
-    ctx.fillStyle="#2e6b2e"; for(let i=-2;i<=2;i++){ ctx.fillRect(px + i*20, py+pondH-6, 4, 16); }
-
-    // Stones / dirt
-    for (const s of state.stones){
-      if (s.type==='stone'){ ctx.fillStyle="#b9c2cc"; ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.36, TILE*0.28, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#88929e"; ctx.beginPath(); ctx.ellipse(s.x - TILE*0.12, s.y - TILE*0.08, TILE*0.12, TILE*0.09, 0, 0, Math.PI*2); ctx.fill(); }
-      else { ctx.fillStyle="#7a5a3a"; ctx.beginPath(); ctx.ellipse(s.x, s.y, TILE*0.34, TILE*0.26, 0.2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5c4128"; ctx.beginPath(); ctx.ellipse(s.x - TILE*0.08, s.y - TILE*0.05, TILE*0.1, TILE*0.08, -0.2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#4a3521"; ctx.beginPath(); ctx.arc(s.x+TILE*0.12, s.y+TILE*0.05, 2.2, 0, Math.PI*2); ctx.fill(); ctx.arc(s.x-TILE*0.14, s.y+TILE*0.04, 1.8, 0, Math.PI*2); ctx.fill(); }
-    }
-
-    // Plants
-    for (const p of state.plants){
-      if (p.type==='corn'){
-        ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(p.x,p.y,TILE*0.28,0,Math.PI*2); ctx.fill();
-        if (p.stage===0){ ctx.fillStyle="#63d16e"; ctx.fillRect(p.x-TILE*0.08, p.y-TILE*0.10, TILE*0.16, TILE*0.10); }
-        else if (p.stage===1){ ctx.fillStyle="#58b368"; ctx.fillRect(p.x-TILE*0.12, p.y-TILE*0.20, TILE*0.24, TILE*0.22); }
-        else if (p.stage===2){ ctx.save(); ctx.translate(p.x,p.y); ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.10, TILE*0.20, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.18,0); ctx.quadraticCurveTo(0,-TILE*0.30, TILE*0.18,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.18,0); ctx.fill(); ctx.restore(); }
-        else { ctx.save(); ctx.translate(p.x,p.y); ctx.fillStyle="#f2d24b"; ctx.beginPath(); ctx.ellipse(0,-TILE*0.05, TILE*0.16, TILE*0.26, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#5cbc6b"; ctx.beginPath(); ctx.moveTo(-TILE*0.22,0); ctx.quadraticCurveTo(0,-TILE*0.35, TILE*0.22,0); ctx.quadraticCurveTo(0,TILE*0.05, -TILE*0.22,0); ctx.fill(); ctx.restore(); }
-      } else {
-        ctx.fillStyle="#352519"; ctx.beginPath(); ctx.arc(p.x,p.y,TILE*0.28,0,Math.PI*2); ctx.fill();
-        if (p.stage===0){ ctx.fillStyle="#4e8f4e"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.10, 0, Math.PI*2); ctx.fill(); }
-        else if (p.stage===1){ ctx.fillStyle="#4fa65b"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.16, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#3d7f43"; ctx.beginPath(); ctx.arc(p.x-6, p.y-2, 5, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+6, p.y+3, 4, 0, Math.PI*2); ctx.fill(); }
-        else if (p.stage===2){ ctx.fillStyle="#58bb68"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.22, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#3d944a"; ctx.beginPath(); ctx.arc(p.x-8, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+8, p.y, 6, 0, Math.PI*2); ctx.fill(); }
-        else { ctx.fillStyle="#6bd17a"; ctx.beginPath(); ctx.arc(p.x, p.y, TILE*0.26, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#44a457"; ctx.beginPath(); ctx.arc(p.x-9, p.y-2, 7, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+9, p.y+2, 7, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="rgba(255,255,255,0.08)"; ctx.beginPath(); ctx.arc(p.x, p.y-5, 8, 0, Math.PI*2); ctx.fill(); }
-      }
-    }
-
-    // MONSTER
-    for (const m of state.monsters){
-      ctx.save(); ctx.translate(m.x, m.y);
-      ctx.fillStyle = state.isDay ? "#444" : "#5f1044"; ctx.beginPath(); ctx.arc(0,0,m.r,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(-6,-5,4,0,Math.PI*2); ctx.arc(6,-5,4,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-6,-5,2,0,Math.PI*2); ctx.arc(6,-5,2,0,Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
-
-    // Player
-    ctx.save(); ctx.translate(state.player.x, state.player.y);
-    ctx.fillStyle="#e6b35a"; ctx.beginPath(); ctx.arc(0,0,state.player.r,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc( state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
-    ctx.lineWidth=3; ctx.strokeStyle="#111"; ctx.beginPath(); ctx.arc(0, state.player.r*0.05, state.player.r*0.45, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
-    ctx.restore();
-
-    // BULLETS
-    ctx.fillStyle="#b9c2cc";
-    for (const b of state.bullets){ ctx.beginPath(); ctx.ellipse(b.x, b.y, 6, 4, 0, 0, Math.PI*2); ctx.fill(); }
-
-    // Night overlay
-    if (!state.isDay){ ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(camera.x, camera.y, canvas.clientWidth, canvas.clientHeight); }
-
-    // Smoke visual
-    const hy2=state.merchant.y - TILE; const cx2 = state.merchant.x + TILE*0.7, cy2 = hy2 - TILE*0.95;
-    ctx.fillStyle="#4b2f1b"; ctx.fillRect(cx2, cy2 - TILE*0.2, TILE*0.25, TILE*0.35);
-    for (const s of state.smoke){ s.x += 0.05; s.y += s.vy; s.a *= 0.985; s.r = (s.r||5)*1.01; ctx.fillStyle=`rgba(220,220,220,${s.a})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); }
-
-    ctx.restore();
-  }
-
-  // ========= Start =========
-  function spawnSmoke(){ /* handled in loop interval via push */ }
-  updateHUD(); loop();
-})();
-</script>
-</body>
-</html>
+      // Kollision mit Steinen/Blöcken? -> abprallen/stoppen
