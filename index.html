@@ -9,7 +9,7 @@
   html, body { margin:0; padding:0; background:#0b0f12; color:#f2f2f2; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; height:100%; }
   #canvas { display:block; width:100vw; height:100vh; touch-action:none; background:#0b0f12; }
 
-  /* HUD – Inventar (wrap + scroll) */
+  /* HUD */
   #hudbar{
     position:fixed; top:calc(0px + var(--safe-top)); left:0; right:0;
     display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
@@ -24,7 +24,7 @@
   #clockwrap { display:flex; align-items:center; gap:.35rem; font-weight:800; min-width:max-content; }
   @media (max-width: 390px){ .pill{ padding:.35rem .5rem; } #clockwrap{ font-size:.95em; } }
 
-  /* Inventar-Highlights (Saat/Stein auswählbar) */
+  /* Inventar-Highlight-Slots */
   .slot { cursor:pointer; user-select:none; }
   .slot.active { border-color:#ffcc00; box-shadow:0 0 8px rgba(255,204,0,.7); }
 
@@ -33,7 +33,7 @@
   .ring { position:absolute; inset:0; border-radius:999px; background:rgba(24,34,44,.55); border:2px solid #33404d; }
   .knob { position:absolute; width:64px; height:64px; left:38px; top:38px; border-radius:999px; background:#1f2937; border:2px solid #556070; box-shadow: inset 0 0 8px rgba(0,0,0,.4); touch-action:none; }
 
-  /* Kontext-Button (ein Knopf) */
+  /* Kontext-Button */
   #contextBtn{
     position:fixed;
     right:max(1rem, env(safe-area-inset-right));
@@ -47,7 +47,7 @@
   }
   #contextBtn:disabled{ background:#3b4551; box-shadow:none; opacity:.6; }
 
-  /* Helpers oben links */
+  /* Helpers */
   #helpers{ position:fixed; left:.6rem; top:calc(3.2rem + var(--safe-top)); display:flex; gap:.5rem; z-index:50; }
   .btn-ghost { background:#1a242e; border:1px solid #2f3b48; color:#d7e7ff; border-radius:10px; padding:.6rem .9rem; font-weight:800; }
 
@@ -126,6 +126,41 @@
 </div>
 
 <script>
+/* ===== TINY SFX ENGINE (no files) ===== */
+const SFX = (() => {
+  let ctx, unlocked = false, queue = [];
+  function ensure(){ if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); if (ctx.state==='suspended') ctx.resume(); return ctx; }
+  function unlock(){ ensure(); unlocked = true; const q = queue.slice(); queue.length = 0; q.forEach(fn=>fn()); }
+  function epicSpawnCore(){
+    const c = ensure(), now = c.currentTime;
+    // tiefer "Drum"-Schlag
+    let o1=c.createOscillator(), g1=c.createGain();
+    o1.type='sine'; o1.frequency.setValueAtTime(90, now); o1.frequency.exponentialRampToValueAtTime(45, now+0.45);
+    g1.gain.setValueAtTime(0.0001, now); g1.gain.linearRampToValueAtTime(0.7, now+0.02); g1.gain.exponentialRampToValueAtTime(0.0001, now+0.55);
+    o1.connect(g1); g1.connect(c.destination); o1.start(now); o1.stop(now+0.6);
+    // leichter Echo-Schlag
+    let o2=c.createOscillator(), g2=c.createGain();
+    o2.type='sine'; o2.frequency.setValueAtTime(60, now+0.12);
+    g2.gain.setValueAtTime(0.0001, now+0.12); g2.gain.linearRampToValueAtTime(0.35, now+0.16); g2.gain.exponentialRampToValueAtTime(0.0001, now+0.45);
+    o2.connect(g2); g2.connect(c.destination); o2.start(now+0.12); o2.stop(now+0.5);
+    // aufsteigende Note
+    let o3=c.createOscillator(), g3=c.createGain();
+    o3.type='triangle'; o3.frequency.setValueAtTime(200, now+0.18); o3.frequency.linearRampToValueAtTime(420, now+0.48);
+    g3.gain.setValueAtTime(0.0001, now+0.18); g3.gain.linearRampToValueAtTime(0.25, now+0.22); g3.gain.exponentialRampToValueAtTime(0.0001, now+0.6);
+    o3.connect(g3); g3.connect(c.destination); o3.start(now+0.18); o3.stop(now+0.65);
+  }
+  const play = {
+    spawn: ()=>{ if(!unlocked){ queue.push(epicSpawnCore); return; } epicSpawnCore(); }
+  };
+  // public
+  return { ensure, unlock, play };
+})();
+// iOS/Safari: beim ersten Touch Audio freischalten und ausstehende Sounds abspielen
+window.addEventListener('touchstart', () => { SFX.unlock(); }, {once:true, passive:true});
+window.addEventListener('pointerdown', () => { SFX.unlock(); }, {once:true});
+</script>
+
+<script>
 (() => {
   // ========= CONFIG =========
   const TILE = 48;
@@ -133,15 +168,15 @@
 
   // Economy & Timers
   const CORN_TIME = 40_000;             // 40s
-  const CORN_CHANCE = 0.60;             // 60% chance to yield corn
+  const CORN_CHANCE = 0.60;             // 60% chance
   const CABBAGE_TIME = 120_000;         // 120s
   const CABBAGE_WATERED_TOTAL = 40_000; // watered -> 40s total
-  const ERD_POOP_CHANCE = 0.125;        // 12.5% Poop beim Erdbrocken
+  const ERD_POOP_CHANCE = 0.125;        // 12.5% Poop bei Erdbrocken
 
   const DAY_TOTAL_MS = 180_000;         // 3 min
   const DAYLIGHT_MS  = 120_000;         // 2 min day, 1 min night
 
-  const SPEED_BASE = 3.6;               // Bewegungspixel pro Framegrundlage
+  const SPEED_BASE = 3.6;
   const SHOES_MULT = 1.35;
 
   // Rocks
@@ -151,9 +186,9 @@
   const DIRT_RATIO = 0.35;
 
   // Interact distances
-  const STONE_R   = TILE * 0.36;   // physischer Radius des Steins
+  const STONE_R   = TILE * 0.36;
   const NEAR_DIST = TILE * 1.2;
-  const PICK_DIST = TILE * 0.95;   // > player.r + STONE_R
+  const PICK_DIST = TILE * 0.95;
   const PLANT_DIST = TILE * 0.8;
   const POND_DIST  = TILE * 2.0;
 
@@ -162,8 +197,8 @@
   const FENCE_THICK = 12;
   const GATE_WIDTH = TILE * 1.2;
 
-  // ==== MONSTER / COMBAT ====
-  const MONSTER_SPAWN_INTERVAL = 180;   // ~3s (bei ~60fps)
+  // Monster/Combat
+  const MONSTER_SPAWN_INTERVAL = 180;
   const MONSTER_MAX = 4;
   const MONSTER_SPEED_FACTOR = 0.5;
   const MONSTER_TOUCH_KNOCKBACK = 28;
@@ -171,16 +206,14 @@
   const BULLET_SPEED = 7.5;
   const BULLET_LIFE = 1600;             // ms
 
-  // ========= TIME SYSTEM (skalierbar) =========
+  // ========= TIME SYSTEM =========
   const time = {
-    scale: 1,
-    t0: performance.now(),
-    offset: 0,
+    scale: 1, t0: performance.now(), offset: 0,
     now(){ return (performance.now() - this.t0) * this.scale + this.offset; },
     setScale(s){ const cur = this.now(); this.t0 = performance.now(); this.offset = cur; this.scale = s; }
   };
 
-  // Preise für gekochte Items
+  // Verkaufspreise für gekochte Items
   const COOK_PRICE = {
     corn:    { normal: 2,  rare: 3,  epic: 5  },
     cabbage: { normal: 10, rare: 14, epic: 20 }
@@ -189,31 +222,31 @@
   // ========= STATE =========
   const camera = { x:0, y:0 };
   const state = {
-    mode: "play", // "play" | "cook"
-    player: { x: TILE*2, y: TILE*2, r: TILE*0.38 },
+    mode: "play",
+    player: { x: TILE*2, y: TILE*2, r: TILE*0.38, faceX:1, faceY:0 },
     speedMult: 1.0,
     merchant: { x: TILE*(MAP_W-5), y: TILE*(MAP_H-5), name: "Fecalfred" },
     artist:   { x: TILE*6,         y: TILE*7,         name: "Berta Brown" },
     cheat:    { x: TILE*(MAP_W-3), y: TILE*(MAP_H/2), name: "Stefan Spielverderber" },
-    pond:     { x: TILE*(MAP_W-3), y: TILE*(5) }, // tiefer gesetzt
-    farmRect: null, fenceRects: [], houseRect: null, _gateLeft:0, _gateRight:0,
+    pond:     { x: TILE*(MAP_W-3), y: TILE*(5) }, // etwas tiefer
+    farmRect: null, fenceRects: [], houseRect: null,
     clearingRect: null,
 
     toolbox: { x: 0, y: 0 },
     shack:   { built:false, safeRect:null, firePos:null, clearingUpgrade:false },
 
-    stones: [],     // natürliche Steine/Erdbrocken: {x,y,type:'stone'|'dirt'}
-    blocks: [],     // vom Spieler platzierte Steine: {x,y}
+    stones: [],     // natürliche Steine/Erdbrocken
+    blocks: [],     // platzierte Steine
 
-    plants: [],     // {x,y,type:'corn'|'cabbage', plantedAt, readyAt, stage, watered}
+    plants: [],     // Pflanzen
     inv: {
       stone:0, poop:0, corn:0, cabbage:0, euro:0,
       hasCan:false, can:0, canMax:13, hasShoes:false, cabbageSeed:0,
-      // gekocht
       cookedCornN:0, cookedCornR:0, cookedCornE:0,
       cookedCabbN:0, cookedCabbR:0, cookedCabbE:0
     },
     smoke: [],
+    spawnFx: [],   // Staubpartikel
     frame: 0,
     keys: new Set(),
     joy: { id:null, cx:0, cy:0, vx:0, vy:0, dead:10, max:50 },
@@ -230,7 +263,7 @@
     // UI
     activeSeed: null, // "poop" | "cabbageSeed" | "stone" | null
 
-    // Cooking minigame state
+    // Cooking
     cook: { active:false, item:null, round:0, successes:0, speed:0, dir:1, pos:0, green:[0.4,0.6] }
   };
 
@@ -349,7 +382,7 @@
   function insideRectPt(x,y,rc){ return insideRect(x,y,rc); }
   function makeInsetRect(rc, inset){ return { x1: rc.x1+inset, y1: rc.y1+inset, x2: rc.x2-inset, y2: rc.y2-inset }; }
 
-  // ==== Blocking durch Steine (natürlich & platziert) ====
+  // ==== Blocking/Kollisionen ====
   function isBlockedCircle(x,y,r){
     if (collidesAnyRect(x,y)) return true;
     for (const s of state.stones){ if (s.type==='stone' && Math.hypot(x - s.x, y - s.y) < (r + STONE_R)) return true; }
@@ -509,7 +542,6 @@
               state.inv.euro -= 50;
               state.shack.built = true;
               state.shack.safeRect = makeInsetRect(state.clearingRect, TILE*0.4);
-              // Feuerposition festlegen (wie in draw verwendet)
               const z = state.shack.safeRect; const cx = (z.x1+z.x2)/2, cy = (z.y1+z.y2)/2;
               state.shack.firePos = { x: cx - TILE*0.7, y: cy + TILE*0.4 };
               updateHUD(); save(); say("🛖 Shack gebaut! In der Nacht hier sicher.");
@@ -578,7 +610,7 @@
   function addItem({icon,name,desc,price,actionText,disabled,onClick}){
     const row = document.createElement('div'); row.className = "item";
     row.innerHTML = `<div class="i-ic">${icon}</div><div class="i-body"><div class="i-name">${name}</div><div class="i-desc">${desc}</div></div><div class="i-col"><div class="i-price">${price||""}</div><button class="btn-ghost"${disabled?' disabled':''}>${actionText}</button></div>`;
-    const btn = row.querySelector('button'); if (!disabled) btn.addEventListener('click', onClick); mList.appendChild(row);
+    const btn = row.querySelector('button'); if (!disabled && onClick) btn.addEventListener('click', onClick); mList.appendChild(row);
   }
   function openModal(){ modal.classList.add('open'); modalBackdrop.classList.add('open'); }
   function closeModal(){ modal.classList.remove('open'); modalBackdrop.classList.remove('open'); }
@@ -598,19 +630,17 @@
     openModal();
   }
   function startCooking(item){
-    // verbrauchen wir erst am Ende (bei Ergebnis)
     state.mode = "cook";
     state.cook.active = true;
     state.cook.item = item;
     state.cook.round = 1;
     state.cook.successes = 0;
-    state.cook.speed = 0.012 + rand()*0.006; // Basisgeschwindigkeit
+    state.cook.speed = 0.012 + rand()*0.006;
     state.cook.dir = 1;
-    state.cook.pos = 0.0; // 0..1
+    state.cook.pos = 0.0;
     randomizeGreen();
   }
   function randomizeGreen(){
-    // grüner Bereich 18–26% breit, zufällige Position
     const w = 0.18 + rand()*0.08;
     const start = rand()*(1-w)*0.98 + 0.01;
     state.cook.green = [start, start + w];
@@ -620,19 +650,13 @@
     const p = state.cook.pos;
     const [a,b] = state.cook.green;
     const perfect = (p >= a && p <= b);
+    if (perfect) {/* optional cook sfx */} else {/* optional miss sfx */ }
     if (perfect) state.cook.successes++;
-    if (state.cook.round >= 3){
-      finishCooking();
-    } else {
-      state.cook.round++;
-      state.cook.speed *= 1.18; // steigern
-      state.cook.dir = (rand()<0.5)? -1 : 1;
-      randomizeGreen();
-    }
+    if (state.cook.round >= 3){ finishCooking(); }
+    else { state.cook.round++; state.cook.speed *= 1.18; state.cook.dir = (rand()<0.5)? -1 : 1; randomizeGreen(); }
   }
   function finishCooking(){
     const it = state.cook.item;
-    // Zutaten check
     if (it==='corn'){
       if (state.inv.corn <= 0){ say("Kein Mais im Inventar."); abortCooking(); return; }
       state.inv.corn--;
@@ -671,10 +695,6 @@
   });
   window.addEventListener('keyup',   e=>state.keys.delete(e.key.toLowerCase()));
 
-  // ========= Helpers =========
-  btnCenter.addEventListener('click', ()=>{ state.debugCenter=true; say("Ansicht zentriert."); });
-  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save_v7'); location.reload(); });
-
   // ========= Save/Load =========
   function save(){
     try { localStorage.setItem('mk_save_v7', JSON.stringify({
@@ -697,7 +717,7 @@
     } catch {}
   })();
 
-  // ========= Kontext-Button Logik =========
+  // ========= Steinfunktionen =========
   function getNearbyStoneIndex(){ // natürliche Steine
     let idx=-1, best=1e9;
     const need = state.player.r + STONE_R + 6;
@@ -709,14 +729,27 @@
     }
     return idx;
   }
+  function getNearbyPlacedBlockIndex(){ // platzierte Steine
+    let idx=-1, best=1e9;
+    const need = state.player.r + STONE_R + 6;
+    for (let i=0;i<state.blocks.length;i++){
+      const b = state.blocks[i];
+      const d = dist(b.x,b.y,state.player.x,state.player.y);
+      if (d < need && d < best){ best=d; idx=i; }
+    }
+    return idx;
+  }
   function canPlaceStoneAt(tx,ty){
     if (collidesAnyRect(tx,ty)) return false;
+    if (Math.hypot(tx - state.player.x, ty - state.player.y) < (state.player.r + STONE_R + 6)) return false; // Anti-Stuck
     for (const s of state.stones) if (s.type==='stone' && dist(tx,ty,s.x,s.y) < STONE_R*2) return false;
     for (const b of state.blocks) if (dist(tx,ty,b.x,b.y) < STONE_R*2) return false;
     if (state.plants.some(p=>dist(tx,ty,p.x,p.y) < STONE_R*2)) return false;
+    if (state.shack.built && insideRectPt(tx,ty, state.shack.safeRect)) return false;
     return true;
   }
 
+  // ========= Kontext-Button =========
   function updateContextButton(){
     let icon = "❓", enabled=false, action=null;
 
@@ -725,7 +758,7 @@
     else if (state.isDay && isNear(state.artist)) { icon="🛒"; enabled=true; action=()=>openShop('berta'); }
     else if (isNear(state.cheat)) { icon="🧙‍♂️"; enabled=true; action=()=>openShop('cheat'); }
     else if (isNear(state.toolbox)) { icon="🧰"; enabled=true; action=()=>openShop('build'); }
-    // Kochen nur wenn Shack steht & nah am Feuer
+    // Kochen: am Feuer
     else if (state.shack.built && state.shack.firePos && dist(state.player.x,state.player.y, state.shack.firePos.x, state.shack.firePos.y) < NEAR_DIST*0.9){
       icon="🍳"; enabled=true; action=()=>openCookMenu();
     }
@@ -734,17 +767,27 @@
       if (p && p.stage>=3){ icon="🌾"; enabled=true; action=harvestPlant; }
       else if (p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=waterPlant; }
       else {
-        const sIdx = getNearbyStoneIndex();
-        if (sIdx >= 0){
-          icon = "🪨"; enabled=true; action = ()=>{ state.inv.stone++; state.stones.splice(sIdx,1); updateHUD(); say("🪨 Stein aufgehoben."); save(); };
+        // 1) platzierten Stein aufheben?
+        const bIdx = getNearbyPlacedBlockIndex();
+        if (bIdx >= 0){
+          icon = "🪨"; enabled = true;
+          action = ()=>{ state.inv.stone++; state.blocks.splice(bIdx,1); updateHUD(); say("🪨 Stein aufgenommen."); save(); };
         } else {
-          const {tx,ty} = snapToTile(state.player.x, state.player.y);
-          const tileFreeForPlant = inFarm(tx,ty) && !state.plants.some(pl => dist(pl.x,pl.y,tx,ty) < TILE*0.25) && !isBlockedCircle(tx,ty,TILE*0.2);
-          if (state.isDay && tileFreeForPlant && state.activeSeed){
-            if (state.activeSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=plantPoop; }
-            else if (state.activeSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=plantCabbage; }
-          } else if (state.activeSeed==="stone" && state.inv.stone>0){
-            if (canPlaceStoneAt(tx,ty)){ icon="📦"; enabled=true; action=()=>{ state.inv.stone--; state.blocks.push({x:tx,y:ty}); updateHUD(); say("🪨 platziert."); save(); }; }
+          // 2) natürlicher Stein?
+          const sIdx = getNearbyStoneIndex();
+          if (sIdx >= 0){
+            icon = "🪨"; enabled = true;
+            action = ()=>{ state.inv.stone++; state.stones.splice(sIdx,1); updateHUD(); say("🪨 Stein aufgenommen."); save(); };
+          } else {
+            // 3) platzieren?
+            const {tx,ty} = snapToTile(state.player.x, state.player.y);
+            const tileFreeForPlant = inFarm(tx,ty) && !state.plants.some(pl => dist(pl.x,pl.y,tx,ty) < TILE*0.25) && !isBlockedCircle(tx,ty,TILE*0.2);
+            if (state.isDay && tileFreeForPlant && state.activeSeed){
+              if (state.activeSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=plantPoop; }
+              else if (state.activeSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=plantCabbage; }
+            } else if (state.activeSeed==="stone" && state.inv.stone>0){
+              if (canPlaceStoneAt(tx,ty)){ icon="📦"; enabled=true; action=()=>{ state.inv.stone--; state.blocks.push({x:tx,y:ty}); updateHUD(); say("🪨 platziert."); save(); }; }
+            }
           }
         }
       }
@@ -755,12 +798,29 @@
     contextBtn.onclick = enabled ? action : null;
   }
 
+  // ========= Spawn: Sound + Staub + Position =========
+  function spawnDust(x,y){
+    for (let i=0;i<14;i++){
+      const ang = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*2.2;
+      state.spawnFx.push({ x, y, vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp, r: 2.5 + Math.random()*3, a: 0.9, life: 36 });
+    }
+  }
+  function spawnPlayer(){
+    const x = state.clearingRect.x1 + TILE*1.2;
+    const y = (state.clearingRect.y1 + state.clearingRect.y2)/2;
+    state.player.x = x; state.player.y = y;
+    state.player.faceX = 1; state.player.faceY = 0;
+    spawnDust(x,y);
+    SFX.play.spawn?.();
+    say("✨ Du bist auf der Lichtung.");
+    state.debugCenter = true; // Kamera anpassen
+  }
+
   // ========= Loop =========
   function loop(){
     state.frame++;
     updateClock();
 
-    // während Kochen: Welt „pausieren“ (keine Monsterbewegung/Spawns, kein Movement)
     const paused = state.mode === "cook";
 
     // Movement + collisions (Spieler)
@@ -779,6 +839,10 @@
         const ty=clamp(ny + (vy/len)*speed, TILE/2, MAP_H*TILE - TILE/2);
         if (!isBlockedCircle(nx, ty, state.player.r)) ny = ty;
       }
+      // Blickrichtung aktualisieren
+      const mvx = nx - state.player.x, mvy = ny - state.player.y;
+      const mlen = Math.hypot(mvx, mvy);
+      if (mlen > 0.01){ state.player.faceX = mvx / mlen; state.player.faceY = mvy / mlen; }
       state.player.x=nx; state.player.y=ny;
     }
 
@@ -788,7 +852,7 @@
       camera.y=clamp(state.player.y - canvas.clientHeight/2, 0, MAP_H*TILE - canvas.clientHeight);
     }
 
-    // Erdbrocken (autopick + Poop-Chance) – Steine NICHT autopick
+    // Erdbrocken autopick (mit Poop-Chance)
     if (!paused){
       for (let i=state.stones.length-1;i>=0;i--){
         const s=state.stones[i];
@@ -804,7 +868,7 @@
     // Pflanzen
     updatePlants();
 
-    // ===== MONSTER SPAWN/AI nur wenn nicht pausiert
+    // ==== Monster-Logik
     if (!paused){
       if (!state.isDay) {
         state._monsterSpawnTick = (state._monsterSpawnTick||0) + 1;
@@ -844,16 +908,15 @@
             state.player.x += kx * MONSTER_TOUCH_KNOCKBACK; state.player.y += ky * MONSTER_TOUCH_KNOCKBACK;
             say(`💥 Treffer! Leben: ${state.hp}`);
             if (state.hp <= 0){
-              state.player.x = state.farmRect.x1 + (state.farmRect.x2-state.farmRect.x1)/2;
-              state.player.y = state.farmRect.y1 + (state.farmRect.y2-state.farmRect.y1)/2;
+              // Respawn bei Tod
               state.hp = 3; state.monsters.length=0;
-              say("😵 K.O.! Du kommst wieder zu dir…");
+              spawnPlayer();
             }
           }
         }
       }
 
-      // BULLETS UPDATE
+      // BULLETS
       const nowB = time.now();
       for (let i = state.bullets.length-1; i>=0; i--){
         const b = state.bullets[i];
@@ -888,14 +951,23 @@
       }
     }
 
-    // Rauch leicht weiterentwickeln
-    if (state.frame % 20 === 0) spawnSmoke();
+    // Rauchentwicklung am Haus
+    if (state.frame % 20 === 0) pushSmoke();
 
     // Cooking pointer anim
     if (state.cook.active){
       state.cook.pos += state.cook.dir * state.cook.speed;
       if (state.cook.pos <= 0){ state.cook.pos = 0; state.cook.dir = 1; }
       if (state.cook.pos >= 1){ state.cook.pos = 1; state.cook.dir = -1; }
+    }
+
+    // Spawn-Staub updaten
+    for (let i=state.spawnFx.length-1; i>=0; i--){
+      const p = state.spawnFx[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.92; p.vy *= 0.92;
+      p.a *= 0.96; p.life--;
+      if (p.life<=0 || p.a<0.05) state.spawnFx.splice(i,1);
     }
 
     draw();
@@ -911,6 +983,11 @@
     const rect = canvas.getBoundingClientRect();
     const gx = (e.clientX - rect.left) + camera.x;
     const gy = (e.clientY - rect.top) + camera.y;
+
+    // Blick zum Klick ausrichten (nachts beim Schießen nützlich)
+    const dirx = gx - state.player.x, diry = gy - state.player.y;
+    const dlen = Math.hypot(dirx, diry) || 1;
+    state.player.faceX = dirx / dlen; state.player.faceY = diry / dlen;
 
     // nachts: schießen
     if (!state.isDay){
@@ -939,7 +1016,7 @@
   });
 
   // ========= Smoke =========
-  function spawnSmoke(){
+  function pushSmoke(){
     const hy = state.merchant.y - TILE;
     const sx = state.merchant.x + TILE*0.7, sy = hy - TILE*0.95;
     state.smoke.push({ x:sx, y:sy, r:4+rand()*5, a: state.isDay ? 0.6 : 0.85, vy:-0.3-rand()*0.2 });
@@ -978,7 +1055,7 @@
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    // Hintergrund-Schachbrett (day/night tint)
+    // Hintergrund
     const bgA = state.isDay ? "#0d3316" : "#08190c", bgB = state.isDay ? "#12401e" : "#0c2013";
     for (let y=0;y<MAP_H;y++) for (let x=0;x<MAP_W;x++){ const px=x*TILE, py=y*TILE; ctx.fillStyle = ((x+y)%2===0)?bgA:bgB; ctx.fillRect(px,py,TILE,TILE); }
 
@@ -986,7 +1063,6 @@
     const clr = state.clearingRect;
     ctx.fillStyle = "#1a5a2d"; ctx.fillRect(clr.x1, clr.y1, clr.x2-clr.x1, clr.y2-clr.y1);
     ctx.strokeStyle = "rgba(180,220,150,0.35)"; ctx.strokeRect(clr.x1, clr.y1, clr.x2-clr.x1, clr.y2-clr.y1);
-    ctx.fillStyle = "#2c7a39"; for(let i=0;i<8;i++){ const rx = clr.x1 + 8 + (i%4)*((clr.x2-clr.x1-16)/3); const ry = (i<4? clr.y1-6 : clr.y2-6); ctx.beginPath(); ctx.ellipse(rx, ry, 8, 6, 0, 0, Math.PI*2); ctx.fill(); }
 
     // Farm-Feld mit Zaun
     drawFenceWithGate(state.farmRect);
@@ -1002,7 +1078,7 @@
     ctx.fillStyle="#2b2b2b"; ctx.font = `bold ${Math.floor(TILE*0.38)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("FECALFRED", state.merchant.x, hy + TILE*1.25 + signH/2);
     ctx.font = `${Math.floor(TILE*0.9)}px system-ui`; ctx.fillText("🧑‍🌾", state.merchant.x, state.merchant.y - TILE*0.5);
 
-    // Berta Brown – Staffelei
+    // Berta Brown
     const ax = state.artist.x, ay = state.artist.y;
     ctx.fillStyle="#8b5a2b"; ctx.fillRect(ax - TILE*0.8, ay - TILE*0.6, TILE*0.15, TILE*1.3); ctx.fillRect(ax + TILE*0.65, ay - TILE*0.6, TILE*0.15, TILE*1.3);
     ctx.fillStyle="#f0e0c0"; ctx.fillRect(ax - TILE*0.5, ay - TILE*0.9, TILE*1.1, TILE*0.8);
@@ -1063,22 +1139,48 @@
       }
     }
 
-    // Monster
+    // Monster (mit Blickrichtung)
     for (const m of state.monsters){
+      const dx = state.player.x - m.x, dy = state.player.y - m.y;
+      const d = Math.hypot(dx,dy) || 1;
+      const fx = dx/d, fy = dy/d;
+      const sideX = -fy, sideY = fx;
+      const eyeOff = 5, eyeR = 3;
+
       ctx.save(); ctx.translate(m.x, m.y);
       ctx.fillStyle = state.isDay ? "#444" : "#5f1044"; ctx.beginPath(); ctx.arc(0,0,m.r,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(-6,-5,4,0,Math.PI*2); ctx.arc(6,-5,4,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-6,-5,2,0,Math.PI*2); ctx.arc(6,-5,2,0,Math.PI*2); ctx.fill();
+
+      const ex = fx * (m.r*0.3), ey = fy * (m.r*0.3);
+      const Lx = ex + sideX * eyeOff, Ly = ey + sideY * eyeOff;
+      const Rx = ex - sideX * eyeOff, Ry = ey - sideY * eyeOff;
+
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(Lx, Ly, eyeR+1, 0, Math.PI*2); ctx.arc(Rx, Ry, eyeR+1, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(Lx + fx*2, Ly + fy*2, eyeR, 0, Math.PI*2); ctx.arc(Rx + fx*2, Ry + fy*2, eyeR, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
 
-    // Spieler
-    ctx.save(); ctx.translate(state.player.x, state.player.y);
-    ctx.fillStyle="#e6b35a"; ctx.beginPath(); ctx.arc(0,0,state.player.r,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc( state.player.r*0.3, -state.player.r*0.2, state.player.r*0.09, 0, Math.PI*2); ctx.fill();
-    ctx.lineWidth=3; ctx.strokeStyle="#111"; ctx.beginPath(); ctx.arc(0, state.player.r*0.05, state.player.r*0.45, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
-    ctx.restore();
+    // Spieler (mit Blickrichtung)
+    {
+      const fdx = state.player.faceX, fdy = state.player.faceY;
+      const eyeOff = 6, eyeR = state.player.r*0.11;
+      const sideX = -fdy, sideY = fdx;
+      const eyeBaseX = state.player.x + fdx * (state.player.r*0.25);
+      const eyeBaseY = state.player.y + fdy * (state.player.r*0.25);
+      const Lx = eyeBaseX + sideX * eyeOff, Ly = eyeBaseY + sideY * eyeOff;
+      const Rx = eyeBaseX - sideX * eyeOff, Ry = eyeBaseY - sideY * eyeOff;
+
+      ctx.fillStyle="#e6b35a"; ctx.beginPath(); ctx.arc(state.player.x, state.player.y, state.player.r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(Lx, Ly, eyeR, 0, Math.PI*2); ctx.arc(Rx, Ry, eyeR, 0, Math.PI*2); ctx.fill();
+      const pupOff = eyeR*0.6; ctx.fillStyle="#111"; ctx.beginPath();
+      ctx.arc(Lx + fdx*pupOff, Ly + fdy*pupOff, eyeR*0.55, 0, Math.PI*2);
+      ctx.arc(Rx + fdx*pupOff, Ry + fdy*pupOff, eyeR*0.55, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle="#111"; ctx.lineWidth=3; ctx.beginPath();
+      const mx = state.player.x + fdx*(state.player.r*0.55);
+      const my = state.player.y + fdy*(state.player.r*0.55);
+      ctx.moveTo(mx - sideX*6, my - sideY*6);
+      ctx.lineTo(mx + sideX*6, my + sideY*6);
+      ctx.stroke();
+    }
 
     // Projektile
     ctx.fillStyle="#b9c2cc";
@@ -1092,7 +1194,7 @@
     ctx.fillStyle="#4b2f1b"; ctx.fillRect(cx2, cy2 - TILE*0.2, TILE*0.25, TILE*0.35);
     for (const s of state.smoke){ s.x += 0.05; s.y += s.vy; s.a *= 0.985; s.r = (s.r||5)*1.01; ctx.fillStyle=`rgba(220,220,220,${s.a})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); }
 
-    // Werkzeugkasten (nur solange kein Shack steht)
+    // Werkzeugkasten (wenn kein Shack)
     if (!state.shack.built){
       const bx = state.toolbox.x, by = state.toolbox.y;
       ctx.fillStyle = "#6d4c33"; ctx.fillRect(bx - TILE*0.35, by - TILE*0.25, TILE*0.7, TILE*0.5);
@@ -1104,73 +1206,82 @@
     // Shack & Sicherheitszone
     if (state.shack.built){
       const z = state.shack.safeRect;
-      ctx.strokeStyle = "rgba(250, 230, 120, 0.35)";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(z.x1, z.y1, z.x2 - z.x1, z.y2 - z.y1);
-
+      ctx.strokeStyle = "rgba(250, 230, 120, 0.35)"; ctx.lineWidth = 3; ctx.strokeRect(z.x1, z.y1, z.x2 - z.x1, z.y2 - z.y1);
       const cx = (z.x1+z.x2)/2, cy = (z.y1+z.y2)/2;
-      ctx.fillStyle = "#70553b";
-      ctx.fillRect(cx - TILE*0.9, cy - TILE*0.7, TILE*1.8, TILE*1.2);
-      ctx.fillStyle = "#8a6a4b";
-      ctx.fillRect(cx - TILE*1.1, cy - TILE*1.0, TILE*2.2, TILE*0.5);
+      ctx.fillStyle = "#70553b"; ctx.fillRect(cx - TILE*0.9, cy - TILE*0.7, TILE*1.8, TILE*1.2);
+      ctx.fillStyle = "#8a6a4b"; ctx.fillRect(cx - TILE*1.1, cy - TILE*1.0, TILE*2.2, TILE*0.5);
       ctx.fillStyle = "#2b1c11"; ctx.fillRect(cx - TILE*0.15, cy - TILE*0.1, TILE*0.3, TILE*0.6);
       ctx.fillStyle = "#d7e7ff"; ctx.fillRect(cx + TILE*0.45, cy - TILE*0.2, TILE*0.35, TILE*0.3);
-
-      // Feuerstelle links unten (und speichere Pos)
       const fx = cx - TILE*0.7, fy = cy + TILE*0.4;
       if (!state.shack.firePos) state.shack.firePos = {x:fx, y:fy};
       ctx.fillStyle="#3a2a1d"; ctx.beginPath(); ctx.arc(fx,fy, TILE*0.2, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle="#ffb84d"; ctx.beginPath(); ctx.arc(fx,fy-6, TILE*0.14, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle="rgba(255,255,255,0.3)"; ctx.beginPath(); ctx.arc(fx,fy-12, TILE*0.09, 0, Math.PI*2); ctx.fill();
-
-      // Bett rechts innen (Icon)
       ctx.fillStyle="#c7d2fe"; ctx.fillRect(cx + TILE*0.3, cy + TILE*0.25, TILE*0.8, TILE*0.22);
       ctx.fillStyle="#93c5fd"; ctx.fillRect(cx + TILE*0.3, cy + TILE*0.1, TILE*0.35, TILE*0.15);
     }
 
+    // Platzierungs-Vorschau
+    if (state.activeSeed==="stone" && state.inv.stone>0){
+      const {tx,ty} = snapToTile(state.player.x, state.player.y);
+      const ok = canPlaceStoneAt(tx,ty);
+      ctx.save(); ctx.globalAlpha = 0.6;
+      ctx.fillStyle = ok ? "rgba(56, 189, 248, 0.35)" : "rgba(239, 68, 68, 0.45)";
+      ctx.beginPath(); ctx.ellipse(tx, ty, STONE_R, STONE_R*0.78, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.restore();
+
+    // ===== Spawn-Staub im Bildschirm-KS (Additiv) =====
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+    ctx.globalCompositeOperation='lighter';
+    for (const p of state.spawnFx){
+      ctx.fillStyle=`rgba(240,220,180,${p.a})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    }
     ctx.restore();
 
     // ===== Cooking Overlay =====
     if (state.cook.active){
-      // dunkles Overlay
       ctx.fillStyle="rgba(0,0,0,0.65)";
       ctx.fillRect(0,0,canvas.clientWidth, canvas.clientHeight);
 
       const W = Math.min(520, canvas.clientWidth*0.9), H = 200;
       const x = (canvas.clientWidth - W)/2, y = (canvas.clientHeight - H)/2;
 
-      // Panel
       ctx.fillStyle="#0f141a"; ctx.fillRect(x, y, W, H);
       ctx.strokeStyle="#3a2a18"; ctx.lineWidth=3; ctx.strokeRect(x, y, W, H);
 
-      // Titel
       ctx.fillStyle="#f2f2f2"; ctx.font=`bold 18px system-ui`;
       ctx.fillText(`Kochen: ${state.cook.item==='corn'?'Mais':'Kohl'} — Runde ${state.cook.round}/3`, x+14, y+26);
       ctx.font=`12px system-ui`; ctx.fillStyle="#cbd5e1";
       ctx.fillText("Tippen um den Zeiger im grünen Bereich zu stoppen", x+14, y+46);
 
-      // Temperaturbalken
       const barX = x+24, barY = y+90, barW = W-48, barH = 18;
       ctx.fillStyle="#334155"; ctx.fillRect(barX, barY, barW, barH);
 
-      // grüner Bereich
       const ga = barX + state.cook.green[0]*barW;
       const gb = barX + state.cook.green[1]*barW;
       ctx.fillStyle="#22c55e"; ctx.fillRect(ga, barY, gb-ga, barH);
 
-      // Zeiger
       const pxp = barX + state.cook.pos * barW;
       ctx.fillStyle="#eab308"; ctx.fillRect(pxp-2, barY-10, 4, barH+20);
 
-      // Erfolge
       ctx.fillStyle="#94a3b8"; ctx.font='12px system-ui';
       ctx.fillText(`Treffer bisher: ${state.cook.successes}`, x+14, y+H-18);
     }
   }
 
+  // ========= Helpers =========
+  btnCenter.addEventListener('click', ()=>{ state.debugCenter=true; say("Ansicht zentriert."); });
+  btnReset .addEventListener('click', ()=>{ localStorage.removeItem('mk_save_v7'); location.reload(); }); // Neustart via Reload (Spawn erfolgt beim Start)
+
   // ========= Start =========
-  function spawnSmoke(){ /* handled in loop via push */ }
-  updateHUD(); loop();
+  updateHUD();
+  spawnPlayer();    // Spawn-Sound + Staub + Lichtungs-Start
+  loop();
 })();
 </script>
 </body>
