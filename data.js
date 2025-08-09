@@ -6,8 +6,8 @@ const WORLD = { W: 40, H: 24, TILE: 48 };
 
 /* Koordinaten in TILES */
 const MAPDATA = {
-  farm:     { x: 26, y: 12, w: 6, h: 4 },  // eingezäuntes Feld
-  clearing: { x: 20, y: 13, w: 4, h: 3 },  // Lichtung links von Farm
+  farm:     { x: 26, y: 12, w: 6, h: 4 },  // eingezäuntes Feld (mit Tor unten)
+  clearing: { x: 20, y: 13, w: 4, h: 3 },  // Lichtung links der Farm (Spawn)
   pondRect: { x: 35, y: 4,  w: 4, h: 3 },  // Teich oben rechts (blockt)
   tutorial: { x: 30, y: 17 }               // Tutorial-Schild bei Fred
 };
@@ -20,11 +20,7 @@ const NPCS = [
 ];
 
 /* Economy */
-const ECON = {
-  stoneToPoop: 10,
-  cornSell: 1,
-  cabbageSell: 7
-};
+const ECON = { stoneToPoop: 10, cornSell: 1, cabbageSell: 7 };
 
 /* Pflanzen (ms) */
 const PLANTS = {
