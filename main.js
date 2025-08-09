@@ -1,11 +1,12 @@
 /* =========================================================================
-   Poopboy v0.7.2
-   - Felsen tragen (Space/Kontext), sichtbar, blockend
-   - Stein-Yard bei Fred mit Tor (unten), 5=1💩, 20=Shop-Upgrade
-   - Highlighter vor dem Spieler; Neustart-Button (mit Bestätigung)
-   - Spieler lächelt normal, angestrengt beim Tragen + langsamer
-   - Fix: größerer Pickup-Radius; Mund-Lächeln korrekt
-   - Alle Felsen blocken; Berta-Blockade = Felsen
+   Poopboy v0.7.3
+   - Fix: Gesicht richtig (smile idle, angestrengt beim Tragen)
+   - Fix: Augen beim Tragen schauen immer nach unten
+   - HUD: zeigt 💩 und 🔹(Munition)
+   - Nacht & Monster deaktiviert (bis Ammo-Flow final)
+   - Neuer Berta-Upgrade: Steinzerkleinerer (6€) → 1 Felsen = 🔹8 Munition,
+     nutzbar auf der Lichtung via Kontextbutton.
+   - Felsen tragen/abstellen/abgeben unverändert, alle Felsen blocken.
    ========================================================================= */
 (() => {
   // ===== Canvas & UI =====
@@ -61,17 +62,22 @@
   const FRED_POS    = toPx(FRED_TILE.x, FRED_TILE.y);
   const STEFAN_POS  = toPx(STEFAN_TILE.x, STEFAN_TILE.y);
 
-  // Freds Stein-Yard (rechts neben Fred), 3x3 Tiles
+  // Freds Stein-Yard (rechts neben Fred), 3x3 Tiles, unten Tor
   const STONEYARD = { x: FRED_POS.x + T*2.4, y: FRED_POS.y - T*1.5, w: T*3, h: T*3 };
-  const YARD_GATE_W = T * 1.2; // unten Mitte
+  const YARD_GATE_W = T * 1.2;
 
   // ===== State =====
   const state={
     version: GAME_VERSION,
     player:{ x: BASE_CLEAR.x + T*1.2, y: BASE_CLEAR.y + BASE_CLEAR.h/2, r:T*0.38, dir:"right" },
-    inv:{ poop:0, corn:0, cabbage:0, euro:0, cabbageSeed:0, hasCan:false, can:0, canMax:CAN_MAX, hasShoes:false, cart:false },
-    hearts:3,
-    speedMult:1.0,
+    inv:{
+      poop:0, corn:0, cabbage:0, euro:0, cabbageSeed:0,
+      hasCan:false, can:0, canMax:CAN_MAX, hasShoes:false,
+      cart:false,
+      hasCrusher:false, ammo:0        // 🔹 Munition
+    },
+    hearts:3, speedMult:1.0,
+    // Nacht/Monster vorübergehend aus
     isDay:true, prevIsDay:true, dayBase:performance.now(), timeScale:1.0,
     boulders:[], dirts:[], plants:[],
     monsters:[], bullets:[],
@@ -143,9 +149,8 @@
   state.boulders.length=0; state.dirts.length=0;
   for(let i=0;i<24;i++) spawnRandomBoulder();
   for(let i=0;i<40;i++) spawnRandomDirt();
-  // langsamer Nachspawn
   let boulderTimer=6000;
-  function maintainBoulderSpawn(dt){ boulderTimer-=dt*(state.isDay?1:0.6); if(boulderTimer<=0 && state.boulders.length<60){ spawnRandomBoulder(); boulderTimer=12000+Math.floor(rnd()*8000); } }
+  function maintainBoulderSpawn(dt){ boulderTimer-=dt; if(boulderTimer<=0 && state.boulders.length<60){ spawnRandomBoulder(); boulderTimer=12000+Math.floor(rnd()*8000); } }
 
   // Berta-Blockade mit Felsen
   function placeBertaBlockade(){
@@ -157,19 +162,14 @@
     state.bertaBlockadePlaced=true; save();
   }
 
-  // ===== Day/Night =====
-  function updateDay(){
-    const dt=((performance.now()-state.dayBase)*state.timeScale)%DAY_TOTAL_MS;
-    state.prevIsDay = state.isDay;
-    state.isDay = dt < DAYLIGHT_MS;
-    if (state.isDay !== state.prevIsDay){ if(state.isDay){ if(SFX)SFX.play("day"); state.monsters.length=0; } else { if(SFX)SFX.play("night"); } }
-  }
+  // ===== Day/Night (deaktiviert) =====
+  function updateDay(){ state.prevIsDay = state.isDay; state.isDay = true; } // immer Tag
 
   // ===== Pflanzen =====
   function inFarm(x,y){ const f=state.farm; return x>=f.x&&x<=f.x+f.w&&y>=f.y&&y<=f.y+f.h; }
+  function inClear(x,y){ const c=state.clear; return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
   function findNearbyPlant(){ let best=null,bd=1e9; for(const p of state.plants){ const d=dist(state.player.x,state.player.y,p.x,p.y); if(d<T*0.9 && d<bd){bd=d;best=p;} } return best; }
   function plant(type){
-    if(!state.isDay) return say("Nacht: Kein Anbau.");
     if(!inFarm(state.player.x,state.player.y)) return say("Nur im Feld!");
     const {x,y}=tileCenterFromPx(state.player.x,state.player.y);
     if(state.plants.some(p=>p.x===x&&p.y===y)) return say("Hier wächst bereits etwas.");
@@ -224,72 +224,19 @@
     save();
   }
 
-  // ===== Monster & Slingshot =====
-  let monsterRespawnTimer=0;
-  function maintainMonsters(dt){
-    if (!state.isDay){
-      monsterRespawnTimer -= dt;
-      const target=4;
-      if(state.monsters.length<target && monsterRespawnTimer<=0){
-        let tries=200;
-        while(tries--){
-          const tx=Math.floor(rnd()*MAP_W), ty=Math.floor(rnd()*MAP_H);
-          const x=tx*T+T/2, y=ty*T+T/2;
-          const r={x:x-T*0.5,y:y-T*0.5,w:T,h:T};
-          if(rectsOverlap(r,POND)||rectsOverlap(r,state.farm)||rectsOverlap(r,state.clear)||rectsOverlap(r,STONEYARD)) { tries--; continue; }
-          if(dist(x,y,state.player.x,state.player.y)<T*8) { tries--; continue; }
-          state.monsters.push({x,y,hp:2}); break;
-        }
-        monsterRespawnTimer=2000;
-      }
-    } else { state.monsters.length=0; monsterRespawnTimer=0; }
-  }
+  // ===== Monster & Slingshot (deaktiviert + Munition vorbereitet) =====
+  function maintainMonsters(){ state.monsters.length = 0; }
+  function updateMonsters(){ /* noop (deaktiviert) */ }
   function fireTowards(tx,ty){
     if(state.carry.has) return say("Zu schwer: Felsen erst ablegen!");
+    if(state.inv.ammo<=0) return say("Keine Munition (🔹)!");
+    state.inv.ammo--; save();
     const dx=tx-state.player.x, dy=ty-state.player.y, m=Math.hypot(dx,dy)||1;
     const speed=8.0;
     state.bullets.push({x:state.player.x,y:state.player.y,vx:dx/m*speed,vy:dy/m*speed,life:90});
     if(SFX)SFX.play("shoot");
   }
-  function fireAtNearestMonster(){ let best=null,bd=1e9; for(const mo of state.monsters){ const d=dist(state.player.x,state.player.y,mo.x,mo.y); if(d<bd){bd=d;best=mo;} } if(!best) return say("Kein Ziel."); fireTowards(best.x,best.y); }
-
-  function getSafeZoneRect(){ if (!state.shackBuilt) return null; const c=state.clear, w=T*1.8, h=T*1.2; return { x:c.x+c.w/2-w/2, y:c.y+c.h/2-h/2, w, h }; }
-
-  function updateMonsters(){
-    const speed=3.6*state.speedMult*0.5;
-    const safe=getSafeZoneRect();
-    for(let i=state.monsters.length-1;i>=0;i--){
-      const m=state.monsters[i];
-      if(!state.isDay){
-        const dx=state.player.x-m.x, dy=state.player.y-m.y, L=Math.hypot(dx,dy)||1;
-        let nx=m.x+(dx/L)*speed, ny=m.y+(dy/L)*speed;
-        const RX={x:nx-T*0.5,y:m.y-T*0.5,w:T,h:T}, RY={x:m.x-T*0.5,y:ny-T*0.5,w:T,h:T};
-        let bx=false,by=false;
-        for(const b of state.boulders){ const r={x:b.x-T*0.5,y:b.y-T*0.5,w:T,h:T}; if(rectsOverlap(RX,r))bx=true; if(rectsOverlap(RY,r))by=true; if(bx&&by)break; }
-        if(rectsOverlap(RX,POND))bx=true; if(rectsOverlap(RY,POND))by=true;
-        const FRED_HOUSE={ x:FRED_POS.x-T*1.0, y:FRED_POS.y-T*0.6, w:T*2.0, h:T*1.2 };
-        const STEFAN_HOUSE={ x:STEFAN_POS.x-T*0.9, y:STEFAN_POS.y-T*0.9, w:T*1.8, h:T*1.1 };
-        if(rectsOverlap(RX,FRED_HOUSE)||rectsOverlap(RX,STEFAN_HOUSE))bx=true;
-        if(rectsOverlap(RY,FRED_HOUSE)||rectsOverlap(RY,STEFAN_HOUSE))by=true;
-        if(fenceBlocks(RX)||yardFenceBlocks(RX))bx=true;
-        if(fenceBlocks(RY)||yardFenceBlocks(RY))by=true;
-        if(safe && (rectsOverlap(RX,safe)||rectsOverlap(RY,safe))){ bx=true; by=true; }
-        if(!bx) m.x=nx; if(!by) m.y=ny;
-
-        const d=dist(m.x,m.y,state.player.x,state.player.y);
-        if(d<T*0.7){
-          if(!state.god && state.dmgCooldown<=0){
-            state.hearts=Math.max(0,state.hearts-1);
-            state.dmgCooldown=220;
-            const kx=(state.player.x-m.x)/(d||1), ky=(state.player.y-m.y)/(d||1);
-            state.player.x+=kx*T*1.2; state.player.y+=ky*T*1.2;
-            if(SFX){ SFX.play("hit"); SFX.play("deny"); } say("💢 Aua! -1 ❤");
-            if(state.hearts<=0){ state.hearts=3; spawnPlayer(); say("Neu gestartet."); }
-          }
-        }
-      } else { state.monsters.splice(i,1); }
-    }
-  }
+  function fireAtNearestMonster(){ say("Monster sind aktuell deaktiviert."); }
 
   // ===== Kollisionen (Zaun/Häuser/Yard) =====
   function fenceBlocks(rect){
@@ -377,7 +324,8 @@
     }
     if(dist(x,y,ui.ctxBtn.x,ui.ctxBtn.y)<=ui.ctxBtn.r){ if(ui.ctxBtn.enabled&&ui.ctxBtn.action) ui.ctxBtn.action(); return; }
     if(dist(x,y,ui.joy.cx,ui.joy.cy)<=ui.joy.r){ ui.joy.active=true; ui.joy.id=e.pointerId; const dx=x-ui.joy.cx,dy=y-ui.joy.cy,m=Math.hypot(dx,dy),s=Math.min(1,m/(ui.joy.r-8)); ui.joy.vx=(m<8?0:dx/m)*s; ui.joy.vy=(m<8?0:dy/m)*s; return; }
-    if (state.monsters.length>0){ fireTowards(x,y); return; }
+    // Schießen (Ammo wird abgezogen; Monster sind zZt. aus)
+    fireTowards(x,y);
     if(ui.tutorial) ui.tutorial=false;
   });
   cv.addEventListener('pointermove', e=>{
@@ -401,7 +349,7 @@
   }
   function canPlaceBoulder(px,py){
     if(rectsOverlap({x:px-T*0.5,y:py-T*0.5,w:T,h:T},POND)) return false;
-    if(inStoneYard(px,py)) return false; // Yard ist zum Abgeben, nicht Platzieren
+    if(inStoneYard(px,py)) return false; // Yard = nur Abgeben
     if(Math.hypot(px-state.player.x,py-state.player.y) < state.player.r + BOULDER_R + 4) return false;
     for(const b of state.boulders) if(Math.hypot(px-b.x,py-b.y)<BOULDER_R*2-6) return false;
     for(const p of state.plants)   if(Math.hypot(px-p.x,py-p.y)<T*0.5) return false;
@@ -443,18 +391,20 @@
       mPortrait.textContent="👩‍🎨"; mTitle.textContent="Berta Brown"; mSub.textContent="Upgrades (Tag)";
       addRow({icon:"💧", name:"Gießkanne", desc:"Permanent. 13 Nutzungen. Am Teich auffüllen.", price:"5 €", button: state.inv.hasCan?"Gekauft":"Kaufen", disabled: state.inv.hasCan || state.inv.euro<5, onClick:()=>{ state.inv.hasCan=true; state.inv.can=state.inv.canMax; state.inv.euro-=5; save(); openShop('berta'); }});
       addRow({icon:"👟", name:"Schnelle Schuhe", desc:"+35% Laufgeschwindigkeit", price:"7 €", button: state.inv.hasShoes?"Gekauft":"Kaufen", disabled: state.inv.hasShoes || state.inv.euro<7, onClick:()=>{ state.inv.hasShoes=true; state.speedMult=1.35; state.inv.euro-=7; save(); openShop('berta'); }});
+      // Neu: Steinzerkleinerer
+      addRow({icon:"🪓", name:"Steinzerkleinerer", desc:"Auf der Lichtung: getragener Felsen → 🔹8 Munition.", price:"6 €",
+        button: state.inv.hasCrusher?"Gekauft":"Kaufen",
+        disabled: state.inv.hasCrusher || state.inv.euro<6,
+        onClick:()=>{ state.inv.hasCrusher=true; state.inv.euro-=6; save(); openShop('berta'); }
+      });
     } else {
       mPortrait.textContent="🧙‍♂️"; mTitle.textContent="Stefan Spielverderber"; mSub.textContent="Tests & Cheats";
       addRow({icon:"💶", name:"+50 €", button:"+50", onClick:()=>{ state.inv.euro+=50; save(); openShop('stefan'); }});
       addRow({icon:"💩", name:"+10 Poop",  button:"+10", onClick:()=>{ state.inv.poop+=10; save(); openShop('stefan'); }});
       addRow({icon:"🥬", name:"+10 Kohlsaat", button:"+10", onClick:()=>{ state.inv.cabbageSeed+=10; save(); openShop('stefan'); }});
+      addRow({icon:"🔹", name:"+20 Munition", button:"+20", onClick:()=>{ state.inv.ammo+=20; save(); openShop('stefan'); }});
       addRow({icon: state.god?"🛡️":"🗡️", name:"Godmode", button: state.god?"AUS":"AN", onClick:()=>{ state.god=!state.god; save(); openShop('stefan'); }});
-      addRow({icon:"⏱️", name:"Zeit x0.5", button:"x0.5", onClick:()=>{ state.timeScale=0.5; save(); }});
-      addRow({icon:"⏱️", name:"Zeit x1.5", button:"x1.5", onClick:()=>{ state.timeScale=1.5; save(); }});
-      addRow({icon:"⏱️", name:"Zeit x2",   button:"x2",   onClick:()=>{ state.timeScale=2; save(); }});
-      addRow({icon:"⏱️", name:"Zeit x3",   button:"x3",   onClick:()=>{ state.timeScale=3; save(); }});
-      addRow({icon:"🌞", name:"Zu Tag",    button:"Tag",  onClick:()=>{ state.dayBase = performance.now(); save(); }});
-      addRow({icon:"🌙", name:"Zu Nacht",  button:"Nacht",onClick:()=>{ state.dayBase = performance.now() - (DAYLIGHT_MS-1); save(); }});
+      addRow({icon:"🌞", name:"Tag halten", desc:"Nacht/Monster sind bereits aus.", price:"—", button:"OK"});
     }
     openModal();
   }
@@ -465,15 +415,20 @@
     const near=(px,py,qx,qy,r)=>dist(px,py,qx,qy)<r;
 
     if(near(state.player.x,state.player.y,TUTORIAL.x,TUTORIAL.y,T*0.9)){ icon="📜"; enabled=true; action=()=>{ ui.tutorial=true; }; }
-    else if(near(state.player.x,state.player.y,fred.x,fred.y,T*1.2) && state.isDay){ icon="🛒"; enabled=true; action=()=>openShop('fred'); }
-    else if(near(state.player.x,state.player.y,berta.x,berta.y,T*1.2) && state.isDay){ icon="🛒"; enabled=true; action=()=>openShop('berta'); }
+    else if(near(state.player.x,state.player.y,fred.x,fred.y,T*1.2)){ icon="🛒"; enabled=true; action=()=>openShop('fred'); }
+    else if(near(state.player.x,state.player.y,berta.x,berta.y,T*1.2)){ icon="🛒"; enabled=true; action=()=>openShop('berta'); }
     else if(near(state.player.x,state.player.y,stefan.x,stefan.y,T*1.2)){ icon="🧙‍♂️"; enabled=true; action=()=>openShop('stefan'); }
     else if(near(state.player.x,state.player.y,POND.x+POND.w/2,POND.y+POND.h/2,T*2.0)){ icon="💧"; enabled=state.inv.hasCan; action=()=>{ if(!state.inv.hasCan) return say("Keine Gießkanne."); state.inv.can=state.inv.canMax; save(); say("💧 Gießkanne aufgefüllt!"); }; }
     else {
       const g = placementTargetCenter();
       if(state.carry.has){
         if (inStoneYard(state.player.x, state.player.y)){ icon="⬇️"; enabled=true; action=()=>{ state.carry.has=false; depositBoulderAtFred(); save(); }; }
-        else { const ok=canPlaceBoulder(g.x,g.y); icon = ok ? "📦" : "🚫"; enabled=ok; action=()=>{ state.carry.has=false; state.boulders.push({x:g.x,y:g.y}); if(SFX)SFX.play("drop"); save(); }; }
+        else if (state.inv.hasCrusher && inClear(state.player.x, state.player.y)){
+          icon="🪓"; enabled=true; action=()=>{ state.carry.has=false; state.inv.ammo += 8; say("🪓 Felsen → 🔹×8"); if(SFX)SFX.play("drop"); save(); };
+        }
+        else {
+          const ok=canPlaceBoulder(g.x,g.y); icon = ok ? "📦" : "🚫"; enabled=ok; action=()=>{ state.carry.has=false; state.boulders.push({x:g.x,y:g.y}); if(SFX)SFX.play("drop"); save(); };
+        }
       }else{
         const bi=nearestBoulderIndex();
         if (bi>=0){ icon="🪨"; enabled=true; action=()=>{ const b=state.boulders[bi]; state.boulders.splice(bi,1); state.carry.has=true; if(SFX)SFX.play("pickup"); }; }
@@ -484,7 +439,6 @@
           else {
             const di=(function(){ let i=-1,bd=1e9; for(let k=0;k<state.dirts.length;k++){ const d=state.dirts[k]; const dd=dist(state.player.x,state.player.y,d.x,d.y); if(dd<T*0.7&&dd<bd){i=k;bd=dd;} } return i; })();
             if(di>=0){ icon="🪵"; enabled=true; action=()=>{ state.dirts.splice(di,1); const chance=0.10+rnd()*0.05; if(rnd()<chance){ state.inv.poop++; say("💩 Glück gehabt!"); } else say("🪵 Erdbrocken."); save(); if(SFX)SFX.play("pickup"); }; }
-            else if(state.monsters.length>0){ icon="🎯"; enabled=true; action=fireAtNearestMonster; }
             else { icon="🚫"; enabled=false; }
           }
         }
@@ -494,7 +448,7 @@
   }
 
   // ===== Render =====
-  function drawBG(){ const a=state.isDay?"#13481e":"#0a2a14", b=state.isDay?"#0f3a18":"#092412"; for(let y=0;y<MAP_H*T;y+=T) for(let x=0;x<MAP_W*T;x+=T){ ctx.fillStyle=(((x+y)/T)%2===0)?a:b; ctx.fillRect(x,y,T,T); } }
+  function drawBG(){ const a="#13481e", b="#0f3a18"; for(let y=0;y<MAP_H*T;y+=T) for(let x=0;x<MAP_W*T;x+=T){ ctx.fillStyle=(((x+y)/T)%2===0)?a:b; ctx.fillRect(x,y,T,T); } }
   function drawFence(){
     const f=state.farm; ctx.fillStyle="rgba(120,220,140,0.14)"; ctx.fillRect(f.x,f.y,f.w,f.h);
     ctx.strokeStyle="#916c3b"; ctx.lineWidth=4;
@@ -506,14 +460,11 @@
   function drawStoneYard(){
     const f=STONEYARD; ctx.fillStyle="rgba(180,180,180,0.10)"; ctx.fillRect(f.x,f.y,f.w,f.h);
     ctx.strokeStyle="#8a6a3a"; ctx.lineWidth=3;
-    // oben/links/rechts
     ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x+f.w,f.y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x,f.y+f.h); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(f.x+f.w,f.y); ctx.lineTo(f.x+f.w,f.y+f.h); ctx.stroke();
-    // unten mit Tor
     const gateC=f.x+f.w/2, gl=gateC-YARD_GATE_W/2, gr=gateC+YARD_GATE_W/2;
     ctx.beginPath(); ctx.moveTo(f.x, f.y+f.h); ctx.lineTo(gl, f.y+f.h); ctx.moveTo(gr, f.y+f.h); ctx.lineTo(f.x+f.w, f.y+f.h); ctx.stroke();
-    // Schild
     ctx.fillStyle="#f8f5e7"; const w=T*2.4,h=T*0.6, sx=f.x+f.w/2-w/2, sy=f.y-h-T*0.3;
     ctx.fillRect(sx,sy,w,h); ctx.strokeStyle="#7b5b2b"; ctx.strokeRect(sx+.5,sy+.5,w-1,h-1);
     ctx.fillStyle="#333"; ctx.font=`bold ${Math.floor(T*0.30)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -536,11 +487,18 @@
 
   function drawPlayer(){
     const p=state.player; ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
-    let fx=0,fy=0; if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1;
+
+    // Blickrichtung der Augen:
+    // normal: folgt der Laufrichtung; beim Tragen: immer nach unten.
+    let fx=0,fy=0;
+    if (state.carry.has) { fx=0; fy=1; }
+    else { if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1; }
+
     const sx=-fy, sy=fx, eR=p.r*0.11, off=6, ex=p.x+fx*(p.r*0.25), ey=p.y+fy*(p.r*0.25);
     ellipse(ex+sx*off, ey+sy*off, eR, eR, "#fff"); ellipse(ex-sx*off, ey-sy*off, eR, eR, "#fff");
     ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
     ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
+
     // Mund: lächelnd wenn NICHT trägt, angestrengt wenn trägt
     ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
     if (state.carry.has) {
@@ -549,6 +507,8 @@
     } else {
       ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
     }
+
+    // Trägt-Felsen sichtbar
     if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
   }
 
@@ -575,23 +535,30 @@
   function drawHUD(){
     const HUD_H=48, HUD_Y=0; ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(0, HUD_Y, cv.clientWidth, HUD_H);
     let x=12,y=22; ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
-    ctx.fillText(`❤ ${state.hearts}`, x,y); x+=70; ctx.fillText(`🌽 ${state.inv.corn}`, x,y); x+=80;
-    ctx.fillText(`🥬 ${state.inv.cabbage}`, x,y); x+=90; ctx.fillText(`💶 ${state.inv.euro}`, x,y); x+=90;
+    ctx.fillText(`❤ ${state.hearts}`, x,y); x+=68;
+    ctx.fillText(`💩 ${state.inv.poop}`, x,y); x+=68;
+    ctx.fillText(`🌽 ${state.inv.corn}`, x,y); x+=68;
+    ctx.fillText(`🥬 ${state.inv.cabbage}`, x,y); x+=78;
+    ctx.fillText(`💶 ${state.inv.euro}`, x,y); x+=78;
+    ctx.fillText(`🔹 ${state.inv.ammo}`, x,y); x+=78;
     if(state.inv.hasCan) ctx.fillText(`💧 ${state.inv.can}/${state.inv.canMax}`, x,y), x+=120;
     if(state.carry.has){ ctx.fillStyle="#cbd5e1"; ctx.fillText("🚚 Trägt FELSEN", x,y); }
-    const el=((performance.now()-state.dayBase)*state.timeScale)%DAY_TOTAL_MS;
-    const hh=Math.floor((el/DAY_TOTAL_MS)*24), mm=Math.floor(((el/DAY_TOTAL_MS)*24-hh)*60);
-    ctx.textAlign="right"; ctx.fillText(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${state.isDay?'🌞':'🌙'}`, cv.clientWidth-48, y); ctx.textAlign="left";
+
+    ctx.textAlign="right"; ctx.fillText(`🌞`, cv.clientWidth-16, y); ctx.textAlign="left";
     ctx.fillStyle="#ddd"; ctx.font="12px system-ui"; ctx.fillText(state.version, 10, cv.clientHeight-10);
+
     // Joystick
     ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r,ui.joy.r,"rgba(24,34,44,.55)"); ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r-6,ui.joy.r-6,"rgba(60,80,96,.18)");
     ellipse(ui.joy.cx+ui.joy.vx*(ui.joy.r-12), ui.joy.cy+ui.joy.vy*(ui.joy.r-12), 32,32, "#1f2937");
+
     // Kontextbutton
     ellipse(ui.ctxBtn.x,ui.ctxBtn.y,ui.ctxBtn.r,ui.ctxBtn.r,ui.ctxBtn.enabled?"#2563eb":"#3b4551");
     ctx.fillStyle="#fff"; ctx.font="28px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(ui.ctxBtn.icon, ui.ctxBtn.x, ui.ctxBtn.y+2);
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+
     // Neustart
     ellipse(ui.restart.x, ui.restart.y, ui.restart.r, "#3b4551"); ctx.fillStyle="#fff"; ctx.font="18px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🔄", ui.restart.x, ui.restart.y+1); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+
     // Toast
     if(TOAST.t>0){ ctx.fillStyle="rgba(0,0,0,.8)"; const tw=ctx.measureText(TOAST.text).width+22; ctx.fillRect((cv.clientWidth-tw)/2, cv.clientHeight-120, tw, 30); ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui"; ctx.fillText(TOAST.text, (cv.clientWidth-tw)/2+11, cv.clientHeight-100); }
   }
@@ -605,11 +572,16 @@
 
   function drawTutorialSign(){
     const x=TUTORIAL.x, y=TUTORIAL.y; ctx.fillStyle="#8b5a2b"; ctx.fillRect(x - T*0.06, y - T*0.5, T*0.12, T*0.9);
-    const w=T*1.4,h=T*0.62; ctx.fillStyle="#f0e9d6"; ctx.fillRect(x - w/2, y - T*0.75, w, h); ctx.strokeStyle="#856d45"; ctx.strokeRect(x - w/2+0.5, y - T*0.75+0.5, w-1, h-1);
-    ctx.fillStyle="#333"; ctx.font=`bold ${Math.floor(T*0.26)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("TUTORIAL", x, y - T*0.60);
+    const w=T*1.6,h=T*0.8; ctx.fillStyle="#f0e9d6"; ctx.fillRect(x - w/2, y - T*0.80, w, h); ctx.strokeStyle="#856d45"; ctx.strokeRect(x - w/2+0.5, y - T*0.80+0.5, w-1, h-1);
+    ctx.fillStyle="#333"; ctx.font=`bold ${Math.floor(T*0.26)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("TUTORIAL", x, y - T*0.64);
     ctx.font=`${Math.floor(T*0.20)}px system-ui`; ctx.textAlign="left";
-    const lines=[ "FELSEN: Space = aufnehmen/abstellen.", "Im Zaun bei Fred ablegen → 5 Felsen = 1💩.", "Bei 20 Felsen: Fred-Upgrade.", "💩→🌽; 🥬-Saat bei Fred; Nacht = Monster." ];
-    let yy=y - T*0.25; for(const L of lines){ ctx.fillText(L, x - w/2 + 8, yy); yy += T*0.22; }
+    const lines=[
+      "FELSEN: Space = aufnehmen / abstellen.",
+      "Auf LICHTUNG (grün): 🪓 Felsen → 🔹×8 Munition.",
+      "Bei FRED abgeben: 5 Felsen = 1💩  •  20 ⇒ Shop-Upgrade.",
+      "💩 → 🌽 säen  •  🥬-Saat bei FRED  •  Nacht aus."
+    ];
+    let yy=y - T*0.30; for(const L of lines){ ctx.fillText(L, x - w/2 + 8, yy); yy += T*0.22; }
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
   }
 
@@ -618,15 +590,14 @@
     for (let i=state.bullets.length-1;i>=0;i--){
       const b=state.bullets[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
       if (b.life<=0 || b.x<0||b.y<0||b.x>MAP_W*T||b.y>MAP_H*T){ state.bullets.splice(i,1); continue; }
-      for (let j=state.monsters.length-1;j>=0;j--){ const m=state.monsters[j]; if (dist(b.x,b.y,m.x,m.y)<T*0.4){ if(SFX)SFX.play("hit"); m.hp--; state.bullets.splice(i,1); if(m.hp<=0){ if(SFX)SFX.play("kill"); dropFromMonster(m.x,m.y); state.monsters.splice(j,1); } break; } }
+      // Monster deaktiviert → kein Treffercheck
     }
   }
-  function dropFromMonster(x,y){ const r=rnd(); if (r<0.33) state.inv.poop++; else if (r<0.66) state.inv.cabbageSeed++; else state.inv.euro += 1 + Math.floor(rnd()*3); save(); }
 
   // ===== Loop =====
   let lastT = performance.now();
   function update(){ const now=performance.now(); const dt=now-lastT; lastT=now;
-    updateDay(); updatePlants(); updatePlayer(); updateContext(); maintainBoulderSpawn(dt); maintainMonsters(dt); updateMonsters(); updateBullets();
+    updateDay(); updatePlants(); updatePlayer(); updateContext(); maintainBoulderSpawn(dt); maintainMonsters(); updateMonsters(); updateBullets();
     if(TOAST.t>0){ TOAST.t-=dt/1000; if(TOAST.t<0) TOAST.t=0; }
   }
   function draw(){
@@ -636,11 +607,9 @@
     for(const d of state.dirts)    drawDirt(d.x,d.y);
     drawClearing(); drawFence(); drawStoneYard(); drawPond(); drawTutorialSign(); drawFred(); drawBerta(); drawStefan(); drawShack();
     drawPlants();
-    for(const m of state.monsters){ ellipse(m.x,m.y,T*0.36,T*0.33,"#6b1f1f"); ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(m.x-6,m.y-4,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(m.x+6,m.y-4,3,0,Math.PI*2); ctx.fill(); }
     ctx.fillStyle="#cbd5e1"; for(const b of state.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
     drawPlayer();
     ctx.globalCompositeOperation='lighter'; for(let i=FX.length-1;i>=0;i--){ const p=FX[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.t--; ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); if(p.t<=0||p.a<0.05) FX.splice(i,1); } ctx.globalCompositeOperation='source-over';
-    if(!state.isDay){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight); }
     drawPreview(); drawHUD();
   }
 
