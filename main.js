@@ -1,7 +1,11 @@
 /* =========================================================================
    Poopboy v0.6.1 – Mehrdateien-Build
-   Fixes: Stein-Vorschau/Platzieren, Tutorial-Schild, 4 Monster + Respawn,
-   Pushback + SFX, Zaun-/Haus-Kollisionen, Teich/Steine hinter Gebäuden.
+   Fixes jetzt drin:
+   - Stein-Platzieren priorisiert (Kontext) + saubere Vorschau (Tilesnap)
+   - Standardauswahl HUD = "🪨" (Stein)
+   - 4 Monster nachts mit Respawn, stärkerer Pushback + SFX
+   - Zaun-/Haus-Kollisionen, Teich/Steine hinter Gebäuden
+   - Tutorial-Schild sichtbar
    ========================================================================= */
 (() => {
   // ----- Canvas & DPI -----
@@ -56,7 +60,7 @@
     isDay: true, prevIsDay:true, dayBase: performance.now(), timeScale: 1.0,
     stones: [], dirts: [], blocks: [], plants: [],
     monsters: [], bullets: [],
-    uiSeed: null,
+    uiSeed: "stone", // << Standard: Stein ausgewählt
     farm: { ...BASE_FARM },
     clear:{ ...BASE_CLEAR },
     shackBuilt:false,
@@ -221,9 +225,9 @@
   const STONE_R=T*0.36;
   function drawStone(x,y){ ellipse(x,y,STONE_R,STONE_R*0.78,"#b9c2cc"); ellipse(x-T*0.12,y-T*0.08,T*0.12,T*0.09,"#88929e"); }
   function drawDirt(x,y){ ellipse(x,y,T*0.32,T*0.24,"#7a5a3a"); ellipse(x+T*0.10,y-T*0.06,T*0.10,T*0.07,"#5d452d"); }
-  function nearestLooseStoneIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.stones.length;k++){ const s=state.stones[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.9&&d<bd){i=k;bd=d;} } return i; }
-  function nearestDirtIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.dirts.length;k++){ const s=state.dirts[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.9&&d<bd){i=k;bd=d;} } return i; }
-  function nearestBlockIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.blocks.length;k++){ const b=state.blocks[k]; const d=dist(state.player.x,state.player.y,b.x,b.y); if(d<T*0.9&&d<bd){i=k;bd=d;} } return i; }
+  function nearestLooseStoneIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.stones.length;k++){ const s=state.stones[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; } // 0.7 statt 0.9
+  function nearestDirtIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.dirts.length;k++){ const s=state.dirts[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }   // 0.7
+  function nearestBlockIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.blocks.length;k++){ const b=state.blocks[k]; const d=dist(state.player.x,state.player.y,b.x,b.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }   // 0.7
   function canPlaceStone(px,py){
     if(rectsOverlap({x:px-T*0.5,y:py-T*0.5,w:T,h:T},POND)) return false;
     if(Math.hypot(px-state.player.x,py-state.player.y)<state.player.r+STONE_R+6) return false;
@@ -380,28 +384,42 @@
       } else if(dist(state.player.x,state.player.y,toolboxPos().x,toolboxPos().y)<T*0.9){
         icon="🧰"; enabled=true; action=()=>openUpgradeShop();
       } else {
-        const p=findNearbyPlant();
-        if(p && p.stage>=3){ icon="🌾"; enabled=true; action=harvest; }
-        else if(p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=water; }
-        else {
-          const bi=nearestBlockIndex();
-          if(bi>=0){ icon="🪨"; enabled=true; action=()=>{ state.blocks.splice(bi,1); state.inv.stone++; save(); }; }
+        // ---- Platzieren priorisieren, wenn Stein gewählt ----
+        const g = snapToTile(state.player.x, state.player.y);
+        if (state.uiSeed === "stone" && state.inv.stone > 0 && canPlaceStone(g.x, g.y)) {
+          icon = "📦"; enabled = true; action = () => {
+            state.inv.stone--;
+            state.blocks.push({ x: g.x, y: g.y });
+            save();
+            if (SFX) SFX.play("drop");
+          };
+        } else {
+          // Pflanzen / Gießen / Ernten
+          const p=findNearbyPlant();
+          if(p && p.stage>=3){ icon="🌾"; enabled=true; action=harvest; }
+          else if(p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=water; }
           else {
-            const si=nearestLooseStoneIndex();
-            if(si>=0){ icon="🪨"; enabled=true; action=()=>{ state.stones.splice(si,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
+            // Entfernen/Aufheben – geringere Priorität
+            const bi=nearestBlockIndex();
+            if(bi>=0){ icon="🪨"; enabled=true; action=()=>{ state.blocks.splice(bi,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
             else {
-              const di=nearestDirtIndex();
-              if(di>=0){ icon="🪵"; enabled=true; action=()=>{ state.dirts.splice(di,1); const chance=0.10+rnd()*0.05; if(rnd()<chance){ state.inv.poop++; say("💩 Glück gehabt!"); } else { say("🪵 Erdbrocken."); } save(); if(SFX)SFX.play("pickup"); }; }
+              const si=nearestLooseStoneIndex();
+              if(si>=0){ icon="🪨"; enabled=true; action=()=>{ state.stones.splice(si,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
               else {
-                const g=snapToTile(state.player.x,state.player.y);
-                if(state.uiSeed==="stone" && state.inv.stone>0 && canPlaceStone(g.x,g.y)){ icon="📦"; enabled=true; action=()=>{ state.inv.stone--; state.blocks.push({x:g.x,y:g.y}); save(); if(SFX)SFX.play("drop"); }; }
-                else if(state.isDay && inFarm(g.x,g.y)){
-                  if(state.uiSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=()=>plant("corn"); }
-                  else if(state.uiSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=()=>plant("cabbage"); }
-                  else { icon="🚫"; enabled=false; }
-                } else if(state.monsters.length>0 && state.inv.stone>0){
-                  icon="🎯"; enabled=true; action=fireAtNearestMonster;
-                } else icon="🚫";
+                const di=nearestDirtIndex();
+                if(di>=0){ icon="🪵"; enabled=true; action=()=>{ state.dirts.splice(di,1); const chance=0.10+rnd()*0.05; if(rnd()<chance){ state.inv.poop++; say("💩 Glück gehabt!"); } else { say("🪵 Erdbrocken."); } save(); if(SFX)SFX.play("pickup"); }; }
+                else {
+                  // Pflanzen-Shortcuts, falls Tag und im Feld
+                  if(state.isDay && inFarm(g.x,g.y)){
+                    if(state.uiSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=()=>plant("corn"); }
+                    else if(state.uiSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=()=>plant("cabbage"); }
+                    else { icon="🚫"; enabled=false; }
+                  } else if(state.monsters.length>0 && state.inv.stone>0){
+                    icon="🎯"; enabled=true; action=fireAtNearestMonster;
+                  } else {
+                    icon="🚫"; enabled=false;
+                  }
+                }
               }
             }
           }
@@ -703,10 +721,12 @@
     }
   }
   function drawPreview(){
-    if(state.uiSeed!=="stone"||state.inv.stone<=0) return;
-    if(nearestLooseStoneIndex()>=0||nearestBlockIndex()>=0) return;
-    const g=tileCenterFromPx(state.player.x,state.player.y); const ok=canPlaceStone(g.x,g.y);
-    ctx.globalAlpha=.6; ellipse(g.x,g.y,STONE_R,STONE_R*0.78, ok?"rgba(56,189,248,.35)":"rgba(239,68,68,.45)"); ctx.globalAlpha=1;
+    if (state.uiSeed !== "stone" || state.inv.stone <= 0) return;
+    const g = tileCenterFromPx(state.player.x, state.player.y);
+    const ok = canPlaceStone(g.x, g.y);
+    ctx.globalAlpha = .6;
+    ellipse(g.x, g.y, STONE_R, STONE_R*0.78, ok ? "rgba(56,189,248,.35)" : "rgba(239,68,68,.45)");
+    ctx.globalAlpha = 1;
   }
   function drawTutorialOverlay(){
     if(!ui.tutorial) return;
