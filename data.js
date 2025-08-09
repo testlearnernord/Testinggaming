@@ -1,22 +1,28 @@
 /* ========= GAME DATA ========= */
-const GAME_VERSION = "v0.5.2";
+const GAME_VERSION = "v0.5.3";
 
 /* Welt in Tiles (w*h) + Tilegröße in px */
 const WORLD = { W: 40, H: 24, TILE: 48 };
 
-/* Koordinaten in TILES */
+/* Map – angepasst wie im Screenshot:
+   - BERTA links/oben
+   - Feld mittig links
+   - Lichtung (Haus) rechts vom Feld
+   - Teich oben rechts
+   - Fred links unten
+   - Stefan rechts unten */
 const MAPDATA = {
-  farm:     { x: 26, y: 12, w: 6, h: 4 },  // eingezäuntes Feld (mit Tor unten)
-  clearing: { x: 20, y: 13, w: 4, h: 3 },  // Lichtung links der Farm (Spawn)
-  pondRect: { x: 35, y: 4,  w: 4, h: 3 },  // Teich oben rechts (blockt)
-  tutorial: { x: 30, y: 17 }               // Tutorial-Schild bei Fred
+  farm:     { x: 18, y: 14, w: 6, h: 4 },   // Feld (mit Tor unten)
+  clearing: { x: 25, y: 13, w: 5, h: 4 },   // Lichtung (Shack/Toolbox)
+  pondRect: { x: 34, y: 5,  w: 5, h: 4 },   // Teich oben rechts
+  tutorial: { x: 26, y: 18 }                // Info-Schild neben Fred
 };
 
 /* NPCs – Positionen in TILES */
 const NPCS = [
-  { id:"fred",   name:"Fecalfred",             kind:"merchant", x:32, y:16, icon:"🧑‍🌾" },
-  { id:"berta",  name:"Berta Brown",           kind:"upgrade",  x:10, y:10, icon:"👩‍🎨" },
-  { id:"stefan", name:"Stefan Spielverderber", kind:"cheat",    x:38, y:12, icon:"🧙‍♂️" },
+  { id:"fred",   name:"Fecalfred",             kind:"merchant", x:10, y:19, icon:"🧑‍🌾" }, // links unten
+  { id:"berta",  name:"Berta Brown",           kind:"upgrade",  x:12, y:9,  icon:"👩‍🎨" }, // links/oben
+  { id:"stefan", name:"Stefan Spielverderber", kind:"cheat",    x:36, y:16, icon:"🧙‍♂️" }, // rechts unten
 ];
 
 /* Economy */
