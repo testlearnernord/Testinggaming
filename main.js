@@ -1,21 +1,21 @@
 /* =========================================================================
-   Poopboy v0.6.1 – Mehrdateien-Build
-   Fixes jetzt drin:
-   - Stein-Platzieren priorisiert (Kontext) + saubere Vorschau (Tilesnap)
-   - Standardauswahl HUD = "🪨" (Stein)
-   - 4 Monster nachts mit Respawn, stärkerer Pushback + SFX
-   - Zaun-/Haus-Kollisionen, Teich/Steine hinter Gebäuden
-   - Tutorial-Schild sichtbar
+   Poopboy v0.6.2 – Build mit:
+   - Neustart-Button (Bestätigung)
+   - Stein-Highlighter = Tile vor dem Spieler
+   - Eigenes Stein-Icon (HUD + Kontext)
+   - Kontextbutton per Leertaste
+   - Platzierte Steine blocken, Platzieren priorisiert
    ========================================================================= */
 (() => {
   // ----- Canvas & DPI -----
   const cv = document.getElementById("gameCanvas");
   const ctx = cv.getContext("2d", { alpha:false });
 
-  // UI (Joystick, Kontext, Tutorial)
+  // UI (Joystick, Kontext, Tutorial, Restart)
   const ui = {
     joy:{ cx:110, cy:110, r:68, knob:32, active:false, id:null, vx:0, vy:0 },
     ctxBtn:{ x:110, y:110, r:44, icon:"❓", enabled:false, action:null },
+    restart:{ x:0, y:0, r:20 },
     tutorial:false
   };
   function resizeCanvas(){
@@ -27,6 +27,8 @@
     ui.joy.cy = cv.clientHeight - 110;
     ui.ctxBtn.x = cv.clientWidth - 84;
     ui.ctxBtn.y = cv.clientHeight - 84;
+    ui.restart.x = cv.clientWidth - 28;
+    ui.restart.y = 26;
   }
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
@@ -40,9 +42,27 @@
   const rectsOverlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const ellipse=(x,y,rx,ry,color)=>{ ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill(); };
   function clampToWorld(x,y){ const min=T/2, maxX=MAP_W*T-T/2, maxY=MAP_H*T-T/2; return {x:clamp(x,min,maxX), y:clamp(y,min,maxY)}; }
-  // präzises Tile-Center (verhindert „zwischen Kacheln“)
   function tileCenterFromPx(x,y){ const tx=Math.floor(x/T), ty=Math.floor(y/T); return {x:tx*T+T/2, y:ty*T+T/2}; }
   const snapToTile = tileCenterFromPx;
+
+  // Eigenes kleines Stein-Icon (für HUD/Kontext)
+  function drawStoneIcon(x,y,r){
+    ctx.fillStyle="#b9c2cc"; ctx.beginPath(); ctx.ellipse(x,y,r,r*0.78,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#88929e"; ctx.beginPath(); ctx.ellipse(x-r*0.33,y-r*0.22,r*0.33,r*0.26,0,0,Math.PI*2); ctx.fill();
+  }
+
+  // Placement-Ziel = Tile vor dem Spieler (nicht auf dem eigenen Tile)
+  function placementTargetCenter(){
+    const c = tileCenterFromPx(state.player.x,state.player.y);
+    let dx=0,dy=0;
+    if(state.player.dir==="left") dx=-1;
+    else if(state.player.dir==="right") dx=1;
+    else if(state.player.dir==="up") dy=-1;
+    else dy=1;
+    const nx = clamp(c.x + dx*T, T/2, MAP_W*T - T/2);
+    const ny = clamp(c.y + dy*T, T/2, MAP_H*T - T/2);
+    return {x:nx,y:ny};
+  }
 
   // ----- Areas (mutable) -----
   const BASE_FARM  = toRectPx(MAPDATA.farm);
@@ -60,7 +80,7 @@
     isDay: true, prevIsDay:true, dayBase: performance.now(), timeScale: 1.0,
     stones: [], dirts: [], blocks: [], plants: [],
     monsters: [], bullets: [],
-    uiSeed: "stone", // << Standard: Stein ausgewählt
+    uiSeed: "stone", // Standard: Stein
     farm: { ...BASE_FARM },
     clear:{ ...BASE_CLEAR },
     shackBuilt:false,
@@ -113,7 +133,7 @@
 
   // ----- HUD Slots -----
   const HUD_SLOTS = [
-    { key:"stone",        icon:"🪨", x:10 },
+    { key:"stone",        icon:null, x:10 }, // eigenes Icon
     { key:"poop",         icon:"💩", x:90 },
     { key:"cabbageSeed",  icon:"🥬", x:170 },
     { key:null,           icon:"🚫", x:250 },
@@ -225,9 +245,9 @@
   const STONE_R=T*0.36;
   function drawStone(x,y){ ellipse(x,y,STONE_R,STONE_R*0.78,"#b9c2cc"); ellipse(x-T*0.12,y-T*0.08,T*0.12,T*0.09,"#88929e"); }
   function drawDirt(x,y){ ellipse(x,y,T*0.32,T*0.24,"#7a5a3a"); ellipse(x+T*0.10,y-T*0.06,T*0.10,T*0.07,"#5d452d"); }
-  function nearestLooseStoneIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.stones.length;k++){ const s=state.stones[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; } // 0.7 statt 0.9
-  function nearestDirtIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.dirts.length;k++){ const s=state.dirts[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }   // 0.7
-  function nearestBlockIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.blocks.length;k++){ const b=state.blocks[k]; const d=dist(state.player.x,state.player.y,b.x,b.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }   // 0.7
+  function nearestLooseStoneIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.stones.length;k++){ const s=state.stones[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }
+  function nearestDirtIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.dirts.length;k++){ const s=state.dirts[k]; const d=dist(state.player.x,state.player.y,s.x,s.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }
+  function nearestBlockIndex(){ let i=-1,bd=1e9; for(let k=0;k<state.blocks.length;k++){ const b=state.blocks[k]; const d=dist(state.player.x,state.player.y,b.x,b.y); if(d<T*0.7&&d<bd){i=k;bd=d;} } return i; }
   function canPlaceStone(px,py){
     if(rectsOverlap({x:px-T*0.5,y:py-T*0.5,w:T,h:T},POND)) return false;
     if(Math.hypot(px-state.player.x,py-state.player.y)<state.player.r+STONE_R+6) return false;
@@ -285,10 +305,28 @@
 
   // ----- Input -----
   const keys=new Set();
-  window.addEventListener('keydown', e=>keys.add(e.key.toLowerCase()));
+  window.addEventListener('keydown', e=>{
+    const k = e.key.toLowerCase();
+    keys.add(k);
+    // Kontextbutton via Space
+    if ((e.code === "Space" || e.key === " ") && ui.ctxBtn.enabled && typeof ui.ctxBtn.action === "function"){
+      e.preventDefault();
+      ui.ctxBtn.action();
+    }
+  });
   window.addEventListener('keyup',   e=>keys.delete(e.key.toLowerCase()));
+
   cv.addEventListener('pointerdown', e=>{
     const r=cv.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top;
+
+    // Neustart-Button
+    if (dist(x,y,ui.restart.x,ui.restart.y) <= ui.restart.r){
+      if (confirm("Spiel neu starten? Dein Fortschritt wird gelöscht.")){
+        try{ localStorage.removeItem("pb_save_v6"); }catch{}
+        location.reload();
+      }
+      return;
+    }
 
     // Kontext
     if(dist(x,y,ui.ctxBtn.x,ui.ctxBtn.y)<=ui.ctxBtn.r){ if(ui.ctxBtn.enabled&&ui.ctxBtn.action) ui.ctxBtn.action(); return; }
@@ -384,32 +422,33 @@
       } else if(dist(state.player.x,state.player.y,toolboxPos().x,toolboxPos().y)<T*0.9){
         icon="🧰"; enabled=true; action=()=>openUpgradeShop();
       } else {
-        // ---- Platzieren priorisieren, wenn Stein gewählt ----
-        const g = snapToTile(state.player.x, state.player.y);
-        if (state.uiSeed === "stone" && state.inv.stone > 0 && canPlaceStone(g.x, g.y)) {
+        // ---- Platzieren (STEIN) priorisieren: Ziel = Tile vor dem Spieler
+        const gPlace = placementTargetCenter();
+        if (state.uiSeed === "stone" && state.inv.stone > 0 && canPlaceStone(gPlace.x, gPlace.y)) {
           icon = "📦"; enabled = true; action = () => {
             state.inv.stone--;
-            state.blocks.push({ x: g.x, y: g.y });
+            state.blocks.push({ x: gPlace.x, y: gPlace.y });
             save();
             if (SFX) SFX.play("drop");
           };
         } else {
-          // Pflanzen / Gießen / Ernten
+          // Pflanzen / Gießen / Ernten (nutzt aktuelles Tile)
           const p=findNearbyPlant();
           if(p && p.stage>=3){ icon="🌾"; enabled=true; action=harvest; }
           else if(p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=water; }
           else {
             // Entfernen/Aufheben – geringere Priorität
             const bi=nearestBlockIndex();
-            if(bi>=0){ icon="🪨"; enabled=true; action=()=>{ state.blocks.splice(bi,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
+            if(bi>=0){ icon="STONE"; enabled=true; action=()=>{ state.blocks.splice(bi,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
             else {
               const si=nearestLooseStoneIndex();
-              if(si>=0){ icon="🪨"; enabled=true; action=()=>{ state.stones.splice(si,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
+              if(si>=0){ icon="STONE"; enabled=true; action=()=>{ state.stones.splice(si,1); state.inv.stone++; save(); if(SFX)SFX.play("pickup"); }; }
               else {
                 const di=nearestDirtIndex();
                 if(di>=0){ icon="🪵"; enabled=true; action=()=>{ state.dirts.splice(di,1); const chance=0.10+rnd()*0.05; if(rnd()<chance){ state.inv.poop++; say("💩 Glück gehabt!"); } else { say("🪵 Erdbrocken."); } save(); if(SFX)SFX.play("pickup"); }; }
                 else {
                   // Pflanzen-Shortcuts, falls Tag und im Feld
+                  const g = snapToTile(state.player.x,state.player.y);
                   if(state.isDay && inFarm(g.x,g.y)){
                     if(state.uiSeed==="poop" && state.inv.poop>0){ icon="💩"; enabled=true; action=()=>plant("corn"); }
                     else if(state.uiSeed==="cabbageSeed" && state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=()=>plant("cabbage"); }
@@ -446,7 +485,7 @@
     row.innerHTML=`<div class="iic">${icon}</div>
       <div class="ibody"><div class="iname">${name}</div><div class="idesc">${desc||""}</div></div>
       <div class="iprice">${price||""}</div>`;
-    const btn=document.createElement('button'); btn.className="ghost"; btn.textContent=button||"OK";
+    const btn=document.createElement('button'); btn.className="ghost"; btn.textContent=button||("OK");
     if(disabled) btn.disabled=true; btn.onclick=onClick||(()=>{});
     const col=document.createElement('div'); col.style.display="flex"; col.style.alignItems="center"; col.style.gap="10px";
     col.appendChild(btn); row.appendChild(col); mList.appendChild(row);
@@ -662,6 +701,7 @@
 
   // ----- HUD & Preview -----
   function drawHUD(){
+    // Top-Bar
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, HUD_Y, cv.clientWidth, HUD_H);
 
@@ -677,18 +717,25 @@
       ctx.strokeStyle = selected ? "#2563eb" : "rgba(255,255,255,.25)";
       ctx.strokeRect(bx+.5,by+.5,bw-1,bh-1);
 
-      ctx.fillStyle="#fff"; ctx.font="18px system-ui";
-      ctx.textAlign="left"; ctx.textBaseline="middle";
-      ctx.fillText(s.icon, bx+10, by+bh/2+1);
+      // Icon
+      if (s.key === "stone"){
+        drawStoneIcon(bx+20, by+bh/2, 9);
+      } else {
+        ctx.fillStyle="#fff"; ctx.font="18px system-ui";
+        ctx.textAlign="left"; ctx.textBaseline="middle";
+        ctx.fillText(s.icon, bx+10, by+bh/2+1);
+      }
 
+      // Count
       const cnt = s.key==="stone" ? state.inv.stone :
                   s.key==="poop" ? state.inv.poop :
                   s.key==="cabbageSeed" ? state.inv.cabbageSeed : "";
-      if (cnt!==""){ ctx.font="bold 12px system-ui"; ctx.fillText(String(cnt), bx+36, by+bh/2+1); }
+      if (cnt!==""){ ctx.fillStyle="#fff"; ctx.font="bold 12px system-ui"; ctx.fillText(String(cnt), bx+38, by+bh/2+1); }
       hudSlotRects.push({x:bx,y:by,w:bw,h:bh,key:s.key});
     }
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
 
+    // Stats
     let x=330,y=22;
     ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
     ctx.fillText(`❤ ${state.hearts}`, x,y); x+=70;
@@ -697,41 +744,58 @@
     ctx.fillText(`💶 ${state.inv.euro}`, x,y); x+=90;
     if(state.inv.hasCan) ctx.fillText(`💧 ${state.inv.can}/${state.inv.canMax}`, x,y);
 
+    // Uhr
     const el=((performance.now()-state.dayBase)*state.timeScale)%DAY_TOTAL_MS;
     const hh=Math.floor((el/DAY_TOTAL_MS)*24), mm=Math.floor(((el/DAY_TOTAL_MS)*24-hh)*60);
     ctx.textAlign="right"; ctx.fillText(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${state.isDay?'🌞':'🌙'}`, cv.clientWidth-12, y); ctx.textAlign="left";
 
+    // Version
     ctx.fillStyle="#ddd"; ctx.font="12px system-ui"; ctx.fillText(state.version, 10, cv.clientHeight-10);
 
-    // joystick
+    // Joystick
     ctx.globalAlpha=.9; ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r,ui.joy.r,"rgba(24,34,44,.55)");
     ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r-6,ui.joy.r-6,"rgba(60,80,96,.18)");
     ellipse(ui.joy.cx+ui.joy.vx*(ui.joy.r-12), ui.joy.cy+ui.joy.vy*(ui.joy.r-12), 32,32, "#1f2937");
     ctx.globalAlpha=1;
 
-    // context
+    // Kontextbutton
     ellipse(ui.ctxBtn.x,ui.ctxBtn.y,ui.ctxBtn.r,ui.ctxBtn.r,ui.ctxBtn.enabled?"#2563eb":"#3b4551");
-    ctx.fillStyle="#fff"; ctx.font="32px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(ui.ctxBtn.icon, ui.ctxBtn.x, ui.ctxBtn.y+2); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+    if (ui.ctxBtn.icon === "STONE"){
+      drawStoneIcon(ui.ctxBtn.x, ui.ctxBtn.y+2, 12);
+    } else {
+      ctx.fillStyle="#fff"; ctx.font="32px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(ui.ctxBtn.icon, ui.ctxBtn.x, ui.ctxBtn.y+2);
+      ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+    }
 
+    // Neustart-Button
+    ellipse(ui.restart.x, ui.restart.y, ui.restart.r, ui.ctxBtn.enabled ? "#334155" : "#3b4551");
+    ctx.fillStyle="#fff"; ctx.font="18px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("🔄", ui.restart.x, ui.restart.y+1);
+    ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+
+    // Toast
     if(TOAST.t>0){ ctx.fillStyle="rgba(0,0,0,.8)"; const tw=ctx.measureText(TOAST.text).width+22;
       ctx.fillRect((cv.clientWidth-tw)/2, cv.clientHeight-120, tw, 30);
       ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
       ctx.fillText(TOAST.text, (cv.clientWidth-tw)/2+11, cv.clientHeight-100);
     }
   }
+
+  // Vorschau: Tile vor dem Spieler
   function drawPreview(){
     if (state.uiSeed !== "stone" || state.inv.stone <= 0) return;
-    const g = tileCenterFromPx(state.player.x, state.player.y);
+    const g = placementTargetCenter();
     const ok = canPlaceStone(g.x, g.y);
     ctx.globalAlpha = .6;
     ellipse(g.x, g.y, STONE_R, STONE_R*0.78, ok ? "rgba(56,189,248,.35)" : "rgba(239,68,68,.45)");
     ctx.globalAlpha = 1;
   }
+
   function drawTutorialOverlay(){
     if(!ui.tutorial) return;
     const lines=[
-      "Steine: aufnehmen, platzieren, handeln, als Munition nutzen (Tippen).",
+      "Steine: aufnehmen, platzieren, handeln, als Munition nutzen (Tippen/Leertaste).",
       "Platziertes blockiert Monster – und dich selbst.",
       "💩 → 🌽 (40s, 60%). 🥬-Saat → 🥬 (120s; Gießen → 40s).",
       "Gießkanne bei Berta, am Teich auffüllen."
@@ -762,7 +826,7 @@
     ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
     drawBG();
 
-    // Pickups GANZ hinten
+    // Pickups hinten
     for(const s of state.stones) drawStone(s.x,s.y);
     for(const d of state.dirts)  drawDirt(d.x,d.y);
 
@@ -792,6 +856,7 @@
 
     drawPlayer();
 
+    // FX & Night overlay
     ctx.globalCompositeOperation='lighter';
     for(let i=FX.length-1;i>=0;i--){ const p=FX[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.t--; ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); if(p.t<=0||p.a<0.05) FX.splice(i,1); }
     ctx.globalCompositeOperation='source-over';
