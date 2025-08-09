@@ -1,21 +1,17 @@
 /* =========================================================================
    Poopboy – optimierte Mehrdatei-Version
-   - Fullscreen + HiDPI
-   - NPCs + Shops (Fred/Berta/Stefan)
-   - Farm-Zaun + Lichtung + Tutorial-Schild
-   - Teich-Kollision + Auffüllen
-   - Tag/Nacht + Uhr
-   - Steine (aufheben/platzieren) + Vorschau
-   - Pflanzen (Poop → Mais / Kohlsaat → Kohl) + Gießen/Ernten
-   - Berta-Blockade beim ersten Start/Neustart
-   - Epischer Spawn-SFX + Staub
-   - Version unten links
    ========================================================================= */
-
 (() => {
   /* ---------- Canvas & DPI ---------- */
   const cv = document.getElementById("gameCanvas");
   const ctx = cv.getContext("2d", { alpha:false });
+
+  /* UI-Objekt vor resizeCanvas anlegen */
+  const ui = {
+    joy:{ cx:110, cy:110, r:68, knob:32, active:false, id:null, vx:0, vy:0 },
+    ctxBtn:{ x:110, y:110, r:44, icon:"❓", enabled:false, action:null },
+    tutorial:false
+  };
   function resizeCanvas() {
     const dpr = Math.max(1, window.devicePixelRatio||1);
     const w = window.innerWidth, h = window.innerHeight;
@@ -61,24 +57,29 @@
   /* ---------- Entities / State ---------- */
   const state = {
     version: GAME_VERSION,
+    // Player
     player: { x: (CLEAR.x+T*1.2), y: (CLEAR.y + CLEAR.h/2), r: T*0.38, dir:"right" },
+    // Inventory
     inv: { stone:0, poop:0, corn:0, cabbage:0, euro:0, cabbageSeed:0, hasCan:false, can:0, canMax:CAN_MAX, hasShoes:false },
     speedMult: 1.0,
-    isDay: true, wasDay: true, dayBase: performance.now(),
+    // Time
+    isDay: true, dayBase: performance.now(), timeScale: 1.0,
+    // World
     stones: [], blocks: [], plants: [],
-    monsters: [],
-    bullets: [],
-    uiSeed: null, // "poop"|"cabbageSeed"|"stone"|null
+    // UI
+    uiSeed: null, // "stone"|"poop"|"cabbageSeed"|null
+    // Save flags
     bertaBlockadePlaced: false,
     rng: (Date.now() ^ 0x9e3779b9) >>> 0,
+    god: false
   };
   function rnd(){ let x=state.rng; x^=x<<13; x^=x>>>17; x^=x<<5; state.rng=x>>>0; return (x>>>0)/4294967296; }
 
   /* ---------- Save/Load ---------- */
   function save(){
     try{ localStorage.setItem("pb_save_v2", JSON.stringify({
-      inv:state.inv, speedMult:state.speedMult, dayBase:state.dayBase, blocks:state.blocks,
-      plants:state.plants, bertaBlockadePlaced:state.bertaBlockadePlaced
+      inv:state.inv, speedMult:state.speedMult, dayBase:state.dayBase, timeScale:state.timeScale,
+      blocks:state.blocks, plants:state.plants, bertaBlockadePlaced:state.bertaBlockadePlaced, god:state.god
     })); }catch{}
   }
   (function load(){
@@ -88,13 +89,16 @@
       Object.assign(state.inv, d.inv||{});
       state.speedMult = d.speedMult||1.0;
       state.dayBase = d.dayBase||state.dayBase;
+      state.timeScale = d.timeScale||1.0;
       if(Array.isArray(d.blocks)) state.blocks = d.blocks;
       if(Array.isArray(d.plants)) state.plants = d.plants;
       state.bertaBlockadePlaced = !!d.bertaBlockadePlaced;
+      state.god = !!d.god;
     }catch{}
   })();
 
   /* ---------- Spawn / SFX ---------- */
+  const fx = [];
   function spawnDust(x,y){
     for(let i=0;i<14;i++){
       const ang = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*2.2;
@@ -142,19 +146,18 @@
 
   /* ---------- Day/Night ---------- */
   function updateDay(){
-    const dt = (performance.now() - state.dayBase) % DAY_TOTAL_MS;
+    const dt = ((performance.now() - state.dayBase) * state.timeScale) % DAY_TOTAL_MS;
     state.isDay = dt < DAYLIGHT_MS;
   }
 
   /* ---------- Plants ---------- */
-  function snapToTile(x,y){ return {x: Math.round(x/T)*T + 0, y: Math.round(y/T)*T + 0}; }
+  function snapToTile(x,y){ return {x: Math.round(x/T)*T, y: Math.round(y/T)*T}; }
   function inFarm(x,y){ return x>=FARM.x && x<=FARM.x+FARM.w && y>=FARM.y && y<=FARM.y+FARM.h; }
   function plant(type){
     if(!state.isDay) return say("Nacht: Kein Anbau.");
     if(!inFarm(state.player.x, state.player.y)) return say("Nur im Feld!");
     const {x, y} = snapToTile(state.player.x, state.player.y);
     if (state.plants.some(p=>p.x===x && p.y===y)) return say("Hier wächst bereits etwas.");
-    // Blocker verhindern
     for(const b of state.blocks) if (Math.hypot(x - b.x, y - b.y) < T*0.5) return say("Blockiert.");
     if(type==="corn"){
       if(state.inv.poop<=0) return say("💩 fehlt.");
@@ -202,13 +205,14 @@
   function updatePlants(){
     const now = performance.now();
     for(const p of state.plants){
-      const total = (p.type==="corn") ? PLANTS.corn.growMs : (p.watered ? PLANTS.cabbage.wateredTotalMs : PLANTS.cabbage.growMs);
+      const total = (p.type==="corn") ? PLANTS.corn.growMs
+                   : (p.watered ? PLANTS.cabbage.wateredTotalMs : PLANTS.cabbage.growMs);
       const prog = clamp(1 - ((p.readyAt - now)/total), 0, 1);
       p.stage = prog<0.33?0 : prog<0.66?1 : prog<0.99?2 : 3;
     }
   }
 
-  /* ---------- Stones (pickup/place) ---------- */
+  /* ---------- Stones ---------- */
   const STONE_R = T*0.36;
   function drawStone(x,y){
     ellipse(x, y, STONE_R, STONE_R*0.78, "#b9c2cc");
@@ -239,38 +243,34 @@
     return true;
   }
 
-  /* ---------- UI: joystick + context ---------- */
-  const ui = {
-    joy:{ cx:110, cy:cv.clientHeight-110, r:68, knob:32, active:false, id:null, vx:0, vy:0 },
-    ctxBtn:{ x:cv.clientWidth-84, y:cv.clientHeight-84, r:44, icon:"❓", enabled:false, action:null },
-    dayTimer:0, tutorial:false
-  };
+  /* ---------- Input ---------- */
+  const keys=new Set();
+  window.addEventListener('keydown', e=>keys.add(e.key.toLowerCase()));
+  window.addEventListener('keyup',   e=>keys.delete(e.key.toLowerCase()));
 
-  /* Pointer handlers */
   cv.addEventListener('pointerdown', e=>{
     const rect=cv.getBoundingClientRect();
     const x=e.clientX-rect.left, y=e.clientY-rect.top;
-    // context?
+    // Kontext
     if (dist(x,y,ui.ctxBtn.x,ui.ctxBtn.y) <= ui.ctxBtn.r){
       if(ui.ctxBtn.enabled && ui.ctxBtn.action) ui.ctxBtn.action();
       return;
     }
-    // joystick?
+    // Joystick
     if (dist(x,y,ui.joy.cx,ui.joy.cy) <= ui.joy.r){
       ui.joy.active=true; ui.joy.id=e.pointerId;
       const dx=x-ui.joy.cx, dy=y-ui.joy.cy; const m=Math.hypot(dx,dy); const s=Math.min(1,m/(ui.joy.r-8));
       ui.joy.vx=(m<8?0:dx/m)*s; ui.joy.vy=(m<8?0:dy/m)*s;
       return;
     }
-    // HUD clicks – Saat/Stein wählen (grob klickbereiche)
+    // HUD Auswahl (Saat/Stein)
     if (y<36){
       if (x<100)       state.uiSeed="stone";
-      else if (x<180)  state.uiSeed="poop";
-      else if (x<260)  state.uiSeed="cabbageSeed";
+      else if (x<200)  state.uiSeed="poop";
+      else if (x<320)  state.uiSeed="cabbageSeed";
       else state.uiSeed=null;
       return;
     }
-    // Tutorial schließen
     if (ui.tutorial) ui.tutorial=false;
   });
   cv.addEventListener('pointermove', e=>{
@@ -283,11 +283,6 @@
   window.addEventListener('pointerup', e=>{
     if (ui.joy.active && e.pointerId===ui.joy.id){ ui.joy.active=false; ui.joy.id=null; ui.joy.vx=ui.joy.vy=0; }
   });
-
-  /* Keyboard (optional) */
-  const keys=new Set();
-  window.addEventListener('keydown', e=>keys.add(e.key.toLowerCase()));
-  window.addEventListener('keyup',   e=>keys.delete(e.key.toLowerCase()));
 
   /* ---------- Player movement ---------- */
   function updatePlayer(){
@@ -323,11 +318,11 @@
   function updateContext(){
     let icon="❓", enabled=false, action=null;
 
-    // Near tutorial sign?
-    if (dist(state.player.x,state.player.y,TUTORIAL.x,TUTORIAL.y) < T*0.9){
+    // Tutorial-Schild?
+    if (dist(state.player.x,state.player.y, TUTORIAL.x,TUTORIAL.y) < T*0.9){
       icon="📜"; enabled=true; action=()=>{ ui.tutorial=true; };
     } else {
-      // Shop NPCs?
+      // Shops?
       const fred = toPx(NPCS.find(n=>n.id==="fred").x, NPCS.find(n=>n.id==="fred").y);
       const berta = toPx(NPCS.find(n=>n.id==="berta").x, NPCS.find(n=>n.id==="berta").y);
       const stefan = toPx(NPCS.find(n=>n.id==="stefan").x, NPCS.find(n=>n.id==="stefan").y);
@@ -340,23 +335,22 @@
       } else if (dist(state.player.x,state.player.y, POND.x+POND.w/2, POND.y+POND.h/2) < T*2.0){
         icon="💧"; enabled=state.inv.hasCan; action=()=>{
           if(!state.inv.hasCan) return say("Keine Gießkanne.");
-          if(!state.isDay) return say("Nacht: Der Teich ist still…");
           state.inv.can = state.inv.canMax; save(); say("💧 Gießkanne aufgefüllt!");
         };
       } else {
-        // Plants first
+        // Pflanzen
         const p = findNearbyPlant();
         if (p && p.stage>=3){ icon="🌾"; enabled=true; action=harvest; }
         else if (p && p.stage<3 && state.inv.hasCan && state.inv.can>0 && !p.watered){ icon="💧"; enabled=true; action=water; }
         else {
-          // Stones
+          // Steine
           const bi = nearestBlockIndex();
           if (bi>=0){ icon="🪨"; enabled=true; action=()=>{ state.blocks.splice(bi,1); state.inv.stone++; save(); }; }
           else {
             const si = nearestLooseStoneIndex();
             if (si>=0){ icon="🪨"; enabled=true; action=()=>{ state.stones.splice(si,1); state.inv.stone++; save(); }; }
             else {
-              // placement / planting
+              // Platzieren / Pflanzen
               const g = snapToTile(state.player.x,state.player.y);
               const px=g.x, py=g.y;
               if (state.uiSeed==="stone" && state.inv.stone>0 && canPlaceStone(px,py)){
@@ -412,9 +406,13 @@
       addRow({icon:"💩", name:"+10 Poop", desc:"", price:"", button:"+10", onClick:()=>{ state.inv.poop+=10; save(); openShop('stefan'); }});
       addRow({icon:"🥬", name:"+10 Kohlsaat", desc:"", price:"", button:"+10", onClick:()=>{ state.inv.cabbageSeed+=10; save(); openShop('stefan'); }});
       addRow({icon: state.god?"🛡️":"🗡️", name:"Godmode", desc:"Unverwundbar umschalten.", price:"", button: state.god?"AUS":"AN",
-        onClick:()=>{ state.god=!state.god; openShop('stefan'); }});
-      addRow({icon:"🌞", name:"Zu Tag", desc:"Killt Monster", price:"", button:"Tag", onClick:()=>{ state.dayBase = performance.now(); state.monsters.length=0; openShop('stefan'); }});
-      addRow({icon:"🌙", name:"Zu Nacht", desc:"", price:"", button:"Nacht", onClick:()=>{ state.dayBase = performance.now() - (DAYLIGHT_MS-1); openShop('stefan'); }});
+        onClick:()=>{ state.god=!state.god; save(); openShop('stefan'); }});
+      addRow({icon:"⏱️", name:"Zeit x0.5", desc:"Langsamer Tag/Nacht", price:"", button:"x0.5", onClick:()=>{ state.timeScale=0.5; save(); }});
+      addRow({icon:"⏱️", name:"Zeit x1.5", desc:"Schneller", price:"", button:"x1.5", onClick:()=>{ state.timeScale=1.5; save(); }});
+      addRow({icon:"⏱️", name:"Zeit x2", desc:"", price:"", button:"x2", onClick:()=>{ state.timeScale=2; save(); }});
+      addRow({icon:"⏱️", name:"Zeit x3", desc:"", price:"", button:"x3", onClick:()=>{ state.timeScale=3; save(); }});
+      addRow({icon:"🌞", name:"Zu Tag", desc:"", price:"", button:"Tag", onClick:()=>{ state.dayBase = performance.now(); save(); }});
+      addRow({icon:"🌙", name:"Zu Nacht", desc:"", price:"", button:"Nacht", onClick:()=>{ state.dayBase = performance.now() - (DAYLIGHT_MS-1); save(); }});
     }
     openModal();
   }
@@ -422,9 +420,6 @@
   /* ---------- Text hint ---------- */
   const toast = { t:0, text:"" };
   function say(s){ toast.text=s; toast.t=1.6; }
-
-  /* ---------- FX ---------- */
-  const fx = [];
 
   /* ---------- Draw world ---------- */
   function drawBackground(){
@@ -436,14 +431,12 @@
   }
   function drawFenceWithGate(){
     const f=FARM;
-    const t=12, gateW=T*1.2, gateC=f.x+f.w/2;
-    const gateL=gateC-gateW/2, gateR=gateC+gateW/2;
-    // Panels (for collision we just keep FARM rect)
     ctx.fillStyle="rgba(120,220,140,0.14)"; ctx.fillRect(f.x,f.y,f.w,f.h);
     ctx.strokeStyle="#916c3b"; ctx.lineWidth=4;
     // top
     ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x+f.w,f.y); ctx.stroke();
     // bottom with gate
+    const gateW=T*1.2, gateC=f.x+f.w/2, gateL=gateC-gateW/2, gateR=gateC+gateW/2;
     ctx.beginPath(); ctx.moveTo(f.x,f.y+f.h); ctx.lineTo(gateL,f.y+f.h); ctx.moveTo(gateR,f.y+f.h); ctx.lineTo(f.x+f.w,f.y+f.h); ctx.stroke();
     // sides
     ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x,f.y+f.h); ctx.moveTo(f.x+f.w,f.y); ctx.lineTo(f.x+f.w,f.y+f.h); ctx.stroke();
@@ -464,7 +457,6 @@
     ctx.fillStyle="#6b4630"; ctx.fillRect(hx - T*0.5, hy - T*0.5, T*2, T*1.6);
     ctx.fillStyle="#9b3b2e"; ctx.fillRect(hx - T*0.6, hy - T*1.0, T*2.4, T*0.45);
     ctx.fillStyle="#2b1c11"; ctx.fillRect(hx + T*0.2, hy + T*0.6, T*0.5, T*0.7);
-    // Schild
     const signW=T*2.6, signH=T*0.7;
     ctx.fillStyle="#f8f5e7"; ctx.fillRect(p.x - signW/2, hy + T*1.25, signW, signH);
     ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(T*0.34)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -489,7 +481,6 @@
     ctx.fillText("STEFAN SPIELVERDERBER", p.x, p.y + T*1.02); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
   }
   function drawTutorialSign(){
-    // Pfahl + Schild
     ctx.fillStyle="#775836"; ctx.fillRect(TUTORIAL.x-6, TUTORIAL.y-24, 12, 48);
     ctx.fillStyle="#e8e0c8"; ctx.fillRect(TUTORIAL.x-40, TUTORIAL.y-46, 80, 30);
     ctx.fillStyle="#2b2b2b"; ctx.font="bold 12px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
@@ -512,20 +503,24 @@
   }
 
   /* ---------- HUD ---------- */
+  const toast = { t:0, text:"" };
+  function say(s){ toast.text=s; toast.t=1.6; }
+
   function drawHUD(){
     // Top bar
     ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(0,0,cv.clientWidth,36);
     ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui";
     let x=10,y=22;
-    ctx.fillText(`🪨 ${state.inv.stone}`, x,y); x+=70;
-    ctx.fillText(`💩 ${state.inv.poop}`, x,y); x+=70;
-    ctx.fillText(`🥬 ${state.inv.cabbageSeed}`, x,y); x+=90;
-    ctx.fillText(`🌽 ${state.inv.corn}`, x,y); x+=70;
-    ctx.fillText(`🥬 ${state.inv.cabbage}`, x,y); x+=70;
-    ctx.fillText(`💶 ${state.inv.euro}`, x,y);
+    ctx.fillText(`🪨 ${state.inv.stone}`, x,y); x+=100;
+    ctx.fillText(`💩 ${state.inv.poop}`, x,y); x+=100;
+    ctx.fillText(`🥬 ${state.inv.cabbageSeed}`, x,y); x+=120;
+    ctx.fillText(`🌽 ${state.inv.corn}`, x,y); x+=90;
+    ctx.fillText(`🥬 ${state.inv.cabbage}`, x,y); x+=90;
+    ctx.fillText(`💶 ${state.inv.euro}`, x,y); x+=90;
+    if (state.inv.hasCan) ctx.fillText(`💧 ${state.inv.can}/${state.inv.canMax}`, x,y);
 
     // Uhr
-    const elapsed=(performance.now()-state.dayBase)%DAY_TOTAL_MS;
+    const elapsed=((performance.now()-state.dayBase)*state.timeScale)%DAY_TOTAL_MS;
     const hours=Math.floor((elapsed/DAY_TOTAL_MS)*24);
     const mins=Math.floor(((elapsed/DAY_TOTAL_MS)*24-hours)*60);
     const clock=`${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}`;
@@ -565,23 +560,38 @@
     ctx.globalAlpha=1;
   }
 
+  /* ---------- Tutorial overlay ---------- */
+  function drawTutorial(){
+    if (!ui.tutorial) return;
+    const lines = [
+      "Du kannst Steine aufnehmen, platzieren, als Munition nutzen oder handeln.",
+      "Platzierte Steine blockieren Monster – und dich selbst!",
+      "Poop pflanzen → Mais (40s, 60% Chance).",
+      "Kohl-Saat pflanzen → Kohl (120s, Gießen → 40s).",
+      "Gießkanne bei Berta kaufen; am Teich auffüllen."
+    ];
+    const W = Math.min(560, cv.clientWidth*0.9), H = Math.min(260, cv.clientHeight*0.6);
+    const x = (cv.clientWidth - W)/2, y = (cv.clientHeight - H)/2;
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight);
+    ctx.fillStyle = "#0f141a"; ctx.fillRect(x, y, W, H);
+    ctx.strokeStyle = "#3a2a18"; ctx.lineWidth = 2; ctx.strokeRect(x, y, W, H);
+    ctx.fillStyle = "#e7e5e4"; ctx.font = "bold 18px system-ui"; ctx.fillText("Tutorial", x+16, y+28);
+    ctx.font = "14px system-ui"; ctx.fillStyle = "#cbd5e1";
+    let yy = y+56; for (const line of lines){ ctx.fillText(line, x+16, yy); yy += 22; }
+    ctx.font = "12px system-ui"; ctx.fillStyle = "#9aa6b2"; ctx.fillText("Tippe außerhalb, um zu schließen", x+16, y+H-12);
+  }
+
   /* ---------- main loop ---------- */
-  function loop(){
+  function update(){
     updateDay(); updatePlants(); updatePlayer(); updateContext();
-
-    // fade toast
     if (toast.t>0){ toast.t -= 1/60; if (toast.t<0) toast.t=0; }
-
-    // draw
+  }
+  function draw(){
     ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
     drawBackground();
     drawClearing(); drawFenceWithGate(); drawPond(); drawFred(); drawBerta(); drawStefan(); drawTutorialSign();
-
-    // stones
     for(const s of state.stones) drawStone(s.x,s.y);
     for(const b of state.blocks) drawStone(b.x,b.y);
-
-    // plants
     for(const p of state.plants){
       if (p.type==="corn"){
         ctx.fillStyle="#382a1d"; ctx.beginPath(); ctx.arc(p.x,p.y,T*0.28,0,Math.PI*2); ctx.fill();
@@ -597,25 +607,22 @@
         else { ctx.fillStyle="#6bd17a"; ctx.beginPath(); ctx.arc(p.x, p.y, T*0.26, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#44a457"; ctx.beginPath(); ctx.arc(p.x-9, p.y-2, 7, 0, Math.PI*2); ctx.fill(); ctx.arc(p.x+9, p.y+2, 7, 0, Math.PI*2); ctx.fill(); }
       }
     }
-
     drawPlayer();
-    drawPreview();
-    // FX (spawn dust)
+    // FX
     ctx.globalCompositeOperation='lighter';
     for(let i=fx.length-1;i>=0;i--){
-      const p=fx[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.life--; 
+      const p=fx[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.life--;
       ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
       if(p.life<=0||p.a<0.05) fx.splice(i,1);
     }
     ctx.globalCompositeOperation='source-over';
-
-    // night overlay
     if (!state.isDay){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight); }
-
+    drawPreview();
     drawHUD();
-
-    requestAnimationFrame(loop);
+    drawTutorial();
   }
+
+  function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
   /* ---------- Boot ---------- */
   placeBertaBlockade();
