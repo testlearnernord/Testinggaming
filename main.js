@@ -15,6 +15,23 @@
   // ===== Canvas & UI =====
   const cv = document.getElementById("gameCanvas");
   const ctx = cv.getContext("2d", { alpha:false });
+  // === Sprite Loader (48x48) ===
+  const SPRITES = {
+    tiles: new Image(),
+    player_walk: new Image(),
+    player_carry: new Image(),
+    fred: new Image(),
+    berta: new Image(),
+    stefan: new Image()
+  };
+  const TILE_PX = 48;
+  SPRITES.tiles.src = "assets/tiles.png";
+  SPRITES.player_walk.src = "assets/player_walk.png";
+  SPRITES.player_carry.src = "assets/player_carry.png";
+  SPRITES.fred.src = "assets/npc_fred.png";
+  SPRITES.berta.src = "assets/npc_berta.png";
+  SPRITES.stefan.src = "assets/npc_stefan.png";
+
 
   const ui = {
     joy:{ cx:110, cy:110, r:68, knob:32, active:false, id:null, vx:0, vy:0 },
@@ -99,7 +116,8 @@
     dmgCooldown:0,
     yard:{ count:0, upgraded:false },
     yardRect:null,
-    editor:{ open:false, target:"fred", step:1 }
+    editor:{ open:false, target:"fred", step:1 },
+    anim:{ frame:0, t:0, speed:140 }
   };
   function rnd(){ let x=state.rng; x^=x<<13; x^=x>>>17; x^=x<<5; state.rng=x>>>0; return (x>>>0)/4294967296; }
 
@@ -270,6 +288,56 @@
     save();
   }
 
+
+  // ===== NPC Wander =====
+  const NPC_WALK = { speed: 1.6, radius: T*2.2, retargetMs: 2500 };
+  const npcAI = {
+    fred: { tx:0, ty:0, t:0 },
+    berta:{ tx:0, ty:0, t:0 },
+    stefan:{ tx:0, ty:0, t:0 }
+  };
+  function pickNPCtarget(id){
+    const base = state.npcs[id];
+    const ang = Math.random()*Math.PI*2;
+    const r = NPC_WALK.radius * (0.4 + Math.random()*0.6);
+    const tx = base.x + Math.cos(ang)*r;
+    const ty = base.y + Math.sin(ang)*r;
+    npcAI[id].tx = clamp(tx, T/2, MAP_W*T - T/2);
+    npcAI[id].ty = clamp(ty, T/2, MAP_H*T - T/2);
+    npcAI[id].t = performance.now() + (1500 + Math.random()*2000);
+  }
+  function updateNPCs(dt){
+    const now = performance.now();
+    ["fred","berta","stefan"].forEach(id=>{
+      const ai = npcAI[id];
+      if (now > ai.t || !ai.tx){ pickNPCtarget(id); }
+      const pos = state.npcs[id];
+      const dx = ai.tx - pos.x, dy = ai.ty - pos.y;
+      const d = Math.hypot(dx,dy)||1;
+      if (d > 2){
+        const s = NPC_WALK.speed;
+        pos.x += dx/d*s; pos.y += dy/d*s;
+      }
+    });
+  }
+  function drawNPCCharacters(){
+    const order = ["fred","berta","stefan"];
+    for (const id of order){
+      const atlas = SPRITES[id];
+      const pos = state.npcs[id];
+      const dir = 0;
+      const frame = Math.floor((performance.now()/200)%4);
+      if (atlas && atlas.complete){
+        const sx = frame*TILE_PX, sy = dir*TILE_PX;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(atlas, sx, sy, TILE_PX, TILE_PX, pos.x - TILE_PX/2, pos.y - TILE_PX/2, TILE_PX, TILE_PX);
+        ctx.imageSmoothingEnabled = true;
+      } else {
+        ellipse(pos.x, pos.y, T*0.35, T*0.35, "#ddd");
+      }
+    }
+  }
+
   // ===== Monster & Slingshot (deaktiviert) =====
   function maintainMonsters(){ state.monsters.length = 0; }
   function updateMonsters(){ /* noop */ }
@@ -330,6 +398,10 @@
     dx += ui.joy.vx*2.5; dy += ui.joy.vy*2.5;
     const len=Math.hypot(dx,dy);
     if(len>0){
+      state.anim.t += 16;
+      if (state.anim.t >= state.anim.speed){
+        state.anim.t = 0; state.anim.frame = (state.anim.frame+1)%4;
+      }
       const vx=dx/len, vy=dy/len;
       state.player.dir = Math.abs(vx)>Math.abs(vy)?(vx<0?"left":"right"):(vy<0?"up":"down");
       const base=3.6*state.speedMult*(state.inv.cart?1.1:1);
@@ -654,41 +726,26 @@
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
   }
 
-  function drawPlayer(){
-    const p=state.player; ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
-
-    // Augenrichtung
-    let fx=0,fy=0;
-    if (state.carry.has) { fx=0; fy=1; }
-    else { if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1; }
-
-    const sx=-fy, sy=fx, eR=p.r*0.11, off=6, ex=p.x+fx*(p.r*0.25), ey=p.y+fy*(p.r*0.25);
-    ellipse(ex+sx*off, ey+sy*off, eR, eR, "#fff"); ellipse(ex-sx*off, ey-sy*off, eR, eR, "#fff");
-    ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
-    ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
-
-    // Mund
-    ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
-    if (state.carry.has) {
-      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
-      ctx.fillStyle = "rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+  
+function drawPlayer(){
+    const p=state.player;
+    ellipse(p.x, p.y + T*0.14, p.r*0.9, p.r*0.55, "rgba(0,0,0,0.22)");
+    const carry = state.carry.has;
+    const atlas = carry ? SPRITES.player_carry : SPRITES.player_walk;
+    const dirIndex = (p.dir==="down"?0: p.dir==="right"?1: p.dir==="up"?2:3);
+    const f = state.anim.frame|0;
+    if (atlas && atlas.complete){
+      const sx = f*TILE_PX, sy = dirIndex*TILE_PX;
+      const w = TILE_PX, h = TILE_PX;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(atlas, sx, sy, w, h, p.x - w/2, p.y - h/2, w, h);
+      ctx.imageSmoothingEnabled = true;
     } else {
-      const d = state.player.dir;
-      ctx.beginPath();
-      if (d==="left"){
-        ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x+6, p.y, p.x, p.y+6);   // ')'
-      } else if (d==="right"){
-        ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x-6, p.y, p.x, p.y+6);   // '('
-      } else if (d==="up"){
-        ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); // U
-      } else { // down
-        ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10);  // ∩
-      }
-      ctx.stroke();
+      ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
     }
-
     if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
   }
+
 
   function drawPlants(){
     for(const p of state.plants){
@@ -770,7 +827,7 @@
   // ===== Loop =====
   let lastT = performance.now();
   function update(){ const now=performance.now(); const dt=now-lastT; lastT=now;
-    updateDay(); updatePlants(); updatePlayer(); updateContext(); maintainBoulderSpawn(dt); maintainMonsters(); updateMonsters(); updateBullets();
+    updateDay(); updatePlants(); updatePlayer(); updateContext(); maintainBoulderSpawn(dt); maintainMonsters(); updateMonsters(); updateBullets(); updateNPCs(dt);
     if(!state.bertaBlockadePlaced) placeBertaBlockade();
     if(TOAST.t>0){ TOAST.t-=dt/1000; if(TOAST.t<0) TOAST.t=0; }
   }
@@ -780,7 +837,7 @@
     for(const b of state.boulders) drawBoulder(b.x,b.y);
     for(const d of state.dirts)    drawDirt(d.x,d.y);
     drawClearing(); drawFence(); drawStoneYard(); drawPond(); drawTutorialSign(); drawFred(); drawBerta(); drawStefan(); drawShack(); drawEditorTable();
-    drawPlants();
+    drawPlants(); drawNPCCharacters();
     ctx.fillStyle="#cbd5e1"; for(const b of state.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
     drawPlayer();
     ctx.globalCompositeOperation='lighter'; for(let i=FX.length-1;i>=0;i--){ const p=FX[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.t--; ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); if(p.t<=0||p.a<0.05) FX.splice(i,1); } ctx.globalCompositeOperation='source-over';
