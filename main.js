@@ -1,13 +1,15 @@
 /* =========================================================================
-   Poopboy v0.8.0
+   Poopboy v0.8.1
    - HUD zeigt 🌱🥬 (Kohlsamen)
-   - Cheat "+10 Kohlsaat" gefixt (schreibt auf inv.cabbageSeed)
+   - Cheat "+10 Kohlsaat" -> inv.cabbageSeed
    - Map-Editor-Tisch (🗺️) nahe Stefan: Fred/Berta/Stefan, Feld, Lichtung,
-     Teich, Felsenhof verschiebbar, an Spieler setzen, Speichern/Reset
-   - Felsenhof größer/versetzt und über Editor frei platzierbar
-   - Bertas Blockade-Felsen mit 2 Tiles Abstand (passt sich bei Editor-Änderungen an)
-   - Steinzerkleinerer sichtbare Station auf Lichtung
+     Teich, Felsenhof verschiebbar, Snap-to-Player, Speichern/Reset
+   - Felsenhof größer/versetzt und frei platzierbar
+   - Bertas Blockade-Felsen mit 2 Tiles Abstand; passt sich an, wenn Berta
+     versetzt wird
+   - Steinzerkleinerer sichtbar (Hackklotz + Axt) auf der Lichtung
    - Nacht/Monster weiterhin deaktiviert
+   - BUGFIX: fehlende placementTargetCenter() + ellipse-Argumente
    ========================================================================= */
 (() => {
   // ===== Canvas & UI =====
@@ -45,7 +47,21 @@
   const ellipse=(x,y,rx,ry,color)=>{ ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill(); };
   function tileCenterFromPx(x,y){ const tx=Math.floor(x/T), ty=Math.floor(y/T); return {x:tx*T+T/2, y:ty*T+T/2}; }
 
-  // ===== Areas & NPCs (jetzt dynamisch im State) =====
+  // >>> NEW: Ziel-Kachel 1 Tile vor dem Spieler (für Platzierungs-Vorschau)
+  function placementTargetCenter(){
+    const c = tileCenterFromPx(state.player.x, state.player.y);
+    let dx=0,dy=0;
+    if(state.player.dir==="left") dx=-1;
+    else if(state.player.dir==="right") dx=1;
+    else if(state.player.dir==="up") dy=-1;
+    else dy=1;
+    return {
+      x: clamp(c.x + dx*T, T/2, MAP_W*T - T/2),
+      y: clamp(c.y + dy*T, T/2, MAP_H*T - T/2)
+    };
+  }
+
+  // ===== Areas & NPCs (dynamisch im State) =====
   const baseFarm  = toRectPx(MAPDATA.farm);
   const baseClear = toRectPx(MAPDATA.clearing);
   const basePond  = toRectPx(MAPDATA.pondRect);
@@ -70,7 +86,7 @@
     carry:{ has:false },
     farm:{ ...baseFarm },
     clear:{ ...baseClear },
-    pond:{ ...basePond },      // <-- war vorher const; jetzt state
+    pond:{ ...basePond },
     npcs:{
       fred:   toPx(FRED_TILE.x, FRED_TILE.y),
       berta:  toPx(BERTA_TILE.x, BERTA_TILE.y),
@@ -82,12 +98,11 @@
     god:false,
     dmgCooldown:0,
     yard:{ count:0, upgraded:false },
-    yardRect:null,             // wird aus fred-Pos abgeleitet
-    editor:{ open:false, target:"fred", step:1 } // Map-Editor State
+    yardRect:null,
+    editor:{ open:false, target:"fred", step:1 }
   };
   function rnd(){ let x=state.rng; x^=x<<13; x^=x>>>17; x^=x<<5; state.rng=x>>>0; return (x>>>0)/4294967296; }
 
-  // Yard (Felsenhof) immer relativ zu Fred (größer, 4x4)
   function recalcYard(){
     const p = state.npcs.fred;
     state.yardRect = { x: p.x + T*3.2, y: p.y - T*2.2, w: T*4, h: T*4 };
@@ -171,7 +186,7 @@
   let boulderTimer=6000;
   function maintainBoulderSpawn(dt){ boulderTimer-=dt; if(boulderTimer<=0 && state.boulders.length<60){ spawnRandomBoulder(); boulderTimer=12000+Math.floor(rnd()*8000); } }
 
-  // Berta-Blockade (Felsen mit 2 Tiles Abstand; neu berechnen wenn noch nicht gesetzt)
+  // Berta-Blockade (2 Tiles Abstand)
   function placeBertaBlockade(){
     if (state.bertaBlockadePlaced) return;
     const bp = state.npcs.berta;
@@ -421,7 +436,6 @@
   }
 
   // ===== Map-Editor =====
-  // Editor-Tisch nahe Stefan
   const editorTable = { get x(){ return state.npcs.stefan.x + T*2.2; }, get y(){ return state.npcs.stefan.y - T*0.6; } };
 
   function openEditor(){
@@ -431,7 +445,6 @@
     mTitle.textContent="Map-Editor";
     mSub.textContent="Bewege Objekte per Buttons (Tiles) oder setze sie auf deine aktuelle Position.";
 
-    // UI erstellen
     const wrap=document.createElement('div'); wrap.style.display="grid"; wrap.style.gap="10px";
     const sel=document.createElement('select');
     ["fred","berta","stefan","feld","lichtung","teich","felsenhof"].forEach(k=>{
@@ -547,7 +560,7 @@
     const fred=state.npcs.fred, berta=state.npcs.berta, stefan=state.npcs.stefan;
     const near=(px,py,qx,qy,r)=>dist(px,py,qx,qy)<r;
 
-    // Editor-Tisch in der Nähe von Stefan
+    // Editor-Tisch
     const editorNear = near(state.player.x,state.player.y, editorTable.x, editorTable.y, T*1.2);
     if(editorNear){ icon="🗺️"; enabled=true; action=()=>openEditor(); }
     else if(near(state.player.x,state.player.y,fred.x,fred.y,T*1.2)){ icon="🛒"; enabled=true; action=()=>openShop('fred'); }
@@ -631,7 +644,6 @@
   }
   function drawShack(){ if(!state.shackBuilt) return; const c=state.clear; const sx=c.x+c.w/2 - T*0.8, sy=c.y+c.h/2 - T*0.8; ctx.fillStyle="#5a4636"; ctx.fillRect(sx,sy,T*1.6,T*1.0); ctx.fillStyle="#a44b3a"; ctx.fillRect(sx - T*0.2, sy - T*0.45, T*2.0, T*0.45); ctx.fillStyle="#26180e"; ctx.fillRect(sx + T*0.6, sy + T*0.3, T*0.4, T*0.5); }
 
-  // Editor-Tisch zeichnen
   function drawEditorTable(){
     const x=editorTable.x, y=editorTable.y;
     ctx.fillStyle="#6b543a"; ctx.fillRect(x - T*0.6, y - T*0.3, T*1.2, T*0.3);
@@ -655,7 +667,7 @@
     ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
     ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
 
-    // Mund (wie zuvor: rotiertes Smile / angestrengt beim Tragen)
+    // Mund
     ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
     if (state.carry.has) {
       ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
@@ -705,7 +717,7 @@
     ctx.fillText(`💩 ${state.inv.poop|0}`, x,y); x+=60;
     ctx.fillText(`🌽 ${state.inv.corn|0}`, x,y); x+=60;
     ctx.fillText(`🥬 ${state.inv.cabbage|0}`, x,y); x+=70;
-    ctx.fillText(`🌱🥬 ${state.inv.cabbageSeed|0}`, x,y); x+=88; // <-- Seeds sichtbar
+    ctx.fillText(`🌱🥬 ${state.inv.cabbageSeed|0}`, x,y); x+=88;
     ctx.fillText(`💶 ${state.inv.euro|0}`, x,y); x+=70;
     ctx.fillText(`🔹 ${state.inv.ammo|0}`, x,y); x+=70;
     if(state.inv.hasCan) ctx.fillText(`💧 ${state.inv.can|0}/${state.inv.canMax|0}`, x,y), x+=120;
@@ -714,12 +726,15 @@
     ctx.textAlign="right"; ctx.fillText(`🌞`, cv.clientWidth-16, y); ctx.textAlign="left";
     ctx.fillStyle="#ddd"; ctx.font="12px system-ui"; ctx.fillText(state.version, 10, cv.clientHeight-10);
 
-    ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r,ui.joy.r,"rgba(24,34,44,.55)"); ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r-6,ui.joy.r-6,"rgba(60,80,96,.18)");
+    ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r,ui.joy.r,"rgba(24,34,44,.55)");
+    ellipse(ui.joy.cx,ui.joy.cy,ui.joy.r-6,ui.joy.r-6,"rgba(60,80,96,.18)");
     ellipse(ui.joy.cx+ui.joy.vx*(ui.joy.r-12), ui.joy.cy+ui.joy.vy*(ui.joy.r-12), 32,32, "#1f2937");
-    ellipse(ui.ctxBtn.x,ui.ctxBtn.y,ui.ctxBtn.r,ui.ctxBtn.enabled?"#2563eb":"#3b4551");
+    ellipse(ui.ctxBtn.x,ui.ctxBtn.y,ui.ctxBtn.r,ui.ctxBtn.r, ui.ctxBtn.enabled?"#2563eb":"#3b4551");
     ctx.fillStyle="#fff"; ctx.font="28px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(ui.ctxBtn.icon, ui.ctxBtn.x, ui.ctxBtn.y+2);
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-    ellipse(ui.restart.x, ui.restart.y, ui.restart.r, "#3b4551"); ctx.fillStyle="#fff"; ctx.font="18px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🔄", ui.restart.x, ui.restart.y+1); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+    ellipse(ui.restart.x, ui.restart.y, ui.restart.r, ui.restart.r, "#3b4551");
+    ctx.fillStyle="#fff"; ctx.font="18px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🔄", ui.restart.x, ui.restart.y+1);
+    ctx.textAlign="left"; ctx.textBaseline="alphabetic";
     if(TOAST.t>0){ ctx.fillStyle="rgba(0,0,0,.8)"; const tw=ctx.measureText(TOAST.text).width+22; ctx.fillRect((cv.clientWidth-tw)/2, cv.clientHeight-120, tw, 30); ctx.fillStyle="#fff"; ctx.font="bold 14px system-ui"; ctx.fillText(TOAST.text, (cv.clientWidth-tw)/2+11, cv.clientHeight-100); }
   }
 
@@ -756,7 +771,7 @@
   let lastT = performance.now();
   function update(){ const now=performance.now(); const dt=now-lastT; lastT=now;
     updateDay(); updatePlants(); updatePlayer(); updateContext(); maintainBoulderSpawn(dt); maintainMonsters(); updateMonsters(); updateBullets();
-    if(!state.bertaBlockadePlaced) placeBertaBlockade(); // falls Berta versetzt wurde
+    if(!state.bertaBlockadePlaced) placeBertaBlockade();
     if(TOAST.t>0){ TOAST.t-=dt/1000; if(TOAST.t<0) TOAST.t=0; }
   }
   function draw(){
@@ -764,7 +779,6 @@
     drawBG();
     for(const b of state.boulders) drawBoulder(b.x,b.y);
     for(const d of state.dirts)    drawDirt(d.x,d.y);
-    // Reihenfolge: Gelände → Yard/Pond → Lichtung/Feld → NPCs/Editor → Pflanzen → Player → HUD
     drawClearing(); drawFence(); drawStoneYard(); drawPond(); drawTutorialSign(); drawFred(); drawBerta(); drawStefan(); drawShack(); drawEditorTable();
     drawPlants();
     ctx.fillStyle="#cbd5e1"; for(const b of state.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
