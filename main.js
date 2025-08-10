@@ -1,9 +1,12 @@
 /* =========================================================================
-   Poopboy v0.7.4
-   Fixes:
-   - Gesicht richtig (smile idle, angestrengt beim Tragen; Augen beim Tragen nach unten)
-   - Kontextbutton zeigt im Feld 💩/🥬 zum Pflanzen (wenn verfügbar)
-   - Nacht & Monster weiterhin deaktiviert
+   Poopboy v0.7.6
+   - Mund rotiert wie Augen (links=')', rechts='(', oben=U, unten=∩)
+   - Cheat +10 Kohlsaat gefixt
+   - Neuer Cheat: Yard +19 Felsen
+   - Felsenhof größer/versetzt (4x4), Tor unten
+   - Bertas Blockade-Felsen 2 Tiles Abstand
+   - Steinzerkleinerer: sichtbare Station auf Lichtung
+   - Nacht/Monster weiterhin deaktiviert
    ========================================================================= */
 (() => {
   // ===== Canvas & UI =====
@@ -59,9 +62,9 @@
   const FRED_POS    = toPx(FRED_TILE.x, FRED_TILE.y);
   const STEFAN_POS  = toPx(STEFAN_TILE.x, STEFAN_TILE.y);
 
-  // Freds Stein-Yard (rechts neben Fred), 3x3 Tiles, unten Tor
-  const STONEYARD = { x: FRED_POS.x + T*2.4, y: FRED_POS.y - T*1.5, w: T*3, h: T*3 };
-  const YARD_GATE_W = T * 1.2;
+  // ===== Freds großer Felsenhof (4x4), rechts/oberhalb von Fred, Tor unten mittig
+  const STONEYARD = { x: FRED_POS.x + T*3.2, y: FRED_POS.y - T*2.2, w: T*4, h: T*4 };
+  const YARD_GATE_W = T * 1.6;
 
   // ===== State =====
   const state={
@@ -147,12 +150,12 @@
   let boulderTimer=6000;
   function maintainBoulderSpawn(dt){ boulderTimer-=dt; if(boulderTimer<=0 && state.boulders.length<60){ spawnRandomBoulder(); boulderTimer=12000+Math.floor(rnd()*8000); } }
 
-  // Berta-Blockade mit Felsen
+  // Berta-Blockade (Felsen mit 2 Tiles Abstand)
   function placeBertaBlockade(){
     if (state.bertaBlockadePlaced) return;
     const b = BERTA_TILE; if(!b) return;
     const bp = toPx(b.x,b.y);
-    const ring = [[-1,0],[1,0],[0,1],[0,-1],[-1,-1],[1,-1],[-1,1],[1,1]];
+    const ring = [[-2,0],[2,0],[0,2],[0,-2],[-2,-2],[2,-2],[-2,2],[2,2]];
     for(const [ox,oy] of ring){ const px = bp.x + ox*T, py = bp.y + oy*T; if (canSpawnPickupAt(px,py)) state.boulders.push({x:px,y:py}); }
     state.bertaBlockadePlaced=true; save();
   }
@@ -226,7 +229,7 @@
     save();
   }
 
-  // ===== Monster & Slingshot (deaktiviert, Munition vorhanden) =====
+  // ===== Monster & Slingshot (deaktiviert) =====
   function maintainMonsters(){ state.monsters.length = 0; }
   function updateMonsters(){ /* noop */ }
   function fireTowards(tx,ty){
@@ -356,6 +359,7 @@
     return true;
   }
 
+  // Modal
   const backdrop=document.getElementById("backdrop");
   const modal=document.getElementById("modal");
   const mList=document.getElementById("m_list");
@@ -391,6 +395,7 @@
       mPortrait.textContent="👩‍🎨"; mTitle.textContent="Berta Brown"; mSub.textContent="Upgrades (Tag)";
       addRow({icon:"💧", name:"Gießkanne", desc:"Permanent. 13 Nutzungen. Am Teich auffüllen.", price:"5 €", button: state.inv.hasCan?"Gekauft":"Kaufen", disabled: state.inv.hasCan || state.inv.euro<5, onClick:()=>{ state.inv.hasCan=true; state.inv.can=state.inv.canMax; state.inv.euro-=5; save(); openShop('berta'); }});
       addRow({icon:"👟", name:"Schnelle Schuhe", desc:"+35% Laufgeschwindigkeit", price:"7 €", button: state.inv.hasShoes?"Gekauft":"Kaufen", disabled: state.inv.hasShoes || state.inv.euro<7, onClick:()=>{ state.inv.hasShoes=true; state.speedMult=1.35; state.inv.euro-=7; save(); openShop('berta'); }});
+      // Steinzerkleinerer
       addRow({icon:"🪓", name:"Steinzerkleinerer", desc:"Auf der Lichtung: getragener Felsen → 🔹×8 Munition.", price:"6 €",
         button: state.inv.hasCrusher?"Gekauft":"Kaufen",
         disabled: state.inv.hasCrusher || state.inv.euro<6,
@@ -400,8 +405,11 @@
       mPortrait.textContent="🧙‍♂️"; mTitle.textContent="Stefan Spielverderber"; mSub.textContent="Tests & Cheats";
       addRow({icon:"💶", name:"+50 €", button:"+50", onClick:()=>{ state.inv.euro+=50; save(); openShop('stefan'); }});
       addRow({icon:"💩", name:"+10 Poop",  button:"+10", onClick:()=>{ state.inv.poop+=10; save(); openShop('stefan'); }});
-      addRow({icon:"🥬", name:"+10 Kohlsaat", button:"+10", onClick:()=>{ state.inv.cabbageSeed+=10; save(); openShop('stefan'); }});
+      // Fix: richtige Property für Kohlsaat
+      addRow({icon:"🥬", name:"+10 Kohlsaat", button:"+10", onClick:()=>{ state.inv.cabbageSeed=(state.inv.cabbageSeed||0)+10; save(); openShop('stefan'); }});
       addRow({icon:"🔹", name:"+20 Munition", button:"+20", onClick:()=>{ state.inv.ammo+=20; save(); openShop('stefan'); }});
+      // Neu: Yard schnell auf 19
+      addRow({icon:"🧱", name:"Yard +19 Felsen", desc:"Schnelltest fürs Upgrade", button:"+19", onClick:()=>{ state.yard.count = Math.min(19, state.yard.count + 19); save(); openShop('stefan'); }});
       addRow({icon: state.god?"🛡️":"🗡️", name:"Godmode", button: state.god?"AUS":"AN", onClick:()=>{ state.god=!state.god; save(); openShop('stefan'); }});
       addRow({icon:"🌞", name:"Tag halten", desc:"Nacht/Monster sind aus.", price:"—", button:"OK"});
     }
@@ -432,7 +440,6 @@
         const bi=nearestBoulderIndex();
         if (bi>=0){ icon="🪨"; enabled=true; action=()=>{ const b=state.boulders[bi]; state.boulders.splice(bi,1); state.carry.has=true; if(SFX)SFX.play("pickup"); }; }
         else {
-          // Pflanzen? (im Feld, Tile frei)
           if (tileFreeForPlantAtPlayer()){
             if (state.inv.poop>0){ icon="💩"; enabled=true; action=()=>plant("corn"); }
             else if (state.inv.cabbageSeed>0){ icon="🥬"; enabled=true; action=()=>plant("cabbage"); }
@@ -469,7 +476,7 @@
     ctx.beginPath(); ctx.moveTo(f.x+f.w,f.y); ctx.lineTo(f.x+f.w,f.y+f.h); ctx.stroke();
     const gateC=f.x+f.w/2, gl=gateC-YARD_GATE_W/2, gr=gateC+YARD_GATE_W/2;
     ctx.beginPath(); ctx.moveTo(f.x, f.y+f.h); ctx.lineTo(gl, f.y+f.h); ctx.moveTo(gr, f.y+f.h); ctx.lineTo(f.x+f.w, f.y+f.h); ctx.stroke();
-    ctx.fillStyle="#f8f5e7"; const w=T*2.4,h=T*0.6, sx=f.x+f.w/2-w/2, sy=f.y-h-T*0.3;
+    ctx.fillStyle="#f8f5e7"; const w=T*3.2,h=T*0.6, sx=f.x+f.w/2-w/2, sy=f.y-h-T*0.3;
     ctx.fillRect(sx,sy,w,h); ctx.strokeStyle="#7b5b2b"; ctx.strokeRect(sx+.5,sy+.5,w-1,h-1);
     ctx.fillStyle="#333"; ctx.font=`bold ${Math.floor(T*0.30)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(`FELSEN-YARD (${state.yard.count}/20)`, sx+w/2, sy+h/2); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
@@ -486,13 +493,21 @@
   }
   function drawBerta(){ const n=BERTA_TILE; const p=toPx(n.x,n.y); ctx.fillStyle="#8b5a2b"; ctx.fillRect(p.x-T*0.8,p.y-T*0.6,T*0.15,T*1.3); ctx.fillRect(p.x+T*0.65,p.y-T*0.6,T*0.15,T*1.3); ctx.fillStyle="#f0e0c0"; ctx.fillRect(p.x-T*0.5,p.y-T*0.9,T*1.1,T*0.8); ctx.fillStyle="#f8f5e7"; ctx.fillRect(p.x-T*1.2,p.y+T*0.8,T*2.4,T*0.45); ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(T*0.32)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("BERTA BROWN", p.x, p.y+T*1.02); ctx.textAlign="left"; ctx.textBaseline="alphabetic"; }
   function drawStefan(){ const p=STEFAN_POS; ctx.fillStyle="#9c7a00"; ctx.fillRect(p.x-T*0.9,p.y-T*0.9,T*1.8,T*1.1); ctx.fillStyle="#ffd54a"; ctx.fillRect(p.x-T*1.2,p.y-T*1.25,T*2.4,T*0.5); ctx.fillStyle="#2b1c11"; ctx.fillRect(p.x-T*0.2,p.y-T*0.1,T*0.4,T*0.6); ctx.fillStyle="#f8f5e7"; ctx.fillRect(p.x-T*1.4,p.y+T*0.8,T*2.8,T*0.45); ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(T*0.32)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("STEFAN SPIELVERDERBER", p.x, p.y+T*1.02); ctx.textAlign="left"; ctx.textBaseline="alphabetic"; }
-  function drawClearing(){ const c=state.clear; ctx.fillStyle="#1a5a2d"; ctx.fillRect(c.x,c.y,c.w,c.h); ctx.strokeStyle="rgba(180,220,150,0.35)"; ctx.strokeRect(c.x,c.y,c.w,c.h); }
+  function drawClearing(){ const c=state.clear; ctx.fillStyle="#1a5a2d"; ctx.fillRect(c.x,c.y,c.w,c.h); ctx.strokeStyle="rgba(180,220,150,0.35)"; ctx.strokeRect(c.x,c.y,c.w,c.h);
+    // Crusher-Station wenn gekauft
+    if(state.inv.hasCrusher){
+      const cx=c.x+c.w*0.72, cy=c.y+c.h*0.52;
+      ctx.fillStyle="#5b4634"; ctx.fillRect(cx-T*0.25, cy-T*0.10, T*0.5, T*0.20); // Hackklotz
+      ctx.fillStyle="#354354"; ctx.fillRect(cx-T*0.05, cy-T*0.42, T*0.10, T*0.34); // Axtstiel
+      ctx.fillStyle="#b8c4d2"; ctx.beginPath(); ctx.moveTo(cx, cy-T*0.46); ctx.lineTo(cx+T*0.35, cy-T*0.32); ctx.lineTo(cx+T*0.04, cy-T*0.22); ctx.closePath(); ctx.fill(); // Axtkopf
+    }
+  }
   function drawShack(){ if(!state.shackBuilt) return; const c=state.clear; const sx=c.x+c.w/2 - T*0.8, sy=c.y+c.h/2 - T*0.8; ctx.fillStyle="#5a4636"; ctx.fillRect(sx,sy,T*1.6,T*1.0); ctx.fillStyle="#a44b3a"; ctx.fillRect(sx - T*0.2, sy - T*0.45, T*2.0, T*0.45); ctx.fillStyle="#26180e"; ctx.fillRect(sx + T*0.6, sy + T*0.3, T*0.4, T*0.5); }
 
   function drawPlayer(){
     const p=state.player; ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
 
-    // Augen: beim Tragen immer nach unten, sonst Laufrichtung
+    // Augenrichtung
     let fx=0,fy=0;
     if (state.carry.has) { fx=0; fy=1; }
     else { if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1; }
@@ -502,15 +517,26 @@
     ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
     ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
 
-    // Mund: smile idle (Control-Punkt tiefer), angestrengt beim Tragen (höher)
+    // Mund
     ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
     if (state.carry.has) {
-      // angestrengt / müde (leichter "Dach"-Bogen)
+      // angestrengt (horizontal Dach)
       ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
       ctx.fillStyle = "rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
     } else {
-      // lächeln (U-Bogen → Control-Punkt unterhalb der Mundlinie)
-      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); ctx.stroke();
+      // rotiertes Lächeln je Richtung (links=')', rechts='(', oben=U, unten=∩)
+      const d = state.player.dir;
+      ctx.beginPath();
+      if (d==="left"){
+        ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x+6, p.y, p.x, p.y+6);
+      } else if (d==="right"){
+        ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x-6, p.y, p.x, p.y+6);
+      } else if (d==="up"){
+        ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10);
+      } else { // down
+        ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10);
+      }
+      ctx.stroke();
     }
 
     if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
