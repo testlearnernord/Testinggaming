@@ -741,47 +741,48 @@
     ctx.textAlign="left"; ctx.textBaseline="alphabetic";
   }
 
+  
   function drawPlayer(){
-    const p=state.player; ellipse(p.x, p.y + T*0.14, p.r*0.9, p.r*0.55, "rgba(0,0,0,0.25)");
+    const p = state.player;
+    // shadow
+    ellipse(p.x, p.y + T*0.14, p.r*0.9, p.r*0.55, "rgba(0,0,0,0.25)");
+    // sprite or circle fallback
     if (SPRITES.player && SPRITES.player.complete){
-      const w=T*0.9, h=T*0.9; ctx.drawImage(SPRITES.player, p.x - w/2, p.y - h/2, w, h);
+      const w=T*0.9, h=T*0.9;
+      ctx.drawImage(SPRITES.player, p.x - w/2, p.y - h/2, w, h);
     } else {
+      // simple circle body
       ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
+      // eyes
+      let fx=0,fy=0;
+      if (state.carry.has) { fx=0; fy=1; }
+      else { if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1; }
+      const sx=-fy, sy=fx, eR=p.r*0.11, off=6, ex=p.x+fx*(p.r*0.25), ey=p.y+fy*(p.r*0.25);
+      ellipse(ex+sx*off, ey+sy*off, eR, eR, "#fff"); ellipse(ex-sx*off, ey-sy*off, eR, eR, "#fff");
+      ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
+      ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
 
-    // Augenrichtung
-    let fx=0,fy=0;
-    if (state.carry.has) { fx=0; fy=1; }
-    else { if(p.dir==="left")fx=-1; else if(p.dir==="right")fx=1; else if(p.dir==="up")fy=-1; else fy=1; }
-
-    const sx=-fy, sy=fx, eR=p.r*0.11, off=6, ex=p.x+fx*(p.r*0.25), ey=p.y+fy*(p.r*0.25);
-    ellipse(ex+sx*off, ey+sy*off, eR, eR, "#fff"); ellipse(ex-sx*off, ey-sy*off, eR, eR, "#fff");
-    ellipse(ex+sx*off+fx*eR*0.6, ey+sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
-    ellipse(ex-sx*off+fx*eR*0.6, ey-sy*off+fy*eR*0.6, eR*0.55, eR*0.55, "#111");
-
-    // Mund
-    ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
-    if (state.carry.has) {
-      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
-      ctx.fillStyle = "rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
-    } else {
-      const d = state.player.dir;
-      ctx.beginPath();
-      if (d==="left"){
-        ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x+6, p.y, p.x, p.y+6);   // ')'
-      } else if (d==="right"){
-        ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x-6, p.y, p.x, p.y+6);   // '('
-      } else if (d==="up"){
-        ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); // U
-      } else { // down
-        ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10);  // U
+      // mouth
+      ctx.strokeStyle = "#3b2a18"; ctx.lineWidth = 2;
+      if (state.carry.has) {
+        ctx.beginPath(); ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 4, p.x + 6, p.y + 10); ctx.stroke();
+        ctx.fillStyle = "rgba(180,220,255,0.85)"; ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 2, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+      } else {
+        const d = state.player.dir;
+        ctx.beginPath();
+        if (d==="left"){
+          ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x+6, p.y, p.x, p.y+6);
+        } else if (d==="right"){
+          ctx.moveTo(p.x, p.y-6); ctx.quadraticCurveTo(p.x-6, p.y, p.x, p.y+6);
+        } else if (d==="up"){
+          ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10); // U
+        } else { // down
+          ctx.moveTo(p.x - 6, p.y + 10); ctx.quadraticCurveTo(p.x, p.y + 16, p.x + 6, p.y + 10);  // U
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
     }
-
     if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
-    if (!(SPRITES.player && SPRITES.player.complete)){
-      // original face drawing fallback kept
-    }
   }
 
   function drawPlants(){
