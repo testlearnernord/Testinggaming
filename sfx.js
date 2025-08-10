@@ -62,6 +62,8 @@
     cook_hit: ()=> tone({type:"triangle", freq:900, time:0.05, vol:0.18}),
     cook_miss:()=> tone({type:"square",   freq:220, time:0.08, vol:0.18}),
     step:     ()=> { const f = 240 + Math.random()*40; tone({type:"triangle", freq:f, time:0.035, vol:0.12, hpFreq:180}); },
+    step_fast:()=> { const f = 300 + Math.random()*60; tone({type:"triangle", freq:f, time:0.028, vol:0.14, hpFreq:200}); },
+    sleep:    ()=> { tone({noise:true, time:0.5, vol:0.04, lpFreq:800}); tone({type:"sine", freq:220, time:0.2, vol:0.06, start:0.1}); },
     spawn:    ()=> { ensure(); tone({type:"sine", freq:90, time:0.55, vol:0.7, slide:-45, attack:0.008, decay:0.5, lpFreq:800});
                                tone({type:"sine", freq:60, time:0.35, vol:0.35, start:0.12, attack:0.01, decay:0.3, lpFreq:700});
                                tone({type:"triangle", freq:200, time:0.42, vol:0.28, start:0.18, slide:220, attack:0.01, decay:0.4}); }

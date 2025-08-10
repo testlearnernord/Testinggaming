@@ -16,6 +16,15 @@
   const cv = document.getElementById("gameCanvas");
   const ctx = cv.getContext("2d", { alpha:false });
 
+  // Sprite loading
+  const SPRITES = {
+    player: Object.assign(new Image(), { src: 'assets/player.png' }),
+    tile:   Object.assign(new Image(), { src: 'assets/tile_grass.png' }),
+    fred:   Object.assign(new Image(), { src: 'assets/house_fred.png' }),
+    berta:  Object.assign(new Image(), { src: 'assets/house_berta.png' }),
+    stefan: Object.assign(new Image(), { src: 'assets/house_stefan.png' }),
+  };
+
   const ui = {
     joy:{ cx:110, cy:110, r:68, knob:32, active:false, id:null, vx:0, vy:0 },
     ctxBtn:{ x:110, y:110, r:44, icon:"❓", enabled:false, action:null },
@@ -108,6 +117,14 @@
   }
   recalcYard();
 
+  // Defaults for stamina/bed if missing (migration safety)
+  if(!state.stamina) state.stamina = { value:100, max:100, regen:5, drainRun:10, drainCarry:18 };
+  if(typeof state.hasBed==='undefined') state.hasBed=false;
+  if(!state.bed) state.bed={ x:0, y:0, placed:false };
+  if(typeof state.sleeping==='undefined') state.sleeping=false;
+  if(typeof state._stepTimer==='undefined') state._stepTimer=0;
+  if(!state._lastMoveT) state._lastMoveT = performance.now();
+
   // ===== Save/Load + Sanitize =====
   function sanitizeInv() {
     const num = v => Number.isFinite(v) ? v : 0;
@@ -156,6 +173,14 @@
   sanitizeInv();
   recalcYard();
 
+  // Defaults for stamina/bed if missing (migration safety)
+  if(!state.stamina) state.stamina = { value:100, max:100, regen:5, drainRun:10, drainCarry:18 };
+  if(typeof state.hasBed==='undefined') state.hasBed=false;
+  if(!state.bed) state.bed={ x:0, y:0, placed:false };
+  if(typeof state.sleeping==='undefined') state.sleeping=false;
+  if(typeof state._stepTimer==='undefined') state._stepTimer=0;
+  if(!state._lastMoveT) state._lastMoveT = performance.now();
+
   // ===== FX & Spawn =====
   const FX=[]; function dust(x,y){ for(let i=0;i<10;i++){ const a=Math.random()*Math.PI*2,s=1+Math.random()*2; FX.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:2+Math.random()*2,a:.9,t:28}); } }
   function spawnPlayer(){ state.player.x = state.clear.x + state.clear.w*0.5 - T*0.6; state.player.y = state.clear.y + state.clear.h*0.5; state.player.dir="right"; dust(state.player.x,state.player.y); if(window.SFX)SFX.play("spawn"); }
@@ -185,16 +210,7 @@
   function maintainBoulderSpawn(dt){ boulderTimer-=dt; if(boulderTimer<=0 && state.boulders.length<60){ spawnRandomBoulder(); boulderTimer=12000+Math.floor(rnd()*8000); } }
 
   // Berta-Blockade (2 Tiles Abstand)
-  function placeBertaBlockade(){
-    if (state.bertaBlockadePlaced) return;
-    const bp = state.npcs.berta;
-    const ring = [[-2,0],[2,0],[0,2],[0,-2],[-2,-2],[2,-2],[-2,2],[2,2]];
-    for(const [ox,oy] of ring){
-      const px = bp.x + ox*T, py = bp.y + oy*T;
-      if (canSpawnPickupAt(px,py)) state.boulders.push({x:px,y:py});
-    }
-    state.bertaBlockadePlaced=true; save();
-  }
+  function placeBertaBlockade(){ /* disabled */ state.bertaBlockadePlaced=true; }
 
   // ===== Day/Night (deaktiviert) =====
   function updateDay(){ state.prevIsDay = state.isDay; state.isDay = true; }
@@ -566,6 +582,14 @@
       berta:  toPx(BERTA_TILE.x, BERTA_TILE.y),
       stefan: toPx(STEFAN_TILE.x, STEFAN_TILE.y),
     };recalcYard();
+
+  // Defaults for stamina/bed if missing (migration safety)
+  if(!state.stamina) state.stamina = { value:100, max:100, regen:5, drainRun:10, drainCarry:18 };
+  if(typeof state.hasBed==='undefined') state.hasBed=false;
+  if(!state.bed) state.bed={ x:0, y:0, placed:false };
+  if(typeof state.sleeping==='undefined') state.sleeping=false;
+  if(typeof state._stepTimer==='undefined') state._stepTimer=0;
+  if(!state._lastMoveT) state._lastMoveT = performance.now();
     save();
   }
 
@@ -639,12 +663,17 @@
 
   // ===== Render =====
   function drawBG(){
-    const grad = ctx.createLinearGradient(0,0,0,MAP_H*T);
-    grad.addColorStop(0,"#0f2f18"); grad.addColorStop(1,"#0b2614");
-    ctx.fillStyle = grad; ctx.fillRect(0,0,MAP_W*T,MAP_H*T);
-    const a="#174f28", b="#123d20";
-    for(let y=0;y<MAP_H*T;y+=T){ for(let x=0;x<MAP_W*T;x+=T){ ctx.fillStyle=(((x/T + y/T)&1)===0)?a:b; ctx.globalAlpha=0.25; ctx.fillRect(x,y,T,T);} }
-    ctx.globalAlpha=1;
+    if (SPRITES.tile && SPRITES.tile.complete){
+      const pat = ctx.createPattern(SPRITES.tile, "repeat");
+      ctx.fillStyle = pat; ctx.fillRect(0,0,MAP_W*T,MAP_H*T);
+    } else {
+      const grad = ctx.createLinearGradient(0,0,0,MAP_H*T);
+      grad.addColorStop(0,"#0f2f18"); grad.addColorStop(1,"#0b2614");
+      ctx.fillStyle = grad; ctx.fillRect(0,0,MAP_W*T,MAP_H*T);
+      const a="#174f28", b="#123d20";
+      for(let y=0;y<MAP_H*T;y+=T){ for(let x=0;x<MAP_W*T;x+=T){ ctx.fillStyle=(((x/T + y/T)&1)===0)?a:b; ctx.globalAlpha=0.25; ctx.fillRect(x,y,T,T);} }
+      ctx.globalAlpha=1;
+    }
   }
   function drawFence(){
     const f=state.farm; ctx.fillStyle="rgba(120,220,140,0.14)"; ctx.fillRect(f.x,f.y,f.w,f.h);
@@ -673,17 +702,9 @@
     ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle="rgba(180,220,255,0.25)"; ctx.lineWidth=2; for(let i=1;i<=4;i++){ ctx.beginPath(); ctx.ellipse(cx,cy, rx*i/4, ry*i/4, 0, 0, Math.PI*2); ctx.stroke(); }
   }
-  function drawFred(){
-    const p=state.npcs.fred, hx=p.x-T, hy=p.y-T;
-    ctx.fillStyle="#6b4630"; ctx.fillRect(hx-T*0.5,hy-T*0.5,T*2,T*1.6);
-    ctx.fillStyle= state.yard.upgraded ? "#b24f2f" : "#9b3b2e"; ctx.fillRect(hx-T*0.6,hy-T*1.0,T*2.4,T*0.45);
-    ctx.fillStyle="#2b1c11"; ctx.fillRect(hx+T*0.2,hy+T*0.6,T*0.5,T*0.7);
-    const w=T*2.8,h=T*0.7; ctx.fillStyle="#f8f5e7"; ctx.fillRect(p.x-w/2,hy+T*1.25,w,h);
-    ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(T*0.34)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(state.yard.upgraded?"FECALFRED ++":"FECALFRED", p.x, hy + T*1.25 + h/2); ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-  }
-  function drawBerta(){ const p=state.npcs.berta; ctx.fillStyle="#8b5a2b"; ctx.fillRect(p.x-T*0.8,p.y-T*0.6,T*0.15,T*1.3); ctx.fillRect(p.x+T*0.65,p.y-T*0.6,T*0.15,T*1.3); ctx.fillStyle="#f0e0c0"; ctx.fillRect(p.x-T*0.5,p.y-T*0.9,T*1.1,T*0.8); ctx.fillStyle="#f8f5e7"; ctx.fillRect(p.x-T*1.2,p.y+T*0.8,T*2.4,T*0.45); ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(T*0.32)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("BERTA BROWN", p.x, p.y+T*1.02); ctx.textAlign="left"; ctx.textBaseline="alphabetic"; }
-  function drawStefan(){ const p=state.npcs.stefan; ctx.fillStyle="#9c7a00"; ctx.fillRect(p.x-T*0.9,p.y-T*0.9,T*1.8,T*1.1); ctx.fillStyle="#ffd54a"; ctx.fillRect(p.x-T*1.2,p.y-T*1.25,T*2.4,T*0.5); ctx.fillStyle="#2b1c11"; ctx.fillRect(p.x-T*0.2,p.y-T*0.1,T*0.4,T*0.6); ctx.fillStyle="#f8f5e7"; ctx.fillRect(p.x-T*1.4,p.y+T*0.8,T*2.8,T*0.45); ctx.fillStyle="#2b2b2b"; ctx.font=`bold ${Math.floor(T*0.32)}px system-ui`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("STEFAN SPIELVERDERBER", p.x, p.y+T*1.02); ctx.textAlign="left"; ctx.textBaseline="alphabetic"; }
+  function drawFred(){ const p=state.npcs.fred; const w=T*1.6,h=T*1.1; if(SPRITES.fred && SPRITES.fred.complete){ ctx.drawImage(SPRITES.fred, p.x - w/2, p.y - h/2, w, h);} else { const hx=p.x-T, hy=p.y-T; ctx.fillStyle="#6b4630"; ctx.fillRect(hx-T*0.5,hy-T*0.5,T*2,T*1.6); ctx.fillStyle= state.yard.upgraded ? "#b24f2f" : "#9b3b2e"; ctx.fillRect(hx-T*0.6,hy-T*1.0,T*2.4,T*0.45); ctx.fillStyle="#2b1c11"; ctx.fillRect(hx+T*0.2,hy+T*0.6,T*0.5,T*0.7);} }
+  function drawBerta(){ const p=state.npcs.berta; const w=T*1.6,h=T*1.1; if(SPRITES.berta && SPRITES.berta.complete){ ctx.drawImage(SPRITES.berta, p.x - w/2, p.y - h/2, w, h);} else { ctx.fillStyle="#8b5a2b"; ctx.fillRect(p.x-T*0.8,p.y-T*0.6,T*0.15,T*1.3); ctx.fillRect(p.x+T*0.65,p.y-T*0.6,T*0.15,T*1.3); ctx.fillStyle="#f0e0c0"; ctx.fillRect(p.x-T*0.5,p.y-T*0.9,T*1.1,T*0.8);} }
+  function drawStefan(){ const p=state.npcs.stefan; const w=T*1.6,h=T*1.1; if(SPRITES.stefan && SPRITES.stefan.complete){ ctx.drawImage(SPRITES.stefan, p.x - w/2, p.y - h/2, w, h);} else { ctx.fillStyle="#9c7a00"; ctx.fillRect(p.x-T*0.9,p.y-T*0.9,T*1.8,T*1.1); ctx.fillStyle="#ffd54a"; ctx.fillRect(p.x-T*1.2,p.y-T*1.25,T*2.4,T*0.5);} }
   function drawClearing(){ const c=state.clear; ctx.fillStyle="#1a5a2d"; ctx.fillRect(c.x,c.y,c.w,c.h); ctx.strokeStyle="rgba(180,220,150,0.35)"; ctx.strokeRect(c.x,c.y,c.w,c.h);
     if(state.inv.hasCrusher){
       const cx=c.x+c.w*0.72, cy=c.y+c.h*0.52;
@@ -715,7 +736,11 @@
   }
 
   function drawPlayer(){
-    const p=state.player; ellipse(p.x, p.y + T*0.14, p.r*0.9, p.r*0.55, "rgba(0,0,0,0.25)"); ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
+    const p=state.player; ellipse(p.x, p.y + T*0.14, p.r*0.9, p.r*0.55, "rgba(0,0,0,0.25)");
+    if (SPRITES.player && SPRITES.player.complete){
+      const w=T*0.9, h=T*0.9; ctx.drawImage(SPRITES.player, p.x - w/2, p.y - h/2, w, h);
+    } else {
+      ellipse(p.x,p.y,p.r,p.r,"#e6b35a");
 
     // Augenrichtung
     let fx=0,fy=0;
@@ -748,6 +773,9 @@
     }
 
     if(state.carry.has){ drawBoulder(p.x, p.y - T*0.9); }
+    if (!(SPRITES.player && SPRITES.player.complete)){
+      // original face drawing fallback kept
+    }
   }
 
   function drawPlants(){
