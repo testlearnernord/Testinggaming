@@ -877,17 +877,26 @@
 
   // ===== Loop =====
   let lastT = performance.now();
-  function update(){ const now=performance.now(); const dt=now-lastT; lastT=now;
+  
+  function update(){
+    const now = performance.now();
+    const dt = now - lastT; lastT = now;
     updateDay(); updatePlants();
     if (state.sleeping){
       state.stamina.value = Math.min(state.stamina.max, state.stamina.value + 60*(dt/1000));
       if (state.stamina.value >= state.stamina.max - 0.01) { state.sleeping=false; say('Ausgeschlafen.'); }
-      if(keys.size>0){ state.sleeping=false; }
+      if (keys.size>0) { state.sleeping=false; }
     } else {
       updatePlayer();
     }
-    updateContext(); maintainBoulderSpawn(dt); maintainMonsters(); updateMonsters(); updateBullets();if(TOAST.t>0){ TOAST.t-=dt/1000; if(TOAST.t<0) TOAST.t=0; }
+    updateContext();
+    maintainBoulderSpawn(dt);
+    maintainMonsters();
+    updateMonsters();
+    updateBullets();
+    if(TOAST.t>0){ TOAST.t -= dt/1000; if(TOAST.t<0) TOAST.t=0; }
   }
+
   function draw(){
     ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
     drawBG();
@@ -895,13 +904,22 @@
     for(const d of state.dirts)    drawDirt(d.x,d.y);
     drawClearing(); drawFence(); drawStoneYard(); drawPond(); drawTutorialSign(); drawFred(); drawBerta(); drawStefan(); drawShack(); drawBed(); drawEditorTable();
     drawPlants();
-    ctx.fillStyle="#cbd5e1"; for(const b of state.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
+    ctx.fillStyle="#cbd5e1";
+    for(const b of state.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
     drawPlayer();
-    ctx.globalCompositeOperation='lighter'; for(let i=FX.length-1;i>=0;i--){ const p=FX[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.t--; ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); if(p.t<=0||p.a<0.05) FX.splice(i,1); } ctx.globalCompositeOperation='source-over';
+    ctx.globalCompositeOperation='lighter';
+    for(let i=FX.length-1;i>=0;i--){
+      const p=FX[i];
+      p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.a*=0.96; p.t--;
+      ctx.fillStyle=`rgba(240,220,180,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      if(p.t<=0||p.a<0.05) FX.splice(i,1);
+    }
+    ctx.globalCompositeOperation='source-over';
     drawPreview(); drawSleepOverlay(); drawHUD();
   }
 
-  function cullOutOfWorld(){ const min=T/2, maxX=MAP_W*T - T/2, maxY=MAP_H*T - T/2;
+  function cullOutOfWorld(){
+    const min=T/2, maxX=MAP_W*T - T/2, maxY=MAP_H*T - T/2;
     state.boulders = state.boulders.filter(s => s.x>=min && s.x<=maxX && s.y>=min && s.y<=maxY);
     state.dirts    = state.dirts.filter(s => s.x>=min && s.y>=min && s.x<=maxX && s.y<=maxY);
     state.plants   = state.plants.filter(p => p.x>=min && p.x<=maxX && p.y>=min && p.y<=maxY);
@@ -909,7 +927,6 @@
 
   // ===== Boot =====
   cullOutOfWorld();
-  placeBertaBlockade();
   spawnPlayer();
   (function loop(){ update(); draw(); requestAnimationFrame(loop); })();
 })();
