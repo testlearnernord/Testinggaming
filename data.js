@@ -36,7 +36,7 @@ const ASSETS = {
 // 0=grass,1=dirt,2=path,3=rock,4=water,5=wood,6=wall
 const MAP_W = 100, MAP_H = 100, TILE = 48;
 const TILES = ["grass", "dirt", "path", "rock", "water", "wood", "wall"];
-const map = new Uint8Array(MAP_W * MAP_H).fill(0);
+const map = new Uint8Array(MAP_W * MAP_H);
 
 // setTile Funktion ergänzen (vor rect und Map-Generierung)
 function setTile(x, y, t) {
