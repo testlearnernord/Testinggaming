@@ -5,6 +5,7 @@ html,body{margin:0;padding:0;background:#0e1215;color:#e6e6e6;font-family:Inter,
 .panel{position:fixed;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45)}
 .panel.hidden{display:none}
 .panel-inner{width:min(520px,90vw);max-height:80vh;overflow:auto;background:#1b2127;border:1px solid #2a3138;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.5);padding:18px}
-button{background:#2b7ce2;border:none;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer}
-button:hover{filter:brightness(1.1)}
-#hint{opacity:0.6}
+button{background:#2b7ce2;border:none;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer;font-size:1rem;transition:filter .15s,background .15s}
+button:hover,button:focus{filter:brightness(1.1);background:#1a5cb8;outline:none}
+#hint{opacity:.7;font-size:.95em}
+.panel.paused{display:grid;place-items:center;background:rgba(0,0,0,.6);z-index:100}
