@@ -233,7 +233,7 @@ function controlPlayer(dt) {
     player.y += dy * spd * dt * 60;
     // Schritt-Sound nur alle 0.22s und nur wenn wirklich bewegt
     if (performance.now() - lastStep > 220) {
-      sfx.play("pickup", 0.08); // Besserer Sound als "step.wav"
+      sfx.play("step", 0.18); // nutze wieder den neuen step-Sound
       lastStep = performance.now();
     }
     player.anim = (player.anim + dt * 8) % 3;

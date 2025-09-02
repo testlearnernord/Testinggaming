@@ -10,20 +10,20 @@ const ASSETS = {
     flower: "assets/sprites/flower.png",
   },
   tiles: {
-    grass: "assets/tiles/grass.png",
-    dirt: "assets/tiles/dirt.png",
-    path: "assets/tiles/path.png",
-    rock: "assets/tiles/rock.png",
-    water: "assets/tiles/water.png",
-    wood: "assets/tiles/wood.png",
-    wall: "assets/tiles/wall.png",
+    grass: "assets/tiles/grass.png",     // neue/ersetzte Grafik
+    dirt: "assets/tiles/dirt.png",       // neue/ersetzte Grafik
+    path: "assets/tiles/path.png",       // neue/ersetzte Grafik
+    rock: "assets/tiles/rock.png",       // neue/ersetzte Grafik
+    water: "assets/tiles/water.png",     // neue/ersetzte Grafik
+    wood: "assets/tiles/wood.png",       // neue/ersetzte Grafik
+    wall: "assets/tiles/wall.png",       // neue/ersetzte Grafik
   },
   fx: {
     radial: "assets/fx/radial_light.png",
     ambient: "assets/fx/ambient.png",
   },
   sfx: {
-    step: "assets/audio/step.wav",
+    step: "assets/audio/step_cool.wav", // neuer cooler Schritt-Sound
     pickup: "assets/audio/pickup.wav",
     ui: "assets/audio/ui.wav",
     splash: "assets/audio/splash.wav",
