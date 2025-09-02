@@ -156,18 +156,21 @@ function collideRect(ax, ay, aw, ah) {
   return null;
 }
 function resolve(a) {
+  // Sanftere Kollision: stoppe Bewegung, aber ziehe nicht hart raus
   const r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
   if (!r) return;
-  const ax = a.x - 16, ay = a.y - 32;
-  const dx1 = (r.x + r.w) - ax;
-  const dx2 = (ax + a.w) - r.x;
-  const dy1 = (r.y + r.h) - ay;
-  const dy2 = (ay + a.h) - r.y;
-  const m = Math.min(dx1, dx2, dy1, dy2);
-  if (m === dx1) a.x = r.x + r.w + 16;
-  else if (m === dx2) a.x = r.x - 16 - a.w;
-  else if (m === dy1) a.y = r.y + r.h + 32;
-  else a.y = r.y + 32 - a.h;
+  // Stoppe Bewegung, aber ziehe nicht komplett raus
+  if (a === player) {
+    // Spieler bleibt an der Wand stehen
+    if (a.x < r.x) a.x = r.x - 1;
+    if (a.x > r.x + r.w) a.x = r.x + r.w + 1;
+    if (a.y < r.y) a.y = r.y - 1;
+    if (a.y > r.y + r.h) a.y = r.y + r.h + 1;
+  } else {
+    // NPCs werden leicht abgestoßen
+    a.x += (Math.random() - 0.5) * 2;
+    a.y += (Math.random() - 0.5) * 2;
+  }
 }
 
 // --- Shop ---
@@ -214,6 +217,7 @@ function renderTopbar() {
 }
 
 // --- Movement + Stamina ---
+let lastStep = 0;
 function controlPlayer(dt) {
   let dx = 0, dy = 0;
   if (pressed("w") || pressed("arrowup")) { dy -= 1; player.dir = 3; }
@@ -227,7 +231,11 @@ function controlPlayer(dt) {
     dx *= invLen; dy *= invLen;
     player.x += dx * spd * dt * 60;
     player.y += dy * spd * dt * 60;
-    if ((Math.abs(dx) > 0 || Math.abs(dy) > 0) && Math.random() < 0.1) sfx.play("step", 0.12);
+    // Schritt-Sound nur alle 0.22s und nur wenn wirklich bewegt
+    if (performance.now() - lastStep > 220) {
+      sfx.play("pickup", 0.08); // Besserer Sound als "step.wav"
+      lastStep = performance.now();
+    }
     player.anim = (player.anim + dt * 8) % 3;
     if (sprinting) { player.stamina = Math.max(0, player.stamina - dt * 18); player.sprint = true; }
     else player.sprint = false;
@@ -324,6 +332,17 @@ function drawTiles() {
     }
   }
 }
+// Haus-Overlay für Debug/Sichtbarkeit
+function drawHouseOverlay() {
+  ctx.save();
+  ctx.strokeStyle = "#fff8";
+  ctx.lineWidth = 2;
+  for (const h of HOUSES) {
+    const [sx, sy, w, hh] = h.rect;
+    ctx.strokeRect(sx * TILE - cam.x, sy * TILE - cam.y, w * TILE, hh * TILE);
+  }
+  ctx.restore();
+}
 function drawActor(a) {
   const spr = img(a.sprite);
   const frame = Math.floor(a.anim);
@@ -392,6 +411,7 @@ function loop(t) {
   drawTiles();
   drawPlants();
   drawAllActors();
+  drawHouseOverlay(); // Häuser sichtbar machen
   drawLighting();
   if (paused) {
     ctx.save();

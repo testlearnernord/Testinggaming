@@ -38,38 +38,53 @@ const MAP_W = 100, MAP_H = 100, TILE = 48;
 const TILES = ["grass", "dirt", "path", "rock", "water", "wood", "wall"];
 const map = new Uint8Array(MAP_W * MAP_H).fill(0);
 
-// Carve a village: paths, houses (rects), pond
-function setTile(x,y,t){ if(x<0||y<0||x>=MAP_W||y>=MAP_H) return; map[y*MAP_W+x]=t; }
-for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
-  const v = Math.sin(x * 0.1) + Math.cos(y * 0.08);
-  setTile(x, y, v > 0 ? 0 : 1);
+// Hilfsfunktion für Rechtecke
+function rect(x, y, w, h, t) {
+  for (let yy = y; yy < y + h; yy++)
+    for (let xx = x; xx < x + w; xx++)
+      setTile(xx, yy, t);
 }
-// central path
-for(let x=0;x<MAP_W;x++){ setTile(x,50,2); setTile(x,51,2); }
-// pond
-for(let y=20;y<28;y++) for(let x=70;x<82;x++) setTile(x,y,4);
-// farm wood area
-for(let y=60;y<72;y++) for(let x=20;x<36;x++) setTile(x,y,5);
 
-// Houses (wall tiles); layout fixed positions
+// Map-Reset: alles Gras
+for (let i = 0; i < map.length; ++i) map[i] = 0;
+
+// Hauptweg horizontal
+rect(0, 50, MAP_W, 2, 2);
+// Hauptweg vertikal
+rect(48, 0, 2, MAP_H, 2);
+
+// Dorfplatz (dirt)
+rect(40, 40, 20, 20, 1);
+
+// Häuser (sichtbar, weiter auseinander)
 const HOUSES = [
-  { name: "Fred", rect: [22, 40, 6, 5], npc: "fred" },
-  { name: "Berta", rect: [30, 40, 6, 5], npc: "berta" },
-  { name: "Stefan", rect: [38, 40, 6, 5], npc: "stefan" }
+  { name: "Fred", rect: [30, 35, 8, 7], npc: "fred" },
+  { name: "Berta", rect: [60, 35, 8, 7], npc: "berta" },
+  { name: "Stefan", rect: [45, 60, 8, 7], npc: "stefan" }
 ];
 for (const h of HOUSES) {
   const [sx, sy, w, hh] = h.rect;
-  for (let y = sy; y < sy + hh; y++) for (let x = sx; x < sx + w; x++) setTile(x, y, 6);
+  // Außenwand
+  rect(sx, sy, w, hh, 6);
+  // Tür (unten Mitte)
+  setTile(sx + Math.floor(w / 2), sy + hh - 1, 2);
+  // Innenraum (dirt)
+  rect(sx + 1, sy + 1, w - 2, hh - 2, 1);
 }
+
+// Teich
+rect(70, 20, 12, 8, 4);
+// Farmbereich
+rect(20, 70, 16, 12, 5);
 
 // static colliders for walls/houses/water/rocks
 const SOLID = new Set([3, 4, 6]);
 
 // NPC spawn points: "in front of house"
 const NPCS = [
-  { id: "fred", x: (22 + 3) * TILE, y: (40 + 5) * TILE + 8 },
-  { id: "berta", x: (30 + 3) * TILE, y: (40 + 5) * TILE + 8 },
-  { id: "stefan", x: (38 + 3) * TILE, y: (40 + 5) * TILE + 8 },
+  { id: "fred", x: (30 + 4) * TILE, y: (35 + 7) * TILE + 8 },
+  { id: "berta", x: (60 + 4) * TILE, y: (35 + 7) * TILE + 8 },
+  { id: "stefan", x: (45 + 4) * TILE, y: (60 + 7) * TILE + 8 },
 ];
 
 export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
