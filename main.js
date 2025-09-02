@@ -156,28 +156,26 @@ function collideRect(ax, ay, aw, ah) {
   return null;
 }
 function resolve(a) {
-  // Sanftere Kollision: Stoppe Bewegung, aber ziehe nicht in Ecken
+  // Separating Axis: Spieler wird sanft aus der Wand geschoben, ohne in Ecken zu klemmen
   const r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
   if (!r) return;
-  // Nur verschieben, wenn wirklich Überlappung
-  let moved = false;
-  if (a.x + a.w / 2 > r.x && a.x - a.w / 2 < r.x + r.w) {
-    if (a.y < r.y) { a.y = r.y - 1; moved = true; }
-    if (a.y > r.y + r.h) { a.y = r.y + r.h + 1; moved = true; }
-  }
-  if (a.y + a.h / 2 > r.y && a.y - a.h / 2 < r.y + r.h) {
-    if (a.x < r.x) { a.x = r.x - 1; moved = true; }
-    if (a.x > r.x + r.w) { a.x = r.x + r.w + 1; moved = true; }
-  }
-  // Notfalls: minimal rausdrücken
-  if (!moved) {
-    if (a.x < r.x) a.x = r.x - 1;
-    if (a.x > r.x + r.w) a.x = r.x + r.w + 1;
-    if (a.y < r.y) a.y = r.y - 1;
-    if (a.y > r.y + r.h) a.y = r.y + r.h + 1;
-  }
-  // NPCs werden leicht abgestoßen
-  if (a !== player) {
+  // Nur für Spieler: Separat für X und Y lösen
+  if (a === player) {
+    // Berechne Überlappung in X und Y
+    const ax = a.x - 16, ay = a.y - 32;
+    const overlapX = Math.min(ax + a.w, r.x + r.w) - Math.max(ax, r.x);
+    const overlapY = Math.min(ay + a.h, r.y + r.h) - Math.max(ay, r.y);
+    if (overlapX < overlapY) {
+      // Schiebe in X-Richtung raus
+      if (ax < r.x) a.x -= overlapX;
+      else a.x += overlapX;
+    } else {
+      // Schiebe in Y-Richtung raus
+      if (ay < r.y) a.y -= overlapY;
+      else a.y += overlapY;
+    }
+  } else {
+    // NPCs werden leicht abgestoßen
     a.x += (Math.random() - 0.5) * 2;
     a.y += (Math.random() - 0.5) * 2;
   }
@@ -242,8 +240,9 @@ function controlPlayer(dt) {
     player.x += dx * spd * dt * 60;
     player.y += dy * spd * dt * 60;
     // Schritt-Sound nur alle 0.22s und nur wenn wirklich bewegt
-    if (performance.now() - lastStep > 220) {
-      sfx.play("step", 0.35); // Lautstärke erhöht, damit hörbar
+    if (performance.now() - lastStep > 220 && sfx.enabled) {
+      // Prüfe, ob Sound geladen ist
+      if (ASSETS.sfx.step) sfx.play("step", 0.7);
       lastStep = performance.now();
     }
     player.anim = (player.anim + dt * 8) % 3;
@@ -477,7 +476,7 @@ function loop(t) {
   drawAllActors();
   drawHouseOverlay(); // Häuser sichtbar machen
   drawLighting();
-  drawMinimap(); // Minimap zeichnen
+  drawMinimap(); // Minimap zeichnen (immer!)
   if (paused) {
     ctx.save();
     ctx.globalAlpha = 0.7;
@@ -498,4 +497,5 @@ function loop(t) {
   onResize();
   await loadAll();
   requestAnimationFrame(loop);
+})();
 })();
