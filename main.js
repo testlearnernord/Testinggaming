@@ -138,41 +138,23 @@ function harvestPlantAt(tx, ty) {
 }
 
 // --- Physics ---
-function tileAt(x, y) {
-  const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
-  if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return 6;
-  return map[ty * MAP_W + tx];
-}
-function collideRect(ax, ay, aw, ah) {
-  const minx = Math.floor((ax) / TILE) - 1, maxx = Math.floor((ax + aw) / TILE) + 1;
-  const miny = Math.floor((ay) / TILE) - 1, maxy = Math.floor((ay + ah) / TILE) + 1;
-  for (let ty = miny; ty <= maxy; ty++) {
-    for (let tx = minx; tx <= maxx; tx++) {
-      if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE };
-      const t = map[ty * MAP_W + tx];
-      if (SOLID.has(t)) return { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE };
-    }
-  }
-  return null;
-}
-// --- neue resolve-Logik: Separat für X und Y, damit man an Wänden entlanggleiten kann
+// Robuste Kollision: Separat X und Y, damit man an Wänden entlanggleiten kann
 function resolve(a) {
-  // Nur für Spieler: Separat X und Y testen
   if (a === player) {
     // Teste X separat
     let origX = a.x;
     let r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
     if (r) {
       // Versuche, X zu korrigieren
-      if (a.x < r.x) a.x = r.x - 1;
-      else if (a.x > r.x + r.w) a.x = r.x + r.w + 1;
+      if (origX < r.x) a.x = r.x - 1;
+      else if (origX > r.x + r.w) a.x = r.x + r.w + 1;
     }
     // Teste Y separat (X bleibt korrigiert)
     let origY = a.y;
     r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
     if (r) {
-      if (a.y < r.y) a.y = r.y - 1;
-      else if (a.y > r.y + r.h) a.y = r.y + r.h + 1;
+      if (origY < r.y) a.y = r.y - 1;
+      else if (origY > r.y + r.h) a.y = r.y + r.h + 1;
     }
   } else {
     // NPCs werden leicht abgestoßen
@@ -229,7 +211,6 @@ function renderTopbar() {
 
 // --- Movement + Stamina ---
 let lastStep = 0;
-// Neue Variable für letzte Bewegungsrichtung (für Minimap)
 let lastMoveDir = { x: 0, y: 1 }; // Start: unten
 
 function controlPlayer(dt) {
@@ -241,17 +222,18 @@ function controlPlayer(dt) {
   const sprinting = pressed("shift") && player.stamina > 0;
   const spd = player.spd * (sprinting ? 1.85 : 1);
   if (dx || dy) {
-    // Speichere letzte Bewegungsrichtung für Minimap
     lastMoveDir.x = dx;
     lastMoveDir.y = dy;
     const invLen = 1 / Math.hypot(dx || 1, dy || 1);
     dx *= invLen; dy *= invLen;
     player.x += dx * spd * dt * 60;
     player.y += dy * spd * dt * 60;
-    // Schritt-Sound nur alle 0.22s und nur wenn wirklich bewegt
+    // Schritt-Sound nur alle 0.22s und nur wenn wirklich bewegt und Sound geladen
     if (performance.now() - lastStep > 220 && sfx.enabled) {
-      // Prüfe, ob Sound geladen ist
-      if (ASSETS.sfx.step) sfx.play("step", 0.7);
+      const stepAudio = sfx.buf.get("step");
+      if (stepAudio && stepAudio.src && stepAudio.src.length > 0) {
+        sfx.play("step", 0.7);
+      }
       lastStep = performance.now();
     }
     player.anim = (player.anim + dt * 8) % 3;
@@ -497,6 +479,24 @@ function loop(t) {
   if (paused) {
     ctx.save();
     ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "#222";
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 48px Inter,Arial,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("PAUSE", W / 2, H / 2);
+    ctx.restore();
+  }
+  requestAnimationFrame(loop);
+}
+
+// --- Boot ---
+(async function () {
+  onResize();
+  await loadAll();
+  requestAnimationFrame(loop);
+})();
     ctx.fillStyle = "#222";
     ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;

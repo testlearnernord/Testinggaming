@@ -23,11 +23,11 @@ const ASSETS = {
     ambient: "assets/fx/ambient.png",
   },
   sfx: {
-    step: "assets/audio/step.wav", // <- Korrigiert: richtiger Dateiname
+    step: "assets/audio/step.wav",
     pickup: "assets/audio/pickup.wav",
     ui: "assets/audio/ui.wav",
-    splash: "assets/audio/splash.wav",
-    plant: "assets/audio/plant.wav"
+    splash: "assets/audio/splash.wav"
+    // plant: "assets/audio/plant.wav" // nur eintragen, wenn Datei wirklich existiert!
   }
 };
 

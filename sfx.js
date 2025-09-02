@@ -7,9 +7,14 @@ export class SFX {
   }
   load(manifest) {
     for (const [k, url] of Object.entries(manifest)) {
-      const a = new Audio(url);
-      a.preload = "auto";
-      this.buf.set(k, a);
+      try {
+        const a = new Audio(url);
+        a.preload = "auto";
+        a.onerror = () => { this.buf.delete(k); };
+        this.buf.set(k, a);
+      } catch (e) {
+        // Datei nicht gefunden/ladbar
+      }
     }
   }
   play(key, vol = 1) {
