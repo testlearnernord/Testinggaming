@@ -156,18 +156,28 @@ function collideRect(ax, ay, aw, ah) {
   return null;
 }
 function resolve(a) {
-  // Sanftere Kollision: stoppe Bewegung, aber ziehe nicht hart raus
+  // Sanftere Kollision: Stoppe Bewegung, aber ziehe nicht in Ecken
   const r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
   if (!r) return;
-  // Stoppe Bewegung, aber ziehe nicht komplett raus
-  if (a === player) {
-    // Spieler bleibt an der Wand stehen
+  // Nur verschieben, wenn wirklich Überlappung
+  let moved = false;
+  if (a.x + a.w / 2 > r.x && a.x - a.w / 2 < r.x + r.w) {
+    if (a.y < r.y) { a.y = r.y - 1; moved = true; }
+    if (a.y > r.y + r.h) { a.y = r.y + r.h + 1; moved = true; }
+  }
+  if (a.y + a.h / 2 > r.y && a.y - a.h / 2 < r.y + r.h) {
+    if (a.x < r.x) { a.x = r.x - 1; moved = true; }
+    if (a.x > r.x + r.w) { a.x = r.x + r.w + 1; moved = true; }
+  }
+  // Notfalls: minimal rausdrücken
+  if (!moved) {
     if (a.x < r.x) a.x = r.x - 1;
     if (a.x > r.x + r.w) a.x = r.x + r.w + 1;
     if (a.y < r.y) a.y = r.y - 1;
     if (a.y > r.y + r.h) a.y = r.y + r.h + 1;
-  } else {
-    // NPCs werden leicht abgestoßen
+  }
+  // NPCs werden leicht abgestoßen
+  if (a !== player) {
     a.x += (Math.random() - 0.5) * 2;
     a.y += (Math.random() - 0.5) * 2;
   }
@@ -233,7 +243,7 @@ function controlPlayer(dt) {
     player.y += dy * spd * dt * 60;
     // Schritt-Sound nur alle 0.22s und nur wenn wirklich bewegt
     if (performance.now() - lastStep > 220) {
-      sfx.play("step", 0.18); // nutze wieder den neuen step-Sound
+      sfx.play("step", 0.35); // Lautstärke erhöht, damit hörbar
       lastStep = performance.now();
     }
     player.anim = (player.anim + dt * 8) % 3;
@@ -354,6 +364,60 @@ function drawAllActors() {
   for (const a of list) drawActor(a);
 }
 
+// --- Minimap ---
+function drawMinimap() {
+  const mmW = 180, mmH = 180;
+  const scale = mmW / MAP_W;
+  const px = W - mmW - 18, py = 18;
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = "#181c22";
+  ctx.fillRect(px - 4, py - 4, mmW + 8, mmH + 8);
+  ctx.globalAlpha = 1;
+  // Tiles (nur grob, farbcodiert)
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      let t = map[y * MAP_W + x];
+      ctx.fillStyle =
+        t === 2 ? "#888" : // path
+        t === 1 ? "#b98" : // dirt
+        t === 4 ? "#3af" : // water
+        t === 5 ? "#964" : // wood
+        t === 6 ? "#222" : // wall
+        "#2b5"; // grass
+      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
+    }
+  }
+  // Häuser umrisse
+  ctx.strokeStyle = "#fff8";
+  ctx.lineWidth = 1;
+  for (const h of HOUSES) {
+    const [sx, sy, w, hh] = h.rect;
+    ctx.strokeRect(px + sx * scale, py + sy * scale, w * scale, hh * scale);
+  }
+  // NPCs
+  for (const a of actors) {
+    if (a === player) continue;
+    ctx.fillStyle = "#ff0";
+    ctx.beginPath();
+    ctx.arc(px + a.x / TILE * scale, py + a.y / TILE * scale, 4, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+  // Spieler
+  ctx.save();
+  ctx.translate(px + player.x / TILE * scale, py + player.y / TILE * scale);
+  ctx.rotate(player.dir === 0 ? Math.PI/2 : player.dir === 1 ? Math.PI : player.dir === 2 ? 0 : -Math.PI/2);
+  ctx.fillStyle = "#0ff";
+  ctx.beginPath();
+  ctx.moveTo(0, -7);
+  ctx.lineTo(5, 7);
+  ctx.lineTo(-5, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
 // --- Lighting & Day-Night ---
 function drawLighting() {
   const t = Math.abs(Math.sin(timeMin / 1440 * Math.PI * 2));
@@ -413,6 +477,7 @@ function loop(t) {
   drawAllActors();
   drawHouseOverlay(); // Häuser sichtbar machen
   drawLighting();
+  drawMinimap(); // Minimap zeichnen
   if (paused) {
     ctx.save();
     ctx.globalAlpha = 0.7;
