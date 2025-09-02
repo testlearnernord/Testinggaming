@@ -155,29 +155,32 @@ function collideRect(ax, ay, aw, ah) {
   }
   return null;
 }
+// --- neue resolve-Logik: Separat für X und Y, damit man an Wänden entlanggleiten kann
 function resolve(a) {
-  // Separating Axis: Spieler wird sanft aus der Wand geschoben, ohne in Ecken zu klemmen
-  const r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
-  if (!r) return;
-  // Nur für Spieler: Separat für X und Y lösen
+  // Nur für Spieler: Separat X und Y testen
   if (a === player) {
-    // Berechne Überlappung in X und Y
-    const ax = a.x - 16, ay = a.y - 32;
-    const overlapX = Math.min(ax + a.w, r.x + r.w) - Math.max(ax, r.x);
-    const overlapY = Math.min(ay + a.h, r.y + r.h) - Math.max(ay, r.y);
-    if (overlapX < overlapY) {
-      // Schiebe in X-Richtung raus
-      if (ax < r.x) a.x -= overlapX;
-      else a.x += overlapX;
-    } else {
-      // Schiebe in Y-Richtung raus
-      if (ay < r.y) a.y -= overlapY;
-      else a.y += overlapY;
+    // Teste X separat
+    let origX = a.x;
+    let r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
+    if (r) {
+      // Versuche, X zu korrigieren
+      if (a.x < r.x) a.x = r.x - 1;
+      else if (a.x > r.x + r.w) a.x = r.x + r.w + 1;
+    }
+    // Teste Y separat (X bleibt korrigiert)
+    let origY = a.y;
+    r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
+    if (r) {
+      if (a.y < r.y) a.y = r.y - 1;
+      else if (a.y > r.y + r.h) a.y = r.y + r.h + 1;
     }
   } else {
     // NPCs werden leicht abgestoßen
-    a.x += (Math.random() - 0.5) * 2;
-    a.y += (Math.random() - 0.5) * 2;
+    const r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
+    if (r) {
+      a.x += (Math.random() - 0.5) * 2;
+      a.y += (Math.random() - 0.5) * 2;
+    }
   }
 }
 
@@ -226,6 +229,9 @@ function renderTopbar() {
 
 // --- Movement + Stamina ---
 let lastStep = 0;
+// Neue Variable für letzte Bewegungsrichtung (für Minimap)
+let lastMoveDir = { x: 0, y: 1 }; // Start: unten
+
 function controlPlayer(dt) {
   let dx = 0, dy = 0;
   if (pressed("w") || pressed("arrowup")) { dy -= 1; player.dir = 3; }
@@ -235,6 +241,9 @@ function controlPlayer(dt) {
   const sprinting = pressed("shift") && player.stamina > 0;
   const spd = player.spd * (sprinting ? 1.85 : 1);
   if (dx || dy) {
+    // Speichere letzte Bewegungsrichtung für Minimap
+    lastMoveDir.x = dx;
+    lastMoveDir.y = dy;
     const invLen = 1 / Math.hypot(dx || 1, dy || 1);
     dx *= invLen; dy *= invLen;
     player.x += dx * spd * dt * 60;
@@ -405,7 +414,15 @@ function drawMinimap() {
   // Spieler
   ctx.save();
   ctx.translate(px + player.x / TILE * scale, py + player.y / TILE * scale);
-  ctx.rotate(player.dir === 0 ? Math.PI/2 : player.dir === 1 ? Math.PI : player.dir === 2 ? 0 : -Math.PI/2);
+  // Richtungspfeil: berechne Winkel aus letzter Bewegungsrichtung
+  let angle = 0;
+  if (lastMoveDir.x !== 0 || lastMoveDir.y !== 0) {
+    angle = Math.atan2(lastMoveDir.y, lastMoveDir.x);
+  } else {
+    // fallback: Blickrichtung (player.dir)
+    angle = [Math.PI/2, Math.PI, 0, -Math.PI/2][player.dir] || 0;
+  }
+  ctx.rotate(angle + Math.PI/2); // Pfeil zeigt nach oben
   ctx.fillStyle = "#0ff";
   ctx.beginPath();
   ctx.moveTo(0, -7);

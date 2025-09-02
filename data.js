@@ -23,12 +23,11 @@ const ASSETS = {
     ambient: "assets/fx/ambient.png",
   },
   sfx: {
-    step: "assets/audio/step_cool.wav", // neuer cooler Schritt-Sound
+    step: "assets/audio/step.wav", // <- Korrigiert: richtiger Dateiname
     pickup: "assets/audio/pickup.wav",
     ui: "assets/audio/ui.wav",
     splash: "assets/audio/splash.wav",
-    plant: "assets/audio/plant.wav",
-    harvest: "assets/audio/harvest.wav"
+    plant: "assets/audio/plant.wav"
   }
 };
 
@@ -93,4 +92,5 @@ const NPCS = [
   { id: "stefan", x: (45 + 4) * TILE, y: (60 + 7) * TILE + 8 },
 ];
 
+export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
 export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
