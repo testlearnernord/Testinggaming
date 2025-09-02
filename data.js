@@ -38,6 +38,12 @@ const MAP_W = 100, MAP_H = 100, TILE = 48;
 const TILES = ["grass", "dirt", "path", "rock", "water", "wood", "wall"];
 const map = new Uint8Array(MAP_W * MAP_H).fill(0);
 
+// setTile Funktion ergänzen (vor rect und Map-Generierung)
+function setTile(x, y, t) {
+  if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) return;
+  map[y * MAP_W + x] = t;
+}
+
 // Hilfsfunktion für Rechtecke
 function rect(x, y, w, h, t) {
   for (let yy = y; yy < y + h; yy++)
