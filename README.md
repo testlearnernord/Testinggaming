@@ -1,18 +1,25 @@
-# Poopboy v0.9
-
-Performance + polish drop.
+# Poopboy v1.0
 
 ## Highlights
-- Fixed rock placement teleport bug.
-- Restored stamina/sprint with UI, smoother regen.
-- NPCs wander in front of static houses (Fred, Berta, Stefan).
-- Basic shop UI (press **E** near an NPC).
-- Day/night tint + radial light for cozy vibes (cheap on GPU).
-- Tile culling + y-sort actors for depth.
-- Seeds appear in inventory; quick test keys: `1` cabbage, `2` corn, `3` place stone.
+- Neue Map: Klarere Wege, sichtbare Häuser, Dorfplatz, Farmbereich, Teich.
+- Neue und überarbeitete Grafiken für Tiles und Sprites.
+- Neuer, realistischer Schritt-Sound.
+- Kollisionen verbessert: Kein Teleportieren mehr, sanfteres Stoppen an Wänden.
+- Häuser werden als Overlay angezeigt, bis bessere Tiles vorhanden sind.
+- Diverse Bugfixes (u.a. Map-Initialisierung, setTile-Fehler, Black Screen).
+- Code weiter modularisiert und aufgeräumt.
 
-## Files to upload
+## Steuerung
+- WASD/←↑→↓: Bewegen
+- Shift: Sprinten
+- E: Interagieren (Shop, Ernten)
+- 1/2/3: Pflanzen auswählen und setzen
+- Q/E: Pflanzenauswahl wechseln
+- 4: Stein platzieren
+- Esc: Pause
+
+## Dateien
 - `index.html`, `style.css`, `main.js`, `data.js`, `sfx.js`
-- `assets/` (all subfolders)
+- `assets/` (alle Subordner)
 
-Just drag & drop into your repo root (GitHub Pages will auto-serve).
+Einfach ins Repo legen, GitHub Pages lädt alles automatisch.
