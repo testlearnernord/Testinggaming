@@ -497,5 +497,5 @@ function loop(t) {
   onResize();
   await loadAll();
   requestAnimationFrame(loop);
-})(); // removed buggy line
+})();
 
