@@ -37,8 +37,8 @@ const DEBUG_OVERLAY = false;
 const HINT_CONTROLS = [
   ["WASD/←↑→↓", "Bewegen"],
   ["Shift", "Sprint"],
-  ["E", "Aktion"],
-  ["Mausrad", "Saat wechseln"],
+  ["E/Leertaste", "Aktion"],
+  ["Q/E oder Mausrad", "Saat wechseln"],
   ["1-3", "Direktwahl Saat"],
   ["4", "Stein setzen"],
   ["Esc", "Pause"],
@@ -171,6 +171,7 @@ const SHOP_GOODS = {
     type: "seed",
     seed: "cabbage",
     amount: 1,
+    cost: 3,
     description: "Robuste Knolle, die schnell und verlässlich wächst.",
   },
   corn_seed: {
@@ -179,6 +180,7 @@ const SHOP_GOODS = {
     type: "seed",
     seed: "corn",
     amount: 1,
+    cost: 4,
     description: "Braucht etwas länger, liefert dafür eine satte Ernte.",
   },
   flower_seed: {
@@ -187,6 +189,7 @@ const SHOP_GOODS = {
     type: "seed",
     seed: "flower",
     amount: 1,
+    cost: 5,
     description: "Bringt Duft und Farbe auf jedes Beet.",
   },
   veggie_pack: {
@@ -194,6 +197,7 @@ const SHOP_GOODS = {
     icon: ASSETS.tiles.wood,
     type: "bundle",
     contents: { cabbage: 2, corn: 1 },
+    cost: 7,
     description: "Fred packt dir 2x Kohl und 1x Mais in eine rustikale Kiste.",
   },
   bouquet_kit: {
@@ -201,6 +205,7 @@ const SHOP_GOODS = {
     icon: ASSETS.sprites.flower,
     type: "bundle",
     contents: { flower: 3 },
+    cost: 10,
     description: "Drei Blumensamen für einen duftenden Lieblingsstrauß.",
   },
   stone_block: {
@@ -208,6 +213,7 @@ const SHOP_GOODS = {
     icon: ASSETS.tiles.rock,
     type: "stone",
     amount: 1,
+    cost: 5,
     description: "Schwerer Block für Mauern, Wege oder Dekoration.",
   },
   path_bundle: {
@@ -215,6 +221,7 @@ const SHOP_GOODS = {
     icon: ASSETS.tiles.path,
     type: "stone",
     amount: 3,
+    cost: 9,
     description: "Drei bearbeitete Steine für ein ordentliches Wegenetz.",
   },
 };
@@ -654,6 +661,7 @@ function openShop(npc) {
   for (const entry of meta.shop) {
     const good = SHOP_GOODS[entry.good];
     if (!good) continue;
+    const priceValue = entry.price ?? good.cost ?? 0;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "shop-item";
@@ -679,15 +687,15 @@ function openShop(npc) {
 
     const price = document.createElement("span");
     price.className = "shop-item__price";
-    price.textContent = `₽ ${entry.price}`;
+    price.textContent = `₽ ${priceValue}`;
 
     button.append(iconWrap, info, price);
     button.addEventListener("click", () => {
-      if (player.money < entry.price) {
+      if (player.money < priceValue) {
         sfx.play("ui", { volume: 0.45, rateRange: [0.72, 0.85], detuneRange: 30 });
         return;
       }
-      player.money -= entry.price;
+      player.money -= priceValue;
       applyPurchase(good);
       onInventoryChanged();
     });
@@ -797,7 +805,14 @@ function controlPlayer(dt) {
     cycleSeed(-1);
   }
 
-  if (pressedOnce("e") || pressedOnce(" ") || pressedOnce("space")) {
+  if (pressedOnce("e")) {
+    const acted = performPrimaryAction();
+    if (!acted) {
+      cycleSeed(1);
+    }
+  }
+
+  if (pressedOnce(" ") || pressedOnce("space")) {
     performPrimaryAction();
   }
 }
