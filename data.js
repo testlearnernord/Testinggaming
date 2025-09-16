@@ -23,10 +23,12 @@ const ASSETS = {
     ambient: "assets/fx/ambient.png",
   },
   sfx: {
-    step: "assets/audio/step.wav",
+    step_grass: "assets/audio/step_grass.wav",
+    step_dirt: "assets/audio/step_dirt.wav",
+    step_stone: "assets/audio/step.wav",
     pickup: "assets/audio/pickup.wav",
     ui: "assets/audio/ui.wav",
-    splash: "assets/audio/splash.wav"
+    splash: "assets/audio/splash.wav",
     // plant: "assets/audio/plant.wav" // nur eintragen, wenn Datei wirklich existiert!
   }
 };
@@ -87,10 +89,51 @@ const SOLID = new Set([3, 4, 6]);
 
 // NPC spawn points: "in front of house"
 const NPCS = [
-  { id: "fred", x: (30 + 4) * TILE, y: (35 + 7) * TILE + 8 },
-  { id: "berta", x: (60 + 4) * TILE, y: (35 + 7) * TILE + 8 },
-  { id: "stefan", x: (45 + 4) * TILE, y: (60 + 7) * TILE + 8 },
+  {
+    id: "fred",
+    name: "Fred",
+    title: "Gemüsebauer",
+    accent: "#6edb8f",
+    bio: "Fred kümmert sich um alles, was knackig ist. Seine Saat ist günstig und wächst zuverlässig.",
+    greeting: "Frisches Gemüse gefällig? Ich hab' dir die besten Saaten beiseite gelegt.",
+    shop: [
+      { good: "cabbage_seed", price: 2 },
+      { good: "corn_seed", price: 3 },
+      { good: "veggie_pack", price: 7 },
+    ],
+    x: (30 + 4) * TILE,
+    y: (35 + 7) * TILE + 8,
+  },
+  {
+    id: "berta",
+    name: "Berta",
+    title: "Floristin",
+    accent: "#f28dd3",
+    bio: "Berta liebt Duft und Farbe. Bei ihr findest du alles, was deine Felder hübsch macht.",
+    greeting: "Oh hallo! Ein bisschen Farbe für deinen Hof? Schau dir meine Blüten an.",
+    shop: [
+      { good: "flower_seed", price: 5 },
+      { good: "bouquet_kit", price: 10 },
+      { good: "cabbage_seed", price: 3 },
+    ],
+    x: (60 + 4) * TILE,
+    y: (35 + 7) * TILE + 8,
+  },
+  {
+    id: "stefan",
+    name: "Stefan",
+    title: "Baumeister",
+    accent: "#6ab0ff",
+    bio: "Stefan baut Wege und Mauern. Er tauscht gern robuste Steine gegen ein paar Rubel.",
+    greeting: "Servus! Mit dem richtigen Material wird dein Hof richtig fein.",
+    shop: [
+      { good: "stone_block", price: 5 },
+      { good: "path_bundle", price: 9 },
+      { good: "corn_seed", price: 4 },
+    ],
+    x: (45 + 4) * TILE,
+    y: (60 + 7) * TILE + 8,
+  },
 ];
 
-export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
 export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
