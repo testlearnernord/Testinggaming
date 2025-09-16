@@ -23,10 +23,12 @@ const ASSETS = {
     ambient: "assets/fx/ambient.png",
   },
   sfx: {
-    step: "assets/audio/step.wav",
+    step_grass: "assets/audio/step_grass.wav",
+    step_dirt: "assets/audio/step_dirt.wav",
+    step_stone: "assets/audio/step.wav",
     pickup: "assets/audio/pickup.wav",
     ui: "assets/audio/ui.wav",
-    splash: "assets/audio/splash.wav"
+    splash: "assets/audio/splash.wav",
     // plant: "assets/audio/plant.wav" // nur eintragen, wenn Datei wirklich existiert!
   }
 };
@@ -92,5 +94,4 @@ const NPCS = [
   { id: "stefan", x: (45 + 4) * TILE, y: (60 + 7) * TILE + 8 },
 ];
 
-export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
 export { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS };
