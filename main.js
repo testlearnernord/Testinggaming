@@ -203,30 +203,50 @@ function tryInteract() {
 }
 
 // --- Physics ---
+function collideRect(ax, ay, aw, ah) {
+  const minx = Math.floor(ax / TILE);
+  const maxx = Math.floor((ax + aw - 1) / TILE);
+  const miny = Math.floor(ay / TILE);
+  const maxy = Math.floor((ay + ah - 1) / TILE);
+  for (let ty = miny; ty <= maxy; ty++) {
+    for (let tx = minx; tx <= maxx; tx++) {
+      if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) {
+        return { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE };
+      }
+      const tile = map[ty * MAP_W + tx];
+      if (SOLID.has(tile)) {
+        return { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE };
+      }
+    }
+  }
+  return null;
+}
+
 // Robuste Kollision: Separat X und Y, damit man an Wänden entlanggleiten kann
 function resolve(a) {
-  if (a === player) {
-    // Teste X separat
-    let origX = a.x;
-    let r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
-    if (r) {
-      // Versuche, X zu korrigieren
-      if (origX < r.x) a.x = r.x - 1;
-      else if (origX > r.x + r.w) a.x = r.x + r.w + 1;
-    }
-    // Teste Y separat (X bleibt korrigiert)
-    let origY = a.y;
-    r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
-    if (r) {
-      if (origY < r.y) a.y = r.y - 1;
-      else if (origY > r.y + r.h) a.y = r.y + r.h + 1;
-    }
-  } else {
-    // NPCs werden leicht abgestoßen
+  const maxIter = 4;
+  for (let i = 0; i < maxIter; i++) {
     const r = collideRect(a.x - 16, a.y - 32, a.w, a.h);
-    if (r) {
+    if (!r) break;
+    if (a === player) {
+      const ax = a.x - 16;
+      const ay = a.y - 32;
+      const overlapX = Math.min(ax + a.w, r.x + r.w) - Math.max(ax, r.x);
+      const overlapY = Math.min(ay + a.h, r.y + r.h) - Math.max(ay, r.y);
+      if (overlapX <= 0 || overlapY <= 0) break;
+      if (overlapX < overlapY) {
+        const push = overlapX + 0.1;
+        if (ax < r.x) a.x -= push;
+        else a.x += push;
+      } else {
+        const push = overlapY + 0.1;
+        if (ay < r.y) a.y -= push;
+        else a.y += push;
+      }
+    } else {
       a.x += (Math.random() - 0.5) * 2;
       a.y += (Math.random() - 0.5) * 2;
+      break;
     }
   }
 }
