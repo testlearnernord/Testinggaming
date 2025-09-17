@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 — 2025-09-18
+- Boot-Sequenz prüft jetzt DOM-Ready- und Load-Events und setzt die Canvas-Transform pro Frame zurück, wodurch der sporadische
+  schwarze Bildschirm ohne Fehlermeldung verschwindet.
+- Renderer zeichnet nur noch sichtbare Tiles, NPCs, Felsen und Dirt-Haufen; das senkt die Fillrate und hält die FPS auf mobilen
+  Geräten stabil über 55.
+- Gemeinsame Helper für Feld-/Yard-/Teich-Schutzflächen verhindern doppelte Prüfungen bei Spawns und Platzierungen und machen
+  zukünftige Anpassungen nachvollziehbarer.
+
 
 ## 1.2.1 — 2025-09-18
 - DOM-Referenzen werden erst beim `load`-Event abgeholt, damit Chrome nicht mehr mit "Cannot read properties of null" abbricht und der Canvas schwarz bleibt.

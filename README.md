@@ -1,17 +1,26 @@
-
-# Poopboy v1.2.1
-
+# Poopboy v1.3.0
 
 Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und baue Mais oder Kohl an. Die Version ist für mobile und Desktop ausgelegt, nutzt Canvas 2D und speichert automatisch unter `pb_save_v7` im `localStorage`.
 
 ## Quickstart
 
 1. Repository auf den GitHub Pages Branch (`work`) klonen.
-
+n
 2. Assets liegen flach im Repo (`index.html`, `data.js`, `main.js`, `sfx.js`, `/assets`). Kein Build-Schritt nötig; Audio wird beim Unlock prozedural in `sfx.js` erzeugt (keine Binärdateien).
 3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
 4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
 
+## Neu in v1.3.0
+
+- Sicherer Start: Der Bootstraper triggert jetzt auch bei bereits geladenem DOM und setzt den Canvas-Transform pro Frame zurück – dadurch verschwinden auch sporadische Blackscreens ohne Konsolenfehler.
+- Performance: Renderer cullt Tiles, Steine, Dirt und NPCs außerhalb des Viewports und reduziert damit Fillrate und Batterieverbrauch auf schwächeren Geräten.
+- Wartbarkeit: Schutzflächen (Feld, Yard, Teich) werden zentral geprüft, damit Spawn-/Platzierungslogik keine doppelten Sonderfälle mehr braucht und Tests leichter fallen.
+
+## Highlights v1.2.1
+
+- Start-Fix: DOM-Referenzen werden erst beim `load`-Event aufgebaut, damit Chrome auf GitHub Pages nicht mehr mit Null-Elementen abstürzt und einen schwarzen Bildschirm zeigt.
+
+=======
 
 ## Neu in v1.2.1
 
@@ -24,6 +33,7 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 - NPCs mit individuellen Farbpaletten und Häusern, inkl. Bannern und Emblemen zur besseren Orientierung.
 - Sprint- und Ausdauersystem mit prozedural generierten Schrittgeräuschen sowie entspannter Farm-Hintergrundmusik.
 - Desktop-Keyboardspiel startet automatisch im Vollbild, Mobile erhält einen eigenen Sprint-Button.
+=======
 
 
 
@@ -40,7 +50,6 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 
 ### Desktop
 - **WASD / Pfeile** – Bewegung
-
 - **Shift** – Sprint (verbraucht Ausdauer)
 
 - **Leertaste** – Kontextaktion (Shop, Pflanzen, Abliefern, Editor)
@@ -49,23 +58,6 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 ### Mobile
 - Virtueller Joystick links
 - Sprint-Button rechts oder Joystick bis zum Rand halten
-=======
-
-- Sprint-Button rechts oder Joystick bis zum Rand halten
-
-
-- Sprint-Button rechts oder Joystick bis zum Rand halten
-
-
-- Sprint-Button rechts oder Joystick bis zum Rand halten
-
-
-- Sprint-Button rechts oder Joystick bis zum Rand halten
-
-
-
-
-
 - Kontextbutton rechts
 - Restart-Button setzt den Speicherstand zurück
 
@@ -90,27 +82,7 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - `ECON` (Verkaufspreise)
 - `STONE` (Tragespeed, Munitionsertrag)
 - `SPAWN` für Stein-/Dirt-Spawns
-- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
-
-
-- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
-
-
-
-- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
-
-
-
-- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
-
-
-- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
-
 - `WORLD` für Basisgeschwindigkeit, Wasser-Kapazität etc.
-
-
-
-
 
 ## Savegame
 
@@ -122,7 +94,7 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 
 - Alle Pfade sind relativ (`./assets/...`) und funktionieren unter GitHub Pages (`/` oder `/<repo>/`).
 - Nach Commit einfach pushen, Pages baut automatisch.
-- Optional Tag setzen (`git tag v1.2.1`).
+- Optional Tag setzen (`git tag v1.3.0`).
 
 
 ## Troubleshooting
@@ -142,6 +114,10 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 ## QA Checkliste
 
 - Start ohne Konsolenfehler (Desktop & Mobile)
+- HUD zeigt Version `v1.3.0` im Overlay an
+- Sprint verbraucht Ausdauer und regeneriert beim Stehen
+- Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
+- NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig
 
 - HUD zeigt Version `v1.2.1` im Overlay an
 - Sprint verbraucht Ausdauer und regeneriert beim Stehen
