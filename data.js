@@ -1,4 +1,8 @@
+
 export const APP_VERSION = "v1.2.0";
+=======
+export const APP_VERSION = "v1.1.0";
+
 export const APP_BASE_PATH = "/";
 export const SAVE_KEY = "pb_save_v7";
 export const GAME_VERSION = 7;
@@ -10,6 +14,7 @@ export const WORLD = {
   width: 40,
   height: 40,
   walkSpeed: 2.8,
+
   sprintMultiplier: 1.35,
   shoesSpeedBonus: 0.12,
   staminaMax: 1,
@@ -20,6 +25,11 @@ export const WORLD = {
   runAnimRate: 11,
   walkStepInterval: 0.42,
   runStepInterval: 0.28,
+=======
+  sprintBonus: 0.35,
+  staminaDrain: 0.22,
+  staminaRecovery: 0.35,
+
   inventoryLimit: 99,
   yardBatch: 5,
   yardUpgradeStones: 20,
@@ -103,6 +113,7 @@ export const NPCS = [
     dialog: "Gib mir Felsen und ich mache Dünger draus.",
     pos: { x: 16.5, y: 18.5 },
     kind: "shop",
+
     houseId: "fred",
     style: {
       skin: "#f2cda2",
@@ -111,6 +122,8 @@ export const NPCS = [
       accent: "#f8d57a",
       eyes: "#2a221f",
     },
+=======
+
   },
   {
     id: "berta",
@@ -126,6 +139,7 @@ export const NPCS = [
       accent: "#68d4f5",
       eyes: "#221b28",
     },
+=======
   },
   {
     id: "stefan",
@@ -180,6 +194,7 @@ export const HOUSES = [
       banner: "#82f28f",
     },
     emblem: "📐",
+
   },
 ];
 
@@ -202,8 +217,33 @@ export const PLANTS = {
     poopCost: 0,
     seedCost: 1,
     sellPrice: 7,
+
   },
 };
+
+export const PLANTS = {
+  corn: {
+    id: "corn",
+    label: "Mais",
+    growMs: 40000,
+    chance: 0.6,
+    minMs: 10000,
+    waterBonusMs: 30000,
+    poopCost: 1,
+    sellPrice: 1,
+  },
+  cabbage: {
+    id: "cabbage",
+    label: "Kohl",
+    growMs: 120000,
+    wateredTotalMs: 40000,
+    poopCost: 0,
+    seedCost: 1,
+    sellPrice: 7,
+  },
+};
+
+=======
 
 export const ECON = {
   cornSell: 1,
