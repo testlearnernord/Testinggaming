@@ -1,7 +1,25 @@
 // Poopboy v1.0 — Komplettüberarbeitung: Modular, performant, neue Features, bessere Steuerung, QoL, Bugfixes
 
-import { ASSETS, MAP_W, MAP_H, TILE, TILES, map, SOLID, HOUSES, NPCS } from "./data.js";
+import {
+  ASSETS,
+  MAP_W,
+  MAP_H,
+  TILE,
+  TILES,
+  map,
+  SOLID,
+  HOUSES,
+  NPCS,
+  CONTROL_HINTS,
+  SEEDS,
+  SEED_MAP,
+  SEED_ORDER,
+  SEED_HOTKEYS,
+  SHOP_GOOD_MAP,
+} from "./data.js";
 import { SFX } from "./sfx.js";
+
+const hasOwn = Object.prototype.hasOwnProperty;
 
 // --- Canvas & UI ---
 const canvas = document.getElementById("game");
@@ -16,25 +34,18 @@ const ui = {
   shop: document.getElementById("shop"),
   shopItems: document.getElementById("shop-items"),
   shopClose: document.getElementById("shop-close"),
+  shopTitle: document.getElementById("shop-title"),
+  shopSubtitle: document.getElementById("shop-subtitle"),
+  shopPortrait: document.getElementById("shop-portrait"),
   hint: document.getElementById("hint"),
+  seedWheel: document.getElementById("seed-wheel"),
+  contextHint: document.getElementById("context-hint"),
 };
-ui.shopClose.onclick = () => ui.shop.classList.add("hidden");
 
 // --- Audio ---
 const sfx = new SFX(ASSETS.sfx);
 const DEBUG_OVERLAY = false;
 
-const HINT_CONTROLS = [
-  ["WASD/←↑→↓", "Bewegen"],
-  ["Shift", "Sprint"],
-  ["E", "Interagieren"],
-  ["1-3", "Pflanzen"],
-  ["4", "Stein setzen"],
-  ["Q/E", "Auswahl"],
-  ["Esc", "Pause"],
-];
-const HINT_CONTROLS_HTML = HINT_CONTROLS
-  .map(([key, desc]) => `<span class="hint-item"><span class="hint-key">${key}</span><span class="hint-desc">${desc}</span></span>`)
   .join('<span class="hint-sep">•</span>');
 
 const MINIMAP_TILE_COLORS = {
@@ -76,17 +87,28 @@ const once = new Set();
 let paused = false;
 function kd(e) {
   if (e.repeat) return;
+  if (e.key === " " || e.key === "Spacebar" || e.key === "Space") e.preventDefault();
   keys.set(e.key.toLowerCase(), true);
   if (e.key === "Escape") paused = !paused;
 }
 function ku(e) { keys.delete(e.key.toLowerCase()); once.delete(e.key.toLowerCase()); }
 addEventListener("keydown", kd);
 addEventListener("keyup", ku);
+addEventListener("wheel", onWheel, { passive: false });
 function pressed(k) { return keys.has(k); }
 function pressedOnce(k) {
   const k2 = k.toLowerCase();
   if (keys.has(k2) && !once.has(k2)) { once.add(k2); return true; }
   return false;
+}
+
+function onWheel(e) {
+  if (!ui.seedWheel) return;
+  if (isShopOpen()) return;
+  const dir = e.deltaY > 0 ? 1 : -1;
+  if (!dir) return;
+  cycleSeed(dir);
+  e.preventDefault();
 }
 
 // --- Camera ---
@@ -107,42 +129,72 @@ function makeActor(spriteId, x, y) {
     sprite: ASSETS.sprites[spriteId],
     w: 32, h: 38,
     talk: "",
+    displayName: null,
+    accent: "#ffffff",
+    role: "",
+    portrait: ASSETS.sprites[spriteId],
     ai: null,
     state: "",
     wt: 0,
   };
 }
 const player = makeActor("player", 26 * TILE, 54 * TILE);
+player.spd = 2.75;
 player.stamina = 100; player.maxStamina = 100; player.sprint = false; player.money = 0;
-player.inv = { seeds: { cabbage: 0, corn: 0, flower: 0 }, stones: 0, flowers: 0 };
-player.selectedSeed = "cabbage";
+const initialSeedInventory = Object.fromEntries(SEED_ORDER.map(id => [id, 0]));
+player.inv = { seeds: initialSeedInventory, stones: 0, flowers: 0 };
+player.selectedSeed = SEED_ORDER[0] ?? (SEEDS[0]?.id ?? "");
+
+function ensureSeedSlot(id) {
+  if (!hasOwn.call(player.inv.seeds, id)) {
+    player.inv.seeds[id] = 0;
+  }
+}
+
+function getSeedCount(id) {
+  ensureSeedSlot(id);
+  return player.inv.seeds[id];
+}
+
+function setSeedCount(id, value) {
+  ensureSeedSlot(id);
+  const clamped = Math.max(0, value);
+  player.inv.seeds[id] = clamped;
+  return clamped;
+}
+
+function addSeeds(id, amount = 1) {
+  return setSeedCount(id, getSeedCount(id) + amount);
+}
+
+function consumeSeeds(id, amount = 1) {
+  const current = getSeedCount(id);
+  if (current < amount) return false;
+  setSeedCount(id, current - amount);
+  return true;
+}
+
+function hasSeeds(id, amount = 1) {
+  return getSeedCount(id) >= amount;
+}
 
 // --- NPCs ---
 const actors = [player];
 for (const n of NPCS) {
   const a = makeActor(n.id, n.x, n.y);
-  a.spd = 1.3;
-  a.talk = `Hallo, ich bin ${n.id.charAt(0).toUpperCase() + n.id.slice(1)}.`;
+  a.spd = 1.35;
+  a.talk = n.greeting;
+  a.displayName = `${n.name}`;
+  a.role = n.title;
+  a.accent = n.accent;
+  a.meta = n;
   a.ai = "wander";
   actors.push(a);
 }
 
 // --- Pflanzen (neues System) ---
 const plants = [];
-const PLANT_TYPES = {
-  cabbage: { growTime: 30, sprite: "assets/sprites/cabbage.png", yield: 1, name: "Kohl" },
-  corn: { growTime: 40, sprite: "assets/sprites/corn.png", yield: 1, name: "Mais" },
-  flower: { growTime: 20, sprite: "assets/sprites/flower.png", yield: 1, name: "Blume" },
-};
-const SEED_IDS = Object.keys(PLANT_TYPES);
-const SEED_HOTKEYS = [
-  ["1", "cabbage"],
-  ["2", "corn"],
-  ["3", "flower"],
-];
-for (const id of SEED_IDS) {
-  if (!(id in player.inv.seeds)) player.inv.seeds[id] = 0;
-}
+
 function plantSeed(seedId, tx, ty) {
   plants.push({ id: seedId, x: tx, y: ty, t: 0, grown: false });
 }
@@ -150,13 +202,16 @@ function updatePlants(dt) {
   for (const p of plants) {
     if (!p.grown) {
       p.t += dt;
-      if (p.t >= PLANT_TYPES[p.id].growTime) p.grown = true;
+      const info = SEED_MAP[p.id];
+      if (info && p.t >= info.growTime) p.grown = true;
     }
   }
 }
 function drawPlants() {
   for (const p of plants) {
-    const spr = img(PLANT_TYPES[p.id].sprite);
+    const info = SEED_MAP[p.id];
+    if (!info) continue;
+    const spr = img(info.sprite);
     if (!spr) continue;
     const px = p.x * TILE - cam.x, py = p.y * TILE - cam.y;
     ctx.globalAlpha = p.grown ? 1 : 0.6;
@@ -164,15 +219,60 @@ function drawPlants() {
     ctx.globalAlpha = 1;
   }
 }
+
+function drawInteractionHighlight() {
+  if (!contextTarget || contextTarget.type === "shop-open") return;
+
+  if (contextTarget.tile) {
+    const { x, y } = contextTarget.tile;
+    if (x >= 0 && y >= 0 && x < MAP_W && y < MAP_H) {
+      const px = x * TILE - cam.x;
+      const py = y * TILE - cam.y;
+      let fill = "rgba(114,239,221,0.25)";
+      let stroke = "rgba(114,239,221,0.9)";
+      if (contextTarget.type === "harvest") {
+        fill = "rgba(255,214,99,0.3)";
+        stroke = "rgba(255,214,99,0.95)";
+      } else if (contextTarget.type === "no-seed") {
+        fill = "rgba(255,118,118,0.22)";
+        stroke = "rgba(255,118,118,0.9)";
+      }
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.fillStyle = fill;
+      ctx.globalAlpha = 0.65;
+      ctx.fillRect(3, 3, TILE - 6, TILE - 6);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(3, 3, TILE - 6, TILE - 6);
+      ctx.restore();
+    }
+  }
+
+  if (contextTarget.type === "shop" && contextTarget.npc) {
+    const npc = contextTarget.npc;
+    ctx.save();
+    ctx.translate(npc.x - cam.x, npc.y - cam.y);
+    ctx.fillStyle = npc.accent || "#56cfe1";
+    ctx.globalAlpha = 0.28;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 28, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = npc.accent || "#56cfe1";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 30, 16, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 function harvestPlantAt(tx, ty) {
   for (let i = 0; i < plants.length; ++i) {
     const p = plants[i];
     if (p.x === tx && p.y === ty && p.grown) {
-      const amount = PLANT_TYPES[p.id].yield;
-      if (p.id === "flower") {
-        player.inv.flowers = (player.inv.flowers ?? 0) + amount;
-      } else {
-        player.inv.seeds[p.id] = (player.inv.seeds[p.id] ?? 0) + amount;
+
       }
       plants.splice(i, 1);
       sfx.play("pickup", { volume: 0.85, rateRange: [0.95, 1.05], detuneRange: 35 });
@@ -182,25 +282,6 @@ function harvestPlantAt(tx, ty) {
   return false;
 }
 
-function tryInteract() {
-  if (!ui.shop.classList.contains("hidden")) {
-    ui.shop.classList.add("hidden");
-    sfx.play("ui", { volume: 0.7, rateRange: [0.96, 1.05] });
-    return true;
-  }
-  for (const a of actors) {
-    if (a === player) continue;
-    if (Math.hypot(a.x - player.x, a.y - player.y) < 40) {
-      openShop();
-      sfx.play("ui", { volume: 0.7, rateRange: [0.96, 1.05] });
-      return true;
-    }
-  }
-  const tx = Math.floor(player.x / TILE);
-  const ty = Math.floor(player.y / TILE);
-  if (harvestPlantAt(tx, ty)) return true;
-  return false;
-}
 
 // --- Physics ---
 function collideRect(ax, ay, aw, ah) {
@@ -252,30 +333,40 @@ function resolve(a) {
 }
 
 // --- Shop ---
-const SHOP_ITEMS = [
-  { id: "cabbage", name: "Kohlsamen", price: 3 },
-  { id: "corn", name: "Maissamen", price: 2 },
-  { id: "flower", name: "Blumensamen", price: 4 },
-  { id: "stone", name: "Schwerer Stein", price: 5 },
-];
-function openShop() {
-  ui.shopItems.innerHTML = "";
-  for (const it of SHOP_ITEMS) {
-    const b = document.createElement("button");
-    b.textContent = `${it.name} – ₽${it.price}`;
-    b.onclick = () => {
-      if (player.money >= it.price) {
-        player.money -= it.price;
-        if (it.id === "stone") player.inv.stones += 1;
-        else if (it.id === "flower") player.inv.seeds.flower += 1;
-        else player.inv.seeds[it.id] += 1;
-        sfx.play("ui", { volume: 0.65, rateRange: [0.94, 1.04] });
-        renderTopbar();
-      }
-    };
-    ui.shopItems.appendChild(b);
+function applyPurchase(good) {
+  if (!good) return;
+  if (good.type === "seed") {
+    const seedId = good.seed;
+    addSeeds(seedId, good.amount ?? 1);
+  } else if (good.type === "bundle") {
+    const contents = good.contents || {};
+    for (const [seedId, amount] of Object.entries(contents)) {
+      addSeeds(seedId, amount ?? 0);
+    }
+  } else if (good.type === "stone") {
+    player.inv.stones += good.amount ?? 1;
+  } else if (good.type === "flowers") {
+    player.inv.flowers = (player.inv.flowers ?? 0) + (good.amount ?? 1);
   }
+  sfx.play("pickup", { volume: 0.68, rateRange: [0.96, 1.06], detuneRange: 22 });
+}
+
+function openShop(npc) {
+  if (!npc || !npc.meta) return;
+  const meta = npc.meta;
+  ui.shopItems.innerHTML = "";
+
+      }
+      player.money -= priceValue;
+      applyPurchase(good);
+      onInventoryChanged();
+    });
+
+    ui.shopItems.appendChild(button);
+  }
+
   ui.shop.classList.remove("hidden");
+  sfx.play("ui", { volume: 0.7, rateRange: [0.96, 1.05] });
 }
 
 // --- Zeit & UI ---
@@ -292,11 +383,7 @@ function renderTopbar() {
   ui.stam.textContent = `Ausdauer ${Math.round(player.stamina)}/${player.maxStamina}`;
   ui.stam.style.setProperty("--fill", Math.max(0, Math.min(1, player.stamina / player.maxStamina)).toFixed(3));
   ui.money.textContent = `₽ ${player.money.toLocaleString("de-DE")}`;
-  const selected = PLANT_TYPES[player.selectedSeed];
-  const seedsLeft = player.inv.seeds[player.selectedSeed] ?? 0;
-  const flowers = player.inv.flowers ?? 0;
-  const inventoryParts = [
-    `<span class="hint-item emphasised">Saat: <span class="hint-badge">${selected ? selected.name : "?"}</span><span class="hint-count">${seedsLeft}</span></span>`,
+
     `<span class="hint-item emphasised">Blumen: <span class="hint-count">${flowers}</span></span>`,
     `<span class="hint-item emphasised">Steine: <span class="hint-count">${player.inv.stones}</span></span>`,
   ];
@@ -304,8 +391,7 @@ function renderTopbar() {
 }
 
 // --- Movement + Stamina ---
-const STEP_INTERVAL_WALK = 230;
-const STEP_INTERVAL_SPRINT = 170;
+
 let lastStep = 0;
 let lastMoveDir = { x: 0, y: 1 }; // Start: unten
 
@@ -330,10 +416,18 @@ function triggerFootstep(sprinting) {
 
 function controlPlayer(dt) {
   let dx = 0, dy = 0;
-  if (pressed("w") || pressed("arrowup")) { dy -= 1; player.dir = 3; }
-  if (pressed("s") || pressed("arrowdown")) { dy += 1; player.dir = 0; }
-  if (pressed("a") || pressed("arrowleft")) { dx -= 1; player.dir = 1; }
-  if (pressed("d") || pressed("arrowright")) { dx += 1; player.dir = 2; }
+  let facingDir = null;
+  for (const control of MOVEMENT_CONTROLS) {
+    if (control.keys.some(key => pressed(key))) {
+      const [vx, vy] = control.vec;
+      dx += vx;
+      dy += vy;
+      facingDir = control.dir;
+    }
+  }
+  if (facingDir !== null) {
+    player.dir = facingDir;
+  }
   const sprinting = pressed("shift") && player.stamina > 0;
   const spd = player.spd * (sprinting ? 1.85 : 1);
   const now = performance.now();
@@ -349,7 +443,7 @@ function controlPlayer(dt) {
       triggerFootstep(sprinting);
       lastStep = now;
     }
-    player.anim = (player.anim + dt * 8) % 3;
+    player.anim = (player.anim + dt * (sprinting ? 14 : 10)) % 3;
     if (sprinting) { player.stamina = Math.max(0, player.stamina - dt * 18); player.sprint = true; }
     else player.sprint = false;
   } else {
@@ -365,7 +459,7 @@ function controlPlayer(dt) {
   for (const [key, id] of SEED_HOTKEYS) {
     if (pressedOnce(key)) {
       player.selectedSeed = id;
-      tryPlant(id);
+
     }
   }
 
@@ -378,9 +472,7 @@ function controlPlayer(dt) {
   }
 
   if (pressedOnce("e")) {
-    if (!tryInteract()) {
-      cycleSeed(1);
-    }
+
   }
 }
 
@@ -410,31 +502,19 @@ function updateNPC(a, dt) {
 
 // --- Planting & Stones ---
 function tryPlaceStone() {
-  if (player.inv.stones <= 0) return;
+  if (player.inv.stones <= 0) return false;
   const tx = Math.floor(player.x / TILE);
   const ty = Math.floor(player.y / TILE);
-  const offsets = [[0, 1], [-1, 0], [1, 0], [0, -1]];
-  const [ox, oy] = offsets[player.dir];
+  const [ox, oy] = DIR_OFFSETS[player.dir] ?? DIR_OFFSETS[0];
   const px = tx + ox, py = ty + oy;
-  if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H) return;
-  if (SOLID.has(map[py * MAP_W + px])) return;
+  if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H) return false;
+  if (SOLID.has(map[py * MAP_W + px])) return false;
   const wouldOverlap = Math.abs((px + 0.5) * TILE - player.x) < 20 && Math.abs((py + 0.5) * TILE - (player.y - 20)) < 28;
-  if (wouldOverlap) return;
+  if (wouldOverlap) return false;
   map[py * MAP_W + px] = 3;
   player.inv.stones -= 1;
   sfx.play("pickup", { volume: 0.72, rateRange: [0.9, 1.04], detuneRange: 25 });
-}
 
-function tryPlant(seedId) {
-  if (player.inv.seeds[seedId] <= 0) return;
-  const tx = Math.floor(player.x / TILE), ty = Math.floor(player.y / TILE);
-  if (map[ty * MAP_W + tx] === 0 || map[ty * MAP_W + tx] === 1) {
-    // Check if already plant
-    if (plants.some(p => p.x === tx && p.y === ty)) return;
-    plantSeed(seedId, tx, ty);
-    player.inv.seeds[seedId]--;
-    sfx.play("pickup", { volume: 0.75, rateRange: [0.92, 1.05], detuneRange: 30 });
-  }
 }
 
 // --- Rendering ---
@@ -467,7 +547,37 @@ function drawActor(a) {
   const spr = img(a.sprite);
   const frame = Math.floor(a.anim);
   const sx = frame * 48, sy = a.dir * 48;
-  ctx.drawImage(spr, sx, sy, 48, 48, Math.floor(a.x - 24 - cam.x), Math.floor(a.y - 40 - cam.y), 48, 48);
+  const dx = Math.floor(a.x - 24 - cam.x);
+  const dy = Math.floor(a.y - 40 - cam.y);
+  if (a !== player) {
+    ctx.save();
+    ctx.translate(Math.floor(a.x - cam.x), Math.floor(a.y - cam.y));
+    ctx.fillStyle = a.accent || "#56cfe1";
+    ctx.globalAlpha = 0.24;
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 22, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  if (spr) ctx.drawImage(spr, sx, sy, 48, 48, dx, dy, 48, 48);
+  if (a !== player && a.displayName) {
+    ctx.save();
+    const tx = Math.floor(a.x - cam.x);
+    const ty = Math.floor(a.y - 48 - cam.y);
+    ctx.font = "600 16px 'Inter',Arial,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillText(a.displayName, tx, ty + 1);
+    ctx.fillStyle = a.accent || "#f5fbff";
+    ctx.fillText(a.displayName, tx, ty);
+    if (a.role) {
+      ctx.font = "500 12px 'Inter',Arial,sans-serif";
+      ctx.fillStyle = "rgba(240, 250, 255, 0.85)";
+      ctx.fillText(a.role, tx, ty + 14);
+    }
+    ctx.restore();
+  }
 }
 function drawAllActors() {
   const list = actors.slice().sort((a, b) => (a.y - b.y));
@@ -484,34 +594,7 @@ function drawMinimap() {
   const offsetX = -MAP_W * scale / 2;
   const offsetY = -MAP_H * scale / 2;
 
-  ctx.save();
-  ctx.translate(cx, cy);
 
-  ctx.save();
-  ctx.globalAlpha = 0.45;
-  ctx.fillStyle = "rgba(26, 51, 83, 0.45)";
-  ctx.beginPath();
-  ctx.arc(0, 0, radius + 26, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = "rgba(8, 13, 20, 0.92)";
-  ctx.beginPath();
-  ctx.arc(0, 0, radius + 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(16, 22, 30, 0.96)";
-  ctx.fill();
-  ctx.clip();
-
-  ctx.save();
   ctx.translate(offsetX, offsetY);
   for (let y = 0; y < MAP_H; y++) {
     for (let x = 0; x < MAP_W; x++) {
@@ -590,35 +673,7 @@ function drawLighting() {
   const b = Math.floor(88 + 110 * nightFactor);
   const alpha = 0.18 + 0.4 * nightFactor;
   ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
 
-  ctx.save();
-  ctx.globalCompositeOperation = "soft-light";
-  const gradient = ctx.createLinearGradient(0, 0, 0, H);
-  gradient.addColorStop(0, `rgba(255, 240, 214, ${0.08 * dayStrength})`);
-  gradient.addColorStop(1, `rgba(18, 30, 54, ${0.25 * nightFactor})`);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-
-  const lamp = img(ASSETS.fx.radial);
-  if (lamp) {
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = 0.3 + 0.4 * nightFactor;
-    ctx.drawImage(lamp, Math.floor(player.x - 180 - cam.x), Math.floor(player.y - 220 - cam.y), 360, 360);
-    ctx.restore();
-  }
-
-  const ambient = img(ASSETS.fx.ambient);
-  if (ambient) {
-    ctx.save();
-    ctx.globalCompositeOperation = "overlay";
-    ctx.globalAlpha = 0.15 + 0.2 * nightFactor;
-    ctx.drawImage(ambient, 0, 0, W, H);
-    ctx.restore();
-  }
 }
 
 function drawVignette() {
@@ -649,12 +704,13 @@ addEventListener("resize", onResize);
 
 // --- Hotkeys & Plant Selection ---
 function cycleSeed(dir) {
-  const ids = SEED_IDS;
+
   if (!ids.length) return;
   let idx = ids.indexOf(player.selectedSeed);
   if (idx === -1) idx = 0;
   idx = (idx + dir + ids.length) % ids.length;
   player.selectedSeed = ids[idx];
+  onSeedChanged(true);
 }
 
 // --- Main Loop ---
@@ -669,10 +725,13 @@ function loop(t) {
     timeTick(dt);
     renderTopbar();
   }
+  detectContext();
+  refreshContextHint();
   // Draw
   ctx.clearRect(0, 0, W, H);
   drawTiles();
   drawPlants();
+
     drawAllActors();
     if (DEBUG_OVERLAY) drawHouseOverlay();
     drawLighting();
