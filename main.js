@@ -56,6 +56,15 @@ const SKY_TOP_NIGHT = "#04060d";
 const SKY_BOTTOM_NIGHT = "#020307";
 const SKY_TOP_DAWN = "#2c1f3a";
 const SKY_BOTTOM_DAWN = "#120d19";
+=======
+const AREA_MAPPINGS = [
+  { key: "fieldArea", symbol: "f" },
+  { key: "yardArea", symbol: "y" },
+  { key: "pondArea", symbol: "w" },
+  { key: "clearingArea", symbol: "c" },
+  { key: "quarryArea", symbol: "q" },
+];
+const RESERVED_AREA_SYMBOLS = new Set(["f", "y", "w"]);
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -152,6 +161,9 @@ let editorSave = null;
 let editorReset = null;
 let editorExit = null;
 let toastEl = null;
+=======
+let bootStarted = false;
+let bootScheduled = false;
 
 let bootStarted = false;
 let bootScheduled = false;
@@ -817,6 +829,7 @@ function setupInput() {
   setupJoystick();
   setupSprintButton();
   if (plantButton) plantButton.addEventListener("click", () => cyclePlantSelection());
+=======
 }
 
 function onKeyDown(ev) {
@@ -832,6 +845,12 @@ function onKeyDown(ev) {
     setSelectedPlant("cabbage");
   } else if (key === "3") {
     setSelectedPlant("moonflower");
+    state.player.selectedPlant = "corn";
+    showToast("Saat: Mais");
+  }
+  if (key === "2") {
+    state.player.selectedPlant = "cabbage";
+    showToast("Saat: Kohl");
   }
   state.keys.set(key, true);
 }
@@ -913,6 +932,74 @@ function cyclePlantSelection(direction = 1) {
   if (index === -1) index = 0;
   const next = (index + direction + options.length) % options.length;
   setSelectedPlant(options[next]);
+}
+
+function maybeEnterFullscreen(key) {
+  if (state.prefersTouch || state.fullscreenAttempted) return;
+  if (!FULLSCREEN_KEYS.has(key)) return;
+  state.fullscreenAttempted = true;
+  if (document.fullscreenElement) return;
+  const root = document.documentElement;
+  if (!root || !root.requestFullscreen) return;
+  try {
+    root.requestFullscreen();
+  } catch (err) {
+    console.warn("fullscreen request failed", err);
+  }
+}
+
+function onJoyPointerDown(ev) {
+  if (state.joystick.active) return;
+  state.joystick.active = true;
+  state.joystick.pointerId = ev.pointerId;
+  const rect = joystickEl.getBoundingClientRect();
+  state.joystick.startX = rect.left + rect.width / 2;
+  state.joystick.startY = rect.top + rect.height / 2;
+  state.joystick.dx = 0;
+  state.joystick.dy = 0;
+  joystickEl.setPointerCapture(ev.pointerId);
+}
+
+function onJoyPointerMove(ev) {
+  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
+  const dx = ev.clientX - state.joystick.startX;
+  const dy = ev.clientY - state.joystick.startY;
+  const radius = joystickEl.clientWidth / 2;
+  let nx = dx / radius;
+  let ny = dy / radius;
+  const len = Math.hypot(nx, ny);
+  if (len > 1) {
+    nx /= len;
+    ny /= len;
+  }
+  state.joystick.dx = nx;
+  state.joystick.dy = ny;
+  if (joystickHandle) {
+    joystickHandle.style.transform = `translate(${nx * radius * 0.55}px, ${ny * radius * 0.55}px)`;
+  }
+}
+
+=======
+}
+
+function setupSprintButton() {
+  if (!sprintButton) return;
+  const release = () => {
+    state.touchSprint = false;
+    state.sprintPointerId = null;
+    sprintButton.classList.remove("active");
+  };
+  sprintButton.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    state.touchSprint = true;
+    state.sprintPointerId = ev.pointerId;
+    sprintButton.classList.add("active");
+    sprintButton.setPointerCapture?.(ev.pointerId);
+  });
+  sprintButton.addEventListener("pointerup", release);
+  sprintButton.addEventListener("pointercancel", release);
+  sprintButton.addEventListener("pointerleave", release);
+  window.addEventListener("pointerup", release);
 }
 
 function maybeEnterFullscreen(key) {
@@ -1059,6 +1146,7 @@ function updateHud() {
   if (hudElements.seed) hudElements.seed.textContent = `${player.cabbageSeed}`;
   if (hudElements.moonseed) hudElements.moonseed.textContent = `${player.moonflowerSeed}`;
   if (hudElements.moonflower) hudElements.moonflower.textContent = `${player.moonflower}`;
+=======
   if (hudElements.money) hudElements.money.textContent = `${player.money}`;
   if (hudElements.ammo) hudElements.ammo.textContent = `${player.ammo}`;
   if (hudElements.water) hudElements.water.textContent = `${player.watering.charges}/${player.watering.max}`;
@@ -1081,6 +1169,7 @@ function updateHud() {
     plantButton.textContent = `Saat: ${label}`;
     plantButton.disabled = getSelectablePlants().length <= 1;
   }
+=======
   if (state.contextAction) {
     if (contextButton) {
       contextButton.textContent = state.contextAction.label;
@@ -1112,6 +1201,7 @@ function update(dt) {
     return;
   }
   updateDayNight(dt);
+=======
   handleSpawns(dt);
   updatePlayer(dt);
   updatePlants(dt);
@@ -1444,6 +1534,8 @@ function updatePlants(dt) {
       }
     }
     if (now >= plant.readyAt) {
+=======
+    if (plant.stage === "growing" && now >= plant.readyAt) {
       plant.stage = plant.success ? "ready" : "failed";
     }
   }
@@ -2148,6 +2240,7 @@ function render() {
   drawStones(view);
   drawNPCs(view);
   drawFireflies(view);
+=======
   drawPlayer();
   drawPreview(view);
   ctx.restore();
@@ -2279,6 +2372,27 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
+
+function tileColor(sym) {
+  switch (sym) {
+    case "p": return "#6b5537";
+    case "h": return "#2c2f3b";
+    case "x": return "#0c1612";
+    case "w": return "#1b3f6e";
+    case "f": return "#3b6f36";
+    case "y": return "#6b4026";
+    case "c": return "#2d4b2a";
+    case "q": return "#4f4d49";
+    case "d": return "#5b3c2d";
+    case "b": return "#4a3a5b";
+    case "s": return "#37535c";
+    case "t": return "#2d604b";
+    default: return "#1e3a2b";
+  }
+}
+
 function drawPlants(view) {
   const { minX, maxX, minY, maxY } = view.tiles;
   for (const plant of state.plants.values()) {
@@ -2308,6 +2422,7 @@ function drawPlants(view) {
       ctx.beginPath();
       ctx.ellipse(0, 0, TILE * 0.24, TILE * 0.32, 0, 0, TAU);
       ctx.fill();
+=======
     } else {
       ctx.fillStyle = plant.stage === "ready" ? "#7ae38f" : plant.stage === "failed" ? "#4f5f4f" : "#4ecb6d";
       ctx.beginPath();
@@ -2624,6 +2739,7 @@ function applyLightingOverlay(width, height) {
   }
 }
 
+=======
 function drawHudOverlay(width, height) {
   ctx.save();
   ctx.fillStyle = "rgba(255,255,255,0.5)";
