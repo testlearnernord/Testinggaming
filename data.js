@@ -2,10 +2,14 @@
 export const APP_VERSION = "v1.2.1";
 
 
+export const APP_VERSION = "v1.2.1";
+
+
 export const APP_VERSION = "v1.2.0";
 
 export const APP_VERSION = "v1.2.0";
 export const APP_VERSION = "v1.1.0";
+
 
 
 
@@ -21,8 +25,6 @@ export const WORLD = {
   height: 40,
   walkSpeed: 2.8,
 
-
-
   sprintMultiplier: 1.35,
   shoesSpeedBonus: 0.12,
   staminaMax: 1,
@@ -33,6 +35,7 @@ export const WORLD = {
   runAnimRate: 11,
   walkStepInterval: 0.42,
   runStepInterval: 0.28,
+
 
   sprintBonus: 0.35,
   staminaDrain: 0.22,
@@ -244,6 +247,53 @@ export const SPAWN = {
   boulderIntervalMs: [12000, 20000],
 };
 
+
+export const STONE = {
+  carrySlow: 0.72,
+  cartBonus: 1.1,
+  crusherYield: 8,
+};
+
+export const FLAGS = {
+  dayNightEnabled: false,
+  monstersEnabled: false,
+};
+
+export const CONTROLS = {
+  keyboard: {
+    up: ["w", "arrowup"],
+    down: ["s", "arrowdown"],
+    left: ["a", "arrowleft"],
+    right: ["d", "arrowright"],
+    action: [" ", "space"],
+    sprint: ["shift"],
+    editor: ["e"],
+  },
+  touchDeadZone: 0.18,
+};
+
+export const STORAGE_DEFAULTS = {
+  money: 0,
+  poop: 0,
+  ammo: 0,
+  corn: 0,
+  cabbage: 0,
+  cabbageSeed: 0,
+  yardDelivered: 0,
+  yardPending: 0,
+  upgrades: {
+    watering: false,
+    shoes: false,
+    crusher: false,
+    cart: false,
+  },
+  watering: {
+    charges: WORLD.baseWater,
+  },
+};
+
+=======
+
 export const STONE = {
   carrySlow: 0.72,
   cartBonus: 1.1,
@@ -360,6 +410,7 @@ export const STORAGE_DEFAULTS = {
   },
 };
 
+
 export function resolveAsset(path) {
   const clean = path.replace(/^\//, "");
   if (APP_BASE_PATH === "/" || APP_BASE_PATH === "./") {
@@ -367,6 +418,18 @@ export function resolveAsset(path) {
   }
   const base = APP_BASE_PATH.endsWith("/") ? APP_BASE_PATH : `${APP_BASE_PATH}/`;
   return `${base}${clean}`;
+
+}
+
+export function isWalkableSymbol(symbol) {
+  return symbol === "." || symbol === "p" || symbol === "f" || symbol === "c" || symbol === "y" || symbol === "q" || symbol === "d" || symbol === "b" || symbol === "s" || symbol === "t";
+}
+
+export function isBlockingSymbol(symbol) {
+  return !isWalkableSymbol(symbol);
+}
+
+=======
 }
 
 export function isWalkableSymbol(symbol) {
@@ -480,6 +543,7 @@ export function isWalkableSymbol(symbol) {
 export function isBlockingSymbol(symbol) {
   return !isWalkableSymbol(symbol);
 }
+
 
 
 

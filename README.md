@@ -2,6 +2,9 @@
 # Poopboy v1.2.1
 
 
+
+# Poopboy v1.2.1
+
 Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und baue Mais oder Kohl an. Die Version ist für mobile und Desktop ausgelegt, nutzt Canvas 2D und speichert automatisch unter `pb_save_v7` im `localStorage`.
 
 ## Quickstart
@@ -26,9 +29,11 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 - Desktop-Keyboardspiel startet automatisch im Vollbild, Mobile erhält einen eigenen Sprint-Button.
 
 
+
 2. Assets liegen flach im Repo (`index.html`, `data.js`, `main.js`, `sfx.js`, `/assets`). Kein Build-Schritt nötig; die SFX entstehen prozedural in `sfx.js`, daher keine Binärdateien.
 3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
 4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
+
 
 
 
@@ -36,6 +41,9 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 
 ### Desktop
 - **WASD / Pfeile** – Bewegung
+
+- **Shift** – Sprint (verbraucht Ausdauer)
+
 
 - **Shift** – Sprint (verbraucht Ausdauer)
 
@@ -58,6 +66,10 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 
 
 - Sprint-Button rechts oder Joystick bis zum Rand halten
+
+
+- Sprint-Button rechts oder Joystick bis zum Rand halten
+
 
 
 
@@ -94,9 +106,14 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
 
 
+
+- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
+
+
 - `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
 
 - `WORLD` für Basisgeschwindigkeit, Wasser-Kapazität etc.
+
 
 
 
@@ -115,12 +132,17 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - Optional Tag setzen (`git tag v1.2.1`).
 
 
+
+- Optional Tag setzen (`git tag v1.2.1`).
+
+
 - Optional Tag setzen (`git tag v1.2.0`).
 
 
 - Optional Tag setzen (`git tag v1.2.0`).
 
 - Optional Tag setzen (`git tag v1.1.0`).
+
 
 
 
@@ -152,12 +174,14 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 
 
 
+
 - HUD zeigt Version `v1.2.0` im Overlay an
 - Sprint verbraucht Ausdauer und regeneriert beim Stehen
 - Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
 - NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig
 
 - HUD zeigt Version `v1.1.0` unten links
+
 
 
 
