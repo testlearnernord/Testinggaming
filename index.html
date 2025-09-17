@@ -80,6 +80,7 @@
       top: 1.75rem;
     }
 
+
     canvas#game {
       width: 100%;
       aspect-ratio: 16 / 9;
@@ -212,6 +213,7 @@
       background: rgba(110, 240, 196, 0.35);
       border-color: rgba(110, 240, 196, 0.65);
     }
+
 
     .context-buttons button:active {
       transform: scale(0.96);
@@ -376,6 +378,18 @@
         <div class="hud__pill" id="hud-ammo"><img class="hud__icon" data-icon="assets/icons/ammo.svg" src="assets/icons/ammo.svg" alt="Munition" width="24" height="24"/><span data-value>0</span></div>
         <div class="hud__pill" id="hud-water"><img class="hud__icon" data-icon="assets/icons/water.svg" src="assets/icons/water.svg" alt="Wasser" width="24" height="24"/><span data-value>0</span></div>
         <div class="hud__pill" id="hud-stamina"><img class="hud__icon" data-icon="assets/icons/stamina.svg" src="assets/icons/stamina.svg" alt="Ausdauer" width="24" height="24"/><span data-value>100%</span></div>
+
+        <div class="hud__pill" id="hud-health"><img class="hud__icon" src="assets/icons/heart.svg" alt="Herzen" width="24" height="24"/><span data-value>3</span></div>
+        <div class="hud__pill" id="hud-poop"><img class="hud__icon" src="assets/icons/poop.svg" alt="Dünger" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-corn"><img class="hud__icon" src="assets/icons/corn.svg" alt="Mais" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-cabbage"><img class="hud__icon" src="assets/icons/cabbage.svg" alt="Kohl" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-seed"><img class="hud__icon" src="assets/icons/seed.svg" alt="Saat" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-money"><img class="hud__icon" src="assets/icons/money.svg" alt="Geld" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-ammo"><img class="hud__icon" src="assets/icons/ammo.svg" alt="Munition" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-water"><img class="hud__icon" src="assets/icons/water.svg" alt="Wasser" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-stamina"><img class="hud__icon" src="assets/icons/stamina.svg" alt="Ausdauer" width="24" height="24"/><span data-value>100%</span></div>
+
+
       </div>
       <div class="hud__version" id="hud-version">Version</div>
     </div>
@@ -385,6 +399,7 @@
       </div>
       <div class="context-buttons">
         <button id="sprint-button" type="button">Sprint</button>
+
         <button id="context-button" type="button">Aktion</button>
         <button id="restart-button" type="button">Neu starten</button>
       </div>
@@ -418,5 +433,6 @@
     <div id="toast" role="status" aria-live="assertive"></div>
   </div>
   <script type="module" src="./main.js"></script>
+
 </body>
 </html>
