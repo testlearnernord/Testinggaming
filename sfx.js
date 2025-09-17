@@ -75,6 +75,108 @@ export class SFX {
 
     this.buffers.set(id, buffer);
     return buffer;
+  }
+
+  play(id, { volume = 0.8, playbackRate = 1, cooldown = 120 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return;
+    const now = performance.now();
+    const last = this.lastPlay.get(id) || 0;
+    if (now - last < cooldown) return;
+    this.lastPlay.set(id, now);
+
+    const buffer = this.buffers.get(id);
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain).connect(this.ctx.destination);
+
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX start failed", err);
+    }
+  }
+
+  startLoop(id, { volume = 0.4, fadeMs = 800 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return null;
+    if (this.loops.has(id)) return this.loops.get(id);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers.get(id);
+    source.loop = true;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain).connect(this.ctx.destination);
+
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX loop start failed", err);
+      return null;
+    }
+
+    const now = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(volume, now + fadeMs / 1000);
+    } else {
+      gain.gain.setValueAtTime(volume, now);
+    }
+
+    const handle = { source, gain };
+    source.onended = () => {
+      this.loops.delete(id);
+    };
+    this.loops.set(id, handle);
+    return handle;
+  }
+
+  stopLoop(id, { fadeMs = 600 } = {}) {
+    const handle = this.loops.get(id);
+    if (!handle || !this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    handle.gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      handle.gain.gain.setValueAtTime(handle.gain.gain.value, now);
+      handle.gain.gain.linearRampToValueAtTime(0, now + fadeMs / 1000);
+      handle.source.stop(now + fadeMs / 1000 + 0.05);
+    } else {
+    });
+    return this.pendingLoads;
+  }
+
+  async loadBuffer(id, spec) {
+    if (!this.ctx) return null;
+    if (this.buffers.has(id)) return this.buffers.get(id);
+
+    const generator = typeof spec === "function" ? spec : spec?.create;
+    if (typeof generator !== "function") {
+      return null;
+    }
+
+    let buffer;
+    try {
+      buffer = generator(this.ctx);
+      if (buffer instanceof Promise) {
+        buffer = await buffer;
+      }
+    } catch (err) {
+      console.warn(`SFX generator for ${id} failed`, err);
+      return null;
+    }
+
+    if (!buffer || typeof buffer.getChannelData !== "function") {
+      return null;
+    }
+
+    this.buffers.set(id, buffer);
+    return buffer;
 
     });
     return this.pendingLoads;
@@ -167,7 +269,6 @@ export class SFX {
     gain.gain.value = volume;
     source.connect(gain).connect(this.ctx.destination);
 
-=======
     const gain = this.ctx.createGain();
     gain.gain.value = volume;
     source.connect(gain).connect(this.ctx.destination);
@@ -621,6 +722,27 @@ function finalizeChannel(channel, sampleRate, options = {}) {
         }
       }
     }
+=======
+      }
+    }
+  }
+
+  if (normalize > 0) {
+    let peak = 0;
+    for (let i = 0; i < channel.length; i++) {
+      const value = Math.abs(channel[i]);
+      if (value > peak) peak = value;
+    }
+    if (peak > 0) {
+      const target = normalize;
+      const maxScale = 4;
+      const scale = Math.max(Math.min(target / peak, maxScale), target < peak ? target / peak : 1 / maxScale);
+      if (Math.abs(scale - 1) > 1e-3) {
+        for (let i = 0; i < channel.length; i++) {
+          channel[i] *= scale;
+        }
+      }
+    }
 
       }
     }
@@ -852,6 +974,91 @@ function adsr(t, duration, attack, decay, sustainLevel, release) {
   if (t < 0 || t > duration) return 0;
   if (attack > 0 && t < attack) {
     return t / attack;
+  }
+  const decayStart = attack;
+  const decayEnd = attack + decay;
+  const sustainStart = decayEnd;
+  const sustainEnd = Math.max(sustainStart, duration - release);
+
+  if (t < decayEnd) {
+    if (decay <= 0) return 1;
+    const progress = (t - decayStart) / decay;
+    return 1 - (1 - sustainLevel) * progress;
+  }
+
+  if (t < sustainEnd) {
+    return sustainLevel;
+  }
+
+  if (release <= 0) {
+    return sustainLevel;
+  }
+
+  const releaseProgress = (t - sustainEnd) / release;
+  return Math.max(0, sustainLevel * (1 - releaseProgress));
+}
+
+function glide(start, end, t, duration, curve = 1) {
+  if (duration <= 0) return end;
+  const progress = Math.min(1, Math.max(0, t / duration));
+  const eased = curve !== 1 ? Math.pow(progress, curve) : progress;
+  return start + (end - start) * eased;
+}
+
+function makeNoise(seed = 1) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return (state / 0xffffffff) * 2 - 1;
+  };
+}
+
+function createNoiseLayer({ seed = 1, smoothing = 0.2, scale = 0.4, envelope = () => 1 }) {
+  const random = makeNoise(seed);
+  let value = 0;
+  return (t, i, sampleRate) => {
+    value += smoothing * (random() - value);
+    return envelope(t, i, sampleRate) * value * scale;
+  };
+}
+
+function applyFade(channel, sampleRate, seconds, fadeIn) {
+  const samples = Math.min(channel.length, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  if (samples === 1) {
+    const index = fadeIn ? 0 : channel.length - 1;
+    channel[index] = 0;
+    return;
+  }
+  for (let i = 0; i < samples; i++) {
+    const denom = samples > 1 ? samples - 1 : 1;
+    const ratio = denom === 0 ? 1 : i / denom;
+    const index = fadeIn ? i : channel.length - samples + i;
+    const factor = fadeIn ? ratio : 1 - ratio;
+    channel[index] *= factor;
+  }
+}
+
+function applyLoopCrossfade(channel, sampleRate, seconds) {
+  const samples = Math.min(channel.length >> 1, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  const start = new Float32Array(samples);
+  const end = new Float32Array(samples);
+  start.set(channel.subarray(0, samples));
+  end.set(channel.subarray(channel.length - samples));
+  for (let i = 0; i < samples; i++) {
+    const mix = i / samples;
+    const blended = start[i] * (1 - mix) + end[i] * mix;
+    channel[i] = blended;
+    channel[channel.length - samples + i] = blended;
+  }
+}
+
+function adsr(t, duration, attack, decay, sustainLevel, release) {
+  if (t < 0 || t > duration) return 0;
+  if (attack > 0 && t < attack) {
+    return t / attack;
+
   }
   const decayStart = attack;
   const decayEnd = attack + decay;

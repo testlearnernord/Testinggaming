@@ -1,6 +1,11 @@
 # Changelog
 
 
+## 1.2.1 — 2025-09-18
+- DOM-Referenzen werden erst beim `load`-Event abgeholt, damit Chrome nicht mehr mit "Cannot read properties of null" abbricht und der Canvas schwarz bleibt.
+- HUD-, Dialog- und Editor-UI prüfen auf fehlende Elemente, wodurch die Konsole sauber bleibt und der Fallback-Toast zuverlässig erscheint.
+
+
 ## 1.2.0 — 2025-09-18
 - Spieler-Avatar mit Blickrichtungs-Gesichtern, Armschwung, Lauf-/Sprintanimationen und angestrengter Mimik beim Steine tragen.
 - NPCs erhielten eigene Farbpaletten plus deutlich unterscheidbare Häuser mit Bannern und Emblemen.
