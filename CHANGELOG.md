@@ -1,25 +1,20 @@
 # Changelog
 
 ## 1.3.0 — 2025-09-18
-- Boot-Sequenz prüft jetzt DOM-Ready- und Load-Events und setzt die Canvas-Transform pro Frame zurück, wodurch der sporadische
-  schwarze Bildschirm ohne Fehlermeldung verschwindet.
-- Renderer zeichnet nur noch sichtbare Tiles, NPCs, Felsen und Dirt-Haufen; das senkt die Fillrate und hält die FPS auf mobilen
-  Geräten stabil über 55.
-- Gemeinsame Helper für Feld-/Yard-/Teich-Schutzflächen verhindern doppelte Prüfungen bei Spawns und Platzierungen und machen
-  zukünftige Anpassungen nachvollziehbarer.
-
+- Boot-Sequenz lauscht auf `DOMContentLoaded`, `load` und bereits geladene Dokumente, bevor sie initialisiert. Das verhindert schwarze Bildschirme auf GitHub Pages, auch wenn Skripte verspätet geladen werden.
+- Renderer setzt die Canvas-Transform zu Beginn jedes Frames zurück. Unerklärliche Offsets oder komplett schwarze Frames gehören damit der Vergangenheit an.
+- Kamera-Culling reduziert die gezeichneten Tiles, Steine, Dirt-Haufen und NPCs auf den sichtbaren Bereich. Das senkt die Fillrate vor allem auf mobilen Geräten deutlich.
+- Einheitliche Helper prüfen Feld-, Hof- und Teichschutzflächen in Spawn-, Platzierungs- und Interaktionslogik. Weniger Duplication, weniger Sonderfälle.
 
 ## 1.2.1 — 2025-09-18
 - DOM-Referenzen werden erst beim `load`-Event abgeholt, damit Chrome nicht mehr mit "Cannot read properties of null" abbricht und der Canvas schwarz bleibt.
 - HUD-, Dialog- und Editor-UI prüfen auf fehlende Elemente, wodurch die Konsole sauber bleibt und der Fallback-Toast zuverlässig erscheint.
-
 
 ## 1.2.0 — 2025-09-18
 - Spieler-Avatar mit Blickrichtungs-Gesichtern, Armschwung, Lauf-/Sprintanimationen und angestrengter Mimik beim Steine tragen.
 - NPCs erhielten eigene Farbpaletten plus deutlich unterscheidbare Häuser mit Bannern und Emblemen.
 - Ausdauer- und Sprintsystem inkl. prozedural erzeugten Schritt-SFX sowie einer beruhigenden Farm-Hintergrundmusik.
 - Desktop startet automatisch im Vollbildmodus; mobiles UI bekommt einen Sprint-Button, HUD zeigt Ausdauer an.
-
 
 ## 1.1.0 — 2025-09-17
 - Rewrote Poopboy als Canvas-Only Build mit mobilem UI und Touch-Steuerung.
