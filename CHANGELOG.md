@@ -1,4 +1,14 @@
 # Changelog
+
+## 1.1.0 — 2025-09-17
+- Rewrote Poopboy als Canvas-Only Build mit mobilem UI und Touch-Steuerung.
+- Feste Script-Boot-Order (data → sfx → main) und Fehler-Toast gegen schwarzen Screen.
+- DPI-aware Rendering, Joystick-Input inkl. Deadzone und Context-Button.
+- Neues Savegame (`pb_save_v7`) mit Sanitizing und Editor-Layout-Speicher.
+- Gameplay nach CODEX: Felsen-Loop, Mais/Kohl mit Bewässerung, Upgrades (Berta/Fred), Yard-Mechanik.
+- Map-Editor mit Tile-Snapping, Spawn-Safety und Persistenz.
+- Audio-Unlock nach erstem Input, SFX werden prozedural in `sfx.js` generiert (keine Binärdateien).
+
 ## 1.0 — 2025-08-10
 - Neue Map-Generierung: Klarere Wege, sichtbare Häuser, Dorfplatz, Farmbereich, Teich.
 - Neue und überarbeitete Grafiken für Tiles und Sprites.
