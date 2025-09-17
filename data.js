@@ -257,21 +257,3 @@ const NPCS = [
   },
 ];
 
-export {
-  ASSETS,
-  MAP_W,
-  MAP_H,
-  TILE,
-  TILES,
-  map,
-  SOLID,
-  HOUSES,
-  NPCS,
-  CONTROL_HINTS,
-  SEEDS,
-  SEED_MAP,
-  SEED_ORDER,
-  SEED_HOTKEYS,
-  SHOP_GOODS,
-  SHOP_GOOD_MAP,
-};

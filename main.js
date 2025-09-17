@@ -45,41 +45,7 @@ const ui = {
 // --- Audio ---
 const sfx = new SFX(ASSETS.sfx);
 const DEBUG_OVERLAY = false;
-const DIR_OFFSETS = [
-  [0, 1],
-  [-1, 0],
-  [1, 0],
-  [0, -1],
-];
 
-const MOVEMENT_CONTROLS = [
-  { dir: 3, keys: ["w", "arrowup"], vec: DIR_OFFSETS[3] },
-  { dir: 0, keys: ["s", "arrowdown"], vec: DIR_OFFSETS[0] },
-  { dir: 1, keys: ["a", "arrowleft"], vec: DIR_OFFSETS[1] },
-  { dir: 2, keys: ["d", "arrowright"], vec: DIR_OFFSETS[2] },
-];
-
-function isShopOpen() {
-  return !!(ui.shop && !ui.shop.classList.contains("hidden"));
-}
-
-function closeShop({ silent = false } = {}) {
-  if (!isShopOpen()) return false;
-  ui.shop.classList.add("hidden");
-  if (!silent) {
-    sfx.play("ui", { volume: 0.7, rateRange: [0.96, 1.05] });
-  }
-  detectContext();
-  refreshContextHint();
-  return true;
-}
-
-if (ui.shopClose) {
-  ui.shopClose.onclick = () => closeShop();
-}
-
-const HINT_CONTROLS_HTML = CONTROL_HINTS
-  .map(({ key, desc }) => `<span class="hint-item"><span class="hint-key">${key}</span><span class="hint-desc">${desc}</span></span>`)
   .join('<span class="hint-sep">•</span>');
 
 const MINIMAP_TILE_COLORS = {
@@ -228,63 +194,7 @@ for (const n of NPCS) {
 
 // --- Pflanzen (neues System) ---
 const plants = [];
-const seedCards = [];
 
-function buildSeedWheel() {
-  if (!ui.seedWheel) return;
-  ui.seedWheel.innerHTML = "";
-  seedCards.length = 0;
-  SEEDS.forEach((seed, idx) => {
-    const { id } = seed;
-    ensureSeedSlot(id);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "seed-card";
-    button.dataset.seed = id;
-
-    const iconWrap = document.createElement("span");
-    iconWrap.className = "seed-card__icon";
-    const icon = document.createElement("img");
-    icon.src = seed.icon || seed.sprite;
-    icon.alt = seed.name;
-    icon.width = 28;
-    icon.height = 28;
-    iconWrap.appendChild(icon);
-
-    const label = document.createElement("span");
-    label.className = "seed-card__label";
-    label.textContent = seed.name;
-
-    const count = document.createElement("span");
-    count.className = "seed-card__count";
-    count.textContent = "x0";
-
-    const hotkey = document.createElement("span");
-    hotkey.className = "seed-card__hotkey";
-    hotkey.textContent = seed.hotkey || idx + 1;
-
-    button.append(iconWrap, label, count, hotkey);
-    button.addEventListener("click", () => {
-      player.selectedSeed = id;
-      onSeedChanged(true);
-    });
-
-    ui.seedWheel.appendChild(button);
-    seedCards.push({ id, button, countEl: count, labelEl: label });
-  });
-}
-
-function updateSeedWheel() {
-  for (const entry of seedCards) {
-    const amount = getSeedCount(entry.id);
-    entry.countEl.textContent = `x${amount}`;
-    entry.button.classList.toggle("active", player.selectedSeed === entry.id);
-    entry.button.classList.toggle("seed-card--empty", amount <= 0);
-  }
-}
-
-buildSeedWheel();
-updateSeedWheel();
 function plantSeed(seedId, tx, ty) {
   plants.push({ id: seedId, x: tx, y: ty, t: 0, grown: false });
 }
@@ -362,15 +272,7 @@ function harvestPlantAt(tx, ty) {
   for (let i = 0; i < plants.length; ++i) {
     const p = plants[i];
     if (p.x === tx && p.y === ty && p.grown) {
-      const info = SEED_MAP[p.id];
-      const amount = info?.yield ?? 1;
-      const harvest = info?.harvest || { inventory: "seeds", id: p.id };
-      if (harvest.inventory === "seeds") {
-        const targetId = harvest.id ?? p.id;
-        addSeeds(targetId, amount);
-      } else {
-        const key = harvest.inventory;
-        player.inv[key] = (player.inv[key] ?? 0) + amount;
+
       }
       plants.splice(i, 1);
       sfx.play("pickup", { volume: 0.85, rateRange: [0.95, 1.05], detuneRange: 35 });
@@ -380,197 +282,6 @@ function harvestPlantAt(tx, ty) {
   return false;
 }
 
-const INTERACTION_DISTANCE = 60;
-let contextTarget = null;
-let contextHintKey = null;
-
-function tileInBounds(tile) {
-  return tile.x >= 0 && tile.y >= 0 && tile.x < MAP_W && tile.y < MAP_H;
-}
-
-function getPlayerTile() {
-  return {
-    x: Math.floor(player.x / TILE),
-    y: Math.floor(player.y / TILE),
-  };
-}
-
-function getFacingTile(base = getPlayerTile()) {
-  const [ox, oy] = DIR_OFFSETS[player.dir] ?? DIR_OFFSETS[0];
-  return { x: base.x + ox, y: base.y + oy };
-}
-
-function findNearbyNPC() {
-  let best = null;
-  let bestDist = Infinity;
-  for (const a of actors) {
-    if (a === player) continue;
-    const d = Math.hypot(a.x - player.x, a.y - player.y);
-    if (d < INTERACTION_DISTANCE && d < bestDist) {
-      best = a;
-      bestDist = d;
-    }
-  }
-  return best;
-}
-
-function detectContext() {
-  if (isShopOpen()) {
-    contextTarget = { type: "shop-open" };
-    return;
-  }
-
-  const origin = getPlayerTile();
-  const facing = getFacingTile(origin);
-  const tiles = [facing, origin];
-
-  for (const tile of tiles) {
-    if (!tileInBounds(tile)) continue;
-    const plant = plants.find(p => p.x === tile.x && p.y === tile.y);
-    if (plant && plant.grown) {
-      contextTarget = { type: "harvest", tile, plant };
-      return;
-    }
-  }
-
-  for (const tile of tiles) {
-    if (!tileInBounds(tile)) continue;
-    if (plants.some(p => p.x === tile.x && p.y === tile.y)) continue;
-    if (!isPlantableTile(map[tile.y * MAP_W + tile.x])) continue;
-    if (hasSeeds(player.selectedSeed)) {
-      contextTarget = { type: "plant", tile, seed: player.selectedSeed };
-    } else {
-      contextTarget = { type: "no-seed", tile, seed: player.selectedSeed };
-    }
-    return;
-  }
-
-  const npc = findNearbyNPC();
-  if (npc) {
-    contextTarget = { type: "shop", npc };
-    return;
-  }
-
-  contextTarget = null;
-}
-
-function refreshContextHint() {
-  if (!ui.contextHint) return;
-  let key = "none";
-  let text = "";
-  let icon = "";
-
-  if (!contextTarget || contextTarget.type === "shop-open") {
-    if (contextHintKey !== key) {
-      ui.contextHint.classList.add("hidden");
-      ui.contextHint.innerHTML = "";
-      contextHintKey = key;
-    }
-    return;
-  }
-
-  switch (contextTarget.type) {
-    case "plant": {
-      const info = SEED_MAP[contextTarget.seed] || SEED_MAP[player.selectedSeed];
-      key = `plant:${contextTarget.seed}`;
-      text = `E • ${info ? info.name : "Saat"} pflanzen`;
-      icon = info?.icon || info?.sprite || "";
-      break;
-    }
-    case "no-seed": {
-      const info = SEED_MAP[contextTarget.seed] || SEED_MAP[player.selectedSeed];
-      key = `no-seed:${contextTarget.seed}`;
-      text = info ? `Keine ${info.name}-Samen übrig` : "Keine Samen übrig";
-      icon = info?.icon || info?.sprite || "";
-      break;
-    }
-    case "harvest": {
-      const info = SEED_MAP[contextTarget.plant.id];
-      key = `harvest:${contextTarget.plant.id}`;
-      text = `E • ${info ? info.name : "Ernte"} einsammeln`;
-      icon = info?.icon || info?.sprite || "";
-      break;
-    }
-    case "shop": {
-      const npc = contextTarget.npc;
-      key = `shop:${npc.displayName}`;
-      text = `E • mit ${npc.displayName} handeln`;
-      icon = npc.meta ? ASSETS.sprites[npc.meta.id] : npc.sprite;
-      break;
-    }
-    default:
-      key = "none";
-      break;
-  }
-
-  if (contextHintKey === key) return;
-  contextHintKey = key;
-
-  ui.contextHint.innerHTML = "";
-  if (icon) {
-    const imgEl = document.createElement("img");
-    imgEl.src = icon;
-    imgEl.alt = "";
-    imgEl.width = 28;
-    imgEl.height = 28;
-    imgEl.className = "context-hint__icon";
-    ui.contextHint.appendChild(imgEl);
-  }
-  const label = document.createElement("span");
-  label.className = "context-hint__label";
-  label.textContent = text;
-  ui.contextHint.appendChild(label);
-  ui.contextHint.classList.toggle("context-hint--warning", contextTarget.type === "no-seed");
-  ui.contextHint.classList.remove("hidden");
-}
-
-function onSeedChanged(playSound = false) {
-  onInventoryChanged();
-  if (playSound) sfx.play("ui", { volume: 0.55, rateRange: [0.9, 1.08], detuneRange: 12 });
-}
-
-function onInventoryChanged() {
-  updateSeedWheel();
-  renderTopbar();
-  detectContext();
-  refreshContextHint();
-}
-
-function performPrimaryAction() {
-  if (closeShop()) {
-    return true;
-  }
-  if (!contextTarget) return false;
-  switch (contextTarget.type) {
-    case "plant":
-      if (tryPlant(player.selectedSeed, contextTarget.tile.x, contextTarget.tile.y)) {
-        onInventoryChanged();
-        return true;
-      }
-      break;
-    case "no-seed":
-      sfx.play("ui", { volume: 0.4, rateRange: [0.82, 0.9], detuneRange: 20 });
-      return false;
-    case "harvest":
-      if (harvestPlantAt(contextTarget.tile.x, contextTarget.tile.y)) {
-        onInventoryChanged();
-        return true;
-      }
-      break;
-    case "shop":
-      openShop(contextTarget.npc);
-      contextTarget = { type: "shop-open" };
-      refreshContextHint();
-      return true;
-    default:
-      break;
-  }
-  detectContext();
-  refreshContextHint();
-  return false;
-}
-
-onInventoryChanged();
 
 // --- Physics ---
 function collideRect(ax, ay, aw, ah) {
@@ -644,51 +355,7 @@ function openShop(npc) {
   if (!npc || !npc.meta) return;
   const meta = npc.meta;
   ui.shopItems.innerHTML = "";
-  ui.shopItems.scrollTop = 0;
-  if (ui.shopTitle) ui.shopTitle.textContent = `${meta.name} · ${meta.title}`;
-  if (ui.shopSubtitle) ui.shopSubtitle.textContent = meta.bio || "";
-  if (ui.shopPortrait) {
-    ui.shopPortrait.src = ASSETS.sprites[meta.id];
-    ui.shopPortrait.alt = meta.name;
-  }
-  if (ui.shop) ui.shop.style.setProperty("--shop-accent", meta.accent || "#56cfe1");
 
-  for (const entry of meta.shop) {
-    const good = SHOP_GOOD_MAP[entry.good];
-    if (!good) continue;
-    const priceValue = entry.price ?? good.cost ?? 0;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "shop-item";
-
-    const iconWrap = document.createElement("span");
-    iconWrap.className = "shop-item__icon";
-    const icon = document.createElement("img");
-    icon.src = good.icon;
-    icon.alt = good.name;
-    icon.width = 40;
-    icon.height = 40;
-    iconWrap.appendChild(icon);
-
-    const info = document.createElement("span");
-    info.className = "shop-item__info";
-    const title = document.createElement("strong");
-    title.className = "shop-item__title";
-    title.textContent = good.name;
-    const desc = document.createElement("span");
-    desc.className = "shop-item__desc";
-    desc.textContent = good.description;
-    info.append(title, desc);
-
-    const price = document.createElement("span");
-    price.className = "shop-item__price";
-    price.textContent = `₽ ${priceValue}`;
-
-    button.append(iconWrap, info, price);
-    button.addEventListener("click", () => {
-      if (player.money < priceValue) {
-        sfx.play("ui", { volume: 0.45, rateRange: [0.72, 0.85], detuneRange: 30 });
-        return;
       }
       player.money -= priceValue;
       applyPurchase(good);
@@ -716,10 +383,7 @@ function renderTopbar() {
   ui.stam.textContent = `Ausdauer ${Math.round(player.stamina)}/${player.maxStamina}`;
   ui.stam.style.setProperty("--fill", Math.max(0, Math.min(1, player.stamina / player.maxStamina)).toFixed(3));
   ui.money.textContent = `₽ ${player.money.toLocaleString("de-DE")}`;
-  const selected = SEED_MAP[player.selectedSeed];
-  const flowers = player.inv.flowers ?? 0;
-  const inventoryParts = [
-    `<span class="hint-item emphasised">Aktive Saat: <span class="hint-badge">${selected ? selected.name : "?"}</span></span>`,
+
     `<span class="hint-item emphasised">Blumen: <span class="hint-count">${flowers}</span></span>`,
     `<span class="hint-item emphasised">Steine: <span class="hint-count">${player.inv.stones}</span></span>`,
   ];
@@ -727,8 +391,7 @@ function renderTopbar() {
 }
 
 // --- Movement + Stamina ---
-const STEP_INTERVAL_WALK = 180;
-const STEP_INTERVAL_SPRINT = 130;
+
 let lastStep = 0;
 let lastMoveDir = { x: 0, y: 1 }; // Start: unten
 
@@ -796,7 +459,7 @@ function controlPlayer(dt) {
   for (const [key, id] of SEED_HOTKEYS) {
     if (pressedOnce(key)) {
       player.selectedSeed = id;
-      onSeedChanged(true);
+
     }
   }
 
@@ -809,14 +472,7 @@ function controlPlayer(dt) {
   }
 
   if (pressedOnce("e")) {
-    const acted = performPrimaryAction();
-    if (!acted) {
-      cycleSeed(1);
-    }
-  }
 
-  if (pressedOnce(" ") || pressedOnce("space")) {
-    performPrimaryAction();
   }
 }
 
@@ -858,24 +514,7 @@ function tryPlaceStone() {
   map[py * MAP_W + px] = 3;
   player.inv.stones -= 1;
   sfx.play("pickup", { volume: 0.72, rateRange: [0.9, 1.04], detuneRange: 25 });
-  onInventoryChanged();
-  return true;
-}
 
-function isPlantableTile(tile) {
-  return tile === 0 || tile === 1 || tile === 5;
-}
-
-function tryPlant(seedId, tx = Math.floor(player.x / TILE), ty = Math.floor(player.y / TILE)) {
-  if (!hasSeeds(seedId)) return false;
-  if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false;
-  const tile = map[ty * MAP_W + tx];
-  if (!isPlantableTile(tile)) return false;
-  if (plants.some(p => p.x === tx && p.y === ty)) return false;
-  if (!consumeSeeds(seedId)) return false;
-  plantSeed(seedId, tx, ty);
-  sfx.play("pickup", { volume: 0.75, rateRange: [0.92, 1.05], detuneRange: 30 });
-  return true;
 }
 
 // --- Rendering ---
@@ -955,34 +594,7 @@ function drawMinimap() {
   const offsetX = -MAP_W * scale / 2;
   const offsetY = -MAP_H * scale / 2;
 
-  ctx.save();
-  ctx.translate(cx, cy);
 
-  ctx.save();
-  ctx.globalAlpha = 0.45;
-  ctx.fillStyle = "rgba(26, 51, 83, 0.45)";
-  ctx.beginPath();
-  ctx.arc(0, 0, radius + 26, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = "rgba(8, 13, 20, 0.92)";
-  ctx.beginPath();
-  ctx.arc(0, 0, radius + 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(16, 22, 30, 0.96)";
-  ctx.fill();
-  ctx.clip();
-
-  ctx.save();
   ctx.translate(offsetX, offsetY);
   for (let y = 0; y < MAP_H; y++) {
     for (let x = 0; x < MAP_W; x++) {
@@ -1061,26 +673,7 @@ function drawLighting() {
   const b = Math.floor(88 + 110 * nightFactor);
   const alpha = 0.18 + 0.4 * nightFactor;
   ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
 
-  ctx.save();
-  ctx.globalCompositeOperation = "soft-light";
-  const gradient = ctx.createLinearGradient(0, 0, 0, H);
-  gradient.addColorStop(0, `rgba(255, 240, 214, ${0.08 * dayStrength})`);
-  gradient.addColorStop(1, `rgba(18, 30, 54, ${0.25 * nightFactor})`);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-
-  const ambient = img(ASSETS.fx.ambient);
-  if (ambient) {
-    ctx.save();
-    ctx.globalCompositeOperation = "overlay";
-    ctx.globalAlpha = 0.15 + 0.2 * nightFactor;
-    ctx.drawImage(ambient, 0, 0, W, H);
-    ctx.restore();
-  }
 }
 
 function drawVignette() {
@@ -1111,7 +704,7 @@ addEventListener("resize", onResize);
 
 // --- Hotkeys & Plant Selection ---
 function cycleSeed(dir) {
-  const ids = SEED_ORDER;
+
   if (!ids.length) return;
   let idx = ids.indexOf(player.selectedSeed);
   if (idx === -1) idx = 0;
@@ -1138,7 +731,7 @@ function loop(t) {
   ctx.clearRect(0, 0, W, H);
   drawTiles();
   drawPlants();
-    drawInteractionHighlight();
+
     drawAllActors();
     if (DEBUG_OVERLAY) drawHouseOverlay();
     drawLighting();
