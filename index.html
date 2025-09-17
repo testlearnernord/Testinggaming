@@ -1,44 +1,379 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Poopboy v1.0</title>
-  <link rel="icon" href="data:,">
-  <link rel="preload" href="assets/sprites/player.png" as="image">
-  <link rel="preload" href="assets/tiles/grass.png" as="image">
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Poopboy</title>
+  <meta name="description" content="Poopboy – Farm-Arcade für GitHub Pages" />
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --hud-bg: rgba(12, 18, 22, 0.88);
+      --hud-border: rgba(255, 255, 255, 0.08);
+      --hud-pill: rgba(32, 44, 52, 0.85);
+      --hud-text: #f0f6ff;
+      --accent: #6ff0c4;
+      --danger: #f86f6f;
+      --ok: #8ff778;
+      --toast-bg: rgba(30, 6, 6, 0.9);
+      --toast-text: #ffe6e6;
+      --panel-bg: rgba(8, 12, 14, 0.92);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% 20%, #14252f 0%, #070b10 70%);
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      color: var(--hud-text);
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    #app {
+      position: relative;
+      flex: 1 1 auto;
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    canvas#game {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #0c1116;
+      display: block;
+      touch-action: none;
+      image-rendering: pixelated;
+    }
+
+    #hud {
+      position: absolute;
+      left: 0.75rem;
+      right: 0.75rem;
+      top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      pointer-events: none;
+    }
+
+    .hud__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .hud__pill {
+      background: var(--hud-pill);
+      border: 1px solid var(--hud-border);
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-height: 32px;
+      line-height: 1.2;
+    }
+
+    .hud__icon {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex: 0 0 auto;
+      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+    }
+
+    .hud__pill span[data-value] {
+      font-weight: 600;
+      min-width: 1.75ch;
+      text-align: right;
+    }
+
+    .hud__version {
+      align-self: flex-start;
+      background: var(--hud-bg);
+      border-radius: 6px;
+      padding: 0.15rem 0.5rem;
+      border: 1px solid var(--hud-border);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      pointer-events: auto;
+    }
+
+    #context-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 1.5rem 1.25rem;
+      pointer-events: none;
+    }
+
+    #joystick {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.18);
+      background: rgba(10, 20, 26, 0.55);
+      position: relative;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    #joystick-handle {
+      position: absolute;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(110, 240, 196, 0.85);
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease-out;
+    }
+
+    .context-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      pointer-events: auto;
+      align-items: flex-end;
+    }
+
+    .context-buttons button {
+      background: rgba(10, 22, 28, 0.85);
+      color: var(--hud-text);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 14px;
+      font-size: 1rem;
+      padding: 0.75rem 1.5rem;
+      min-width: 140px;
+      min-height: 52px;
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      transition: transform 0.1s ease;
+    }
+
+    .context-buttons button:active {
+      transform: scale(0.96);
+    }
+
+    #dialog,
+    #editor-panel {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(6px);
+      padding: 1.5rem;
+      z-index: 20;
+    }
+
+    #dialog.open,
+    #editor-panel.open {
+      display: flex;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      width: min(420px, 100%);
+      max-height: min(90vh, 640px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .panel__header {
+      padding: 1.25rem 1.5rem 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .panel__body {
+      padding: 1rem 1.5rem 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .panel__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 0.75rem 1.5rem 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .panel button,
+    .panel .action-btn {
+      background: rgba(24, 38, 45, 0.9);
+      color: var(--hud-text);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 0.65rem 1rem;
+      font-size: 0.95rem;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .panel button:disabled {
+      opacity: 0.45;
+    }
+
+    .editor-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 64px));
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .editor-grid button {
+      font-size: 1.25rem;
+      text-align: center;
+      padding: 0.5rem 0;
+    }
+
+    .editor-nav {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+
+    .action-btn strong {
+      font-weight: 600;
+    }
+
+    .action-btn span {
+      font-size: 0.8rem;
+      opacity: 0.75;
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      bottom: 2rem;
+      transform: translateX(-50%) translateY(120%);
+      background: var(--toast-bg);
+      color: var(--toast-text);
+      border-radius: 10px;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+      transition: transform 0.35s ease;
+      max-width: min(480px, 90vw);
+      pointer-events: none;
+      z-index: 30;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (min-width: 768px) {
+      #context-layer {
+        padding: 1.5rem 2rem;
+      }
+      #joystick {
+        width: 140px;
+        height: 140px;
+      }
+      #joystick-handle {
+        width: 64px;
+        height: 64px;
+      }
+      .context-buttons button {
+        min-width: 156px;
+        font-size: 1.05rem;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div id="ui">
-    <div class="topbar">
-      <div class="topbar__row">
-        <span id="fps" class="top-pill">FPS</span>
-        <span id="stamina" class="top-pill top-pill--meter">Ausdauer</span>
-        <span id="money" class="top-pill">₽ 0</span>
-        <span id="clock" class="top-pill">06:00</span>
+  <div id="app">
+    <canvas id="game" width="640" height="360" role="img" aria-label="Poopboy Spielfeld"></canvas>
+    <div id="hud" aria-live="polite">
+      <div class="hud__row">
+        <div class="hud__pill" id="hud-health"><img class="hud__icon" src="assets/icons/heart.svg" alt="Herzen" width="24" height="24"/><span data-value>3</span></div>
+        <div class="hud__pill" id="hud-poop"><img class="hud__icon" src="assets/icons/poop.svg" alt="Dünger" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-corn"><img class="hud__icon" src="assets/icons/corn.svg" alt="Mais" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-cabbage"><img class="hud__icon" src="assets/icons/cabbage.svg" alt="Kohl" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-seed"><img class="hud__icon" src="assets/icons/seed.svg" alt="Saat" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-money"><img class="hud__icon" src="assets/icons/money.svg" alt="Geld" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-ammo"><img class="hud__icon" src="assets/icons/ammo.svg" alt="Munition" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-water"><img class="hud__icon" src="assets/icons/water.svg" alt="Wasser" width="24" height="24"/><span data-value>0</span></div>
       </div>
-      <div id="hint" class="topbar__hint"></div>
+      <div class="hud__version" id="hud-version">Version</div>
     </div>
-    <div class="bottom-ui">
-      <div id="seed-wheel" class="seed-wheel"></div>
-      <div id="context-hint" class="context-hint hidden"></div>
+    <div id="context-layer">
+      <div id="joystick" aria-label="Joystick">
+        <div id="joystick-handle"></div>
+      </div>
+      <div class="context-buttons">
+        <button id="context-button" type="button">Aktion</button>
+        <button id="restart-button" type="button">Neu starten</button>
+      </div>
     </div>
-    <div id="shop" class="panel hidden">
-      <div class="panel-inner">
-        <div class="shop-header">
-          <img id="shop-portrait" class="shop-portrait" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="" width="72" height="72"/>
-          <div class="shop-header__text">
-            <h3 id="shop-title">Shop</h3>
-            <p id="shop-subtitle"></p>
-          </div>
-          <button id="shop-close" class="shop-close" aria-label="Schließen">×</button>
+    <div id="dialog" aria-live="polite" aria-modal="true" role="dialog">
+      <div class="panel">
+        <div class="panel__header">
+          <h2 id="dialog-title">Dialog</h2>
+          <p id="dialog-subtitle"></p>
         </div>
-        <div id="shop-items" class="shop-items"></div>
+        <div class="panel__body" id="dialog-body"></div>
+        <div class="panel__actions">
+          <button id="dialog-close" type="button">Schließen</button>
+        </div>
       </div>
     </div>
+    <div id="editor-panel" role="dialog" aria-modal="true">
+      <div class="panel">
+        <div class="panel__header">
+          <h2>Editor</h2>
+          <p id="editor-description">Platziere Objekte im Raster.</p>
+        </div>
+        <div class="panel__body" id="editor-body"></div>
+        <div class="panel__actions">
+          <button id="editor-save" type="button">Speichern</button>
+          <button id="editor-reset" type="button">Reset</button>
+          <button id="editor-exit" type="button">Schließen</button>
+        </div>
+      </div>
+    </div>
+    <div id="toast" role="status" aria-live="assertive"></div>
   </div>
-  <canvas id="game" width="1280" height="720"></canvas>
-  <script type="module" src="main.js"></script>
+  <script type="module" src="./data.js" defer></script>
+  <script type="module" src="./sfx.js" defer></script>
+  <script type="module" src="./main.js" defer></script>
 </body>
 </html>
