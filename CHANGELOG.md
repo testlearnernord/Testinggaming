@@ -1,10 +1,12 @@
 # Changelog
 
+
 ## 1.2.0 — 2025-09-18
 - Spieler-Avatar mit Blickrichtungs-Gesichtern, Armschwung, Lauf-/Sprintanimationen und angestrengter Mimik beim Steine tragen.
 - NPCs erhielten eigene Farbpaletten plus deutlich unterscheidbare Häuser mit Bannern und Emblemen.
 - Ausdauer- und Sprintsystem inkl. prozedural erzeugten Schritt-SFX sowie einer beruhigenden Farm-Hintergrundmusik.
 - Desktop startet automatisch im Vollbildmodus; mobiles UI bekommt einen Sprint-Button, HUD zeigt Ausdauer an.
+
 
 ## 1.1.0 — 2025-09-17
 - Rewrote Poopboy als Canvas-Only Build mit mobilem UI und Touch-Steuerung.
