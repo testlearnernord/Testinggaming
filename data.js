@@ -1,4 +1,6 @@
 export const APP_VERSION = "v1.4.1";
+=======
+export const APP_VERSION = "v1.4.0";
 export const APP_BASE_PATH = "/";
 export const SAVE_KEY = "pb_save_v8";
 export const GAME_VERSION = 8;
@@ -216,12 +218,16 @@ export const PLANTS = {
     seedCost: 3,
     sellPrice: 11,
   },
+=======
+=======
 };
 
 export const ECON = {
   cornSell: 1,
   cabbageSell: 7,
   moonflowerSell: 11,
+=======
+=======
 };
 
 export const CAN_MAX = 13;
@@ -241,6 +247,9 @@ export const STONE = {
 
 export const FLAGS = {
   dayNightEnabled: true,
+=======
+=======
+  dayNightEnabled: false,
   monstersEnabled: false,
 };
 
@@ -266,6 +275,8 @@ export const STORAGE_DEFAULTS = {
   cabbageSeed: 0,
   moonflower: 0,
   moonflowerSeed: 0,
+=======
+=======
   yardDelivered: 0,
   yardPending: 0,
   upgrades: {

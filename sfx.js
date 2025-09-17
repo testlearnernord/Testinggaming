@@ -59,6 +59,8 @@ export class SFX {
     } else if (spec && typeof spec.create === "function") {
       generator = spec.create;
     }
+=======
+    const generator = typeof spec === "function" ? spec : spec?.create;
     if (typeof generator !== "function") {
       return null;
     }
