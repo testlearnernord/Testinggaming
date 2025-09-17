@@ -147,6 +147,354 @@ export class SFX {
       handle.gain.gain.linearRampToValueAtTime(0, now + fadeMs / 1000);
       handle.source.stop(now + fadeMs / 1000 + 0.05);
     } else {
+
+    });
+    return this.pendingLoads;
+  }
+
+  async loadBuffer(id, spec) {
+    if (!this.ctx) return null;
+    if (this.buffers.has(id)) return this.buffers.get(id);
+
+    const generator = typeof spec === "function" ? spec : spec?.create;
+    if (typeof generator !== "function") {
+      return null;
+    }
+
+    let buffer;
+    try {
+      buffer = generator(this.ctx);
+      if (buffer instanceof Promise) {
+        buffer = await buffer;
+      }
+    } catch (err) {
+      console.warn(`SFX generator for ${id} failed`, err);
+      return null;
+    }
+
+    if (!buffer || typeof buffer.getChannelData !== "function") {
+      return null;
+    }
+
+    this.buffers.set(id, buffer);
+    return buffer;
+  }
+
+  play(id, { volume = 0.8, playbackRate = 1, cooldown = 120 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return;
+    const now = performance.now();
+    const last = this.lastPlay.get(id) || 0;
+    if (now - last < cooldown) return;
+    this.lastPlay.set(id, now);
+
+    const buffer = this.buffers.get(id);
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain).connect(this.ctx.destination);
+
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX start failed", err);
+    }
+  }
+
+  startLoop(id, { volume = 0.4, fadeMs = 800 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return null;
+    if (this.loops.has(id)) return this.loops.get(id);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers.get(id);
+    source.loop = true;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain).connect(this.ctx.destination);
+
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX loop start failed", err);
+      return null;
+    }
+
+    const now = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(volume, now + fadeMs / 1000);
+    } else {
+      gain.gain.setValueAtTime(volume, now);
+    }
+
+    const handle = { source, gain };
+    source.onended = () => {
+      this.loops.delete(id);
+    };
+    this.loops.set(id, handle);
+    return handle;
+  }
+
+  stopLoop(id, { fadeMs = 600 } = {}) {
+    const handle = this.loops.get(id);
+    if (!handle || !this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    handle.gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      handle.gain.gain.setValueAtTime(handle.gain.gain.value, now);
+      handle.gain.gain.linearRampToValueAtTime(0, now + fadeMs / 1000);
+      handle.source.stop(now + fadeMs / 1000 + 0.05);
+    } else {
+    });
+    return this.pendingLoads;
+  }
+
+  async loadBuffer(id, spec) {
+    if (!this.ctx) return null;
+    if (this.buffers.has(id)) return this.buffers.get(id);
+
+    const generator = typeof spec === "function" ? spec : spec?.create;
+    if (typeof generator !== "function") {
+      return null;
+    }
+
+    let buffer;
+    try {
+      buffer = generator(this.ctx);
+      if (buffer instanceof Promise) {
+        buffer = await buffer;
+      }
+    } catch (err) {
+      console.warn(`SFX generator for ${id} failed`, err);
+      return null;
+    }
+
+    if (!buffer || typeof buffer.getChannelData !== "function") {
+      return null;
+    }
+
+    this.buffers.set(id, buffer);
+    return buffer;
+
+    });
+    return this.pendingLoads;
+  }
+
+  async loadBuffer(id, spec) {
+    if (!this.ctx) return null;
+    if (this.buffers.has(id)) return this.buffers.get(id);
+
+    const generator = typeof spec === "function" ? spec : spec?.create;
+    if (typeof generator !== "function") {
+      return null;
+    }
+
+    let buffer;
+    try {
+      buffer = generator(this.ctx);
+      if (buffer instanceof Promise) {
+        buffer = await buffer;
+      }
+    } catch (err) {
+      console.warn(`SFX generator for ${id} failed`, err);
+      return null;
+    }
+
+    if (!buffer || typeof buffer.getChannelData !== "function") {
+      return null;
+    }
+
+    this.buffers.set(id, buffer);
+    return buffer;
+
+  constructor(assets = {}) {
+    this.assets = assets;
+    this.ctx = null;
+    this.buffers = new Map();
+    this.unlocking = false;
+    this.ready = false;
+    this.lastPlay = new Map();
+    this.cooldowns = new Map();
+    this.pendingLoads = [];
+  }
+
+  async unlock() {
+    if (this.unlocking) return this.pendingLoads;
+    if (!AudioCtx) {
+      this.ready = false;
+      return null;
+    }
+    if (!this.ctx) {
+      this.ctx = new AudioCtx();
+    }
+    if (this.ctx.state === "suspended") {
+      try { await this.ctx.resume(); } catch (_) { /* ignore */ }
+    }
+    if (this.ready) return true;
+    this.unlocking = true;
+    const promises = Object.entries(this.assets).map(async ([id, generator]) => {
+      if (this.buffers.has(id)) return;
+      try {
+        const buffer = await generator(this.ctx);
+        if (buffer) {
+          this.buffers.set(id, buffer);
+        }
+      } catch (err) {
+        console.warn("SFX build failed", id, err);
+      }
+    });
+    this.pendingLoads = Promise.all(promises).finally(() => {
+      this.unlocking = false;
+      this.ready = true;
+    });
+    return this.pendingLoads;
+ 
+  }
+
+  play(id, { volume = 0.8, playbackRate = 1, cooldown = 120 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return;
+    const now = performance.now();
+    const last = this.lastPlay.get(id) || 0;
+    if (now - last < cooldown) return;
+    this.lastPlay.set(id, now);
+
+    const buffer = this.buffers.get(id);
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain).connect(this.ctx.destination);
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain).connect(this.ctx.destination);
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX start failed", err);
+    }
+  }
+}
+
+  startLoop(id, { volume = 0.4, fadeMs = 800 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return null;
+    if (this.loops.has(id)) return this.loops.get(id);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers.get(id);
+    source.loop = true;
+
+  play(id, { volume = 0.8, playbackRate = 1, cooldown = 120 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return;
+    const now = performance.now();
+    const last = this.lastPlay.get(id) || 0;
+    if (now - last < cooldown) return;
+    this.lastPlay.set(id, now);
+
+    const buffer = this.buffers.get(id);
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = volume;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain).connect(this.ctx.destination);
+
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX start failed", err);
+    }
+  }
+
+  startLoop(id, { volume = 0.4, fadeMs = 800 } = {}) {
+    if (!this.ready || !this.ctx || !this.buffers.has(id)) return null;
+    if (this.loops.has(id)) return this.loops.get(id);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers.get(id);
+    source.loop = true;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain).connect(this.ctx.destination);
+
+    try {
+      source.start();
+    } catch (err) {
+      console.warn("SFX loop start failed", err);
+      return null;
+    }
+
+    const now = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(volume, now + fadeMs / 1000);
+    } else {
+      gain.gain.setValueAtTime(volume, now);
+    }
+
+    const handle = { source, gain };
+    source.onended = () => {
+      this.loops.delete(id);
+    };
+    this.loops.set(id, handle);
+    return handle;
+  }
+
+  stopLoop(id, { fadeMs = 600 } = {}) {
+    const handle = this.loops.get(id);
+    if (!handle || !this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    handle.gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      handle.gain.gain.setValueAtTime(handle.gain.gain.value, now);
+      handle.gain.gain.linearRampToValueAtTime(0, now + fadeMs / 1000);
+      handle.source.stop(now + fadeMs / 1000 + 0.05);
+    } else {
+      console.warn("SFX loop start failed", err);
+      return null;
+    }
+
+    const now = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(volume, now + fadeMs / 1000);
+    } else {
+      gain.gain.setValueAtTime(volume, now);
+    }
+
+    const handle = { source, gain };
+    source.onended = () => {
+      this.loops.delete(id);
+    };
+    this.loops.set(id, handle);
+    return handle;
+  }
+
+  stopLoop(id, { fadeMs = 600 } = {}) {
+    const handle = this.loops.get(id);
+    if (!handle || !this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    handle.gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      handle.gain.gain.setValueAtTime(handle.gain.gain.value, now);
+      handle.gain.gain.linearRampToValueAtTime(0, now + fadeMs / 1000);
+      handle.source.stop(now + fadeMs / 1000 + 0.05);
+    } else {
       handle.source.stop();
     }
 
@@ -477,7 +825,474 @@ function finalizeChannel(channel, sampleRate, options = {}) {
         }
       }
     }
+      }
+    }
   }
+
+  if (normalize > 0) {
+    let peak = 0;
+    for (let i = 0; i < channel.length; i++) {
+      const value = Math.abs(channel[i]);
+      if (value > peak) peak = value;
+    }
+    if (peak > 0) {
+      const target = normalize;
+      const maxScale = 4;
+      const scale = Math.max(Math.min(target / peak, maxScale), target < peak ? target / peak : 1 / maxScale);
+      if (Math.abs(scale - 1) > 1e-3) {
+        for (let i = 0; i < channel.length; i++) {
+          channel[i] *= scale;
+        }
+      }
+    }
+  }
+
+      }
+    }
+  }
+
+  if (normalize > 0) {
+    let peak = 0;
+    for (let i = 0; i < channel.length; i++) {
+      const value = Math.abs(channel[i]);
+      if (value > peak) peak = value;
+    }
+    if (peak > 0) {
+      const target = normalize;
+      const maxScale = 4;
+      const scale = Math.max(Math.min(target / peak, maxScale), target < peak ? target / peak : 1 / maxScale);
+      if (Math.abs(scale - 1) > 1e-3) {
+        for (let i = 0; i < channel.length; i++) {
+          channel[i] *= scale;
+        }
+      }
+=======
+    }
+function envelopeAt(t, duration, attack, release, sustain = 1) {
+  const a = Math.max(0.001, attack);
+  const r = Math.max(0.001, release);
+  if (t < a) return (t / a) * sustain;
+  if (t > duration - r) {
+    const rel = Math.max(0, duration - t);
+    return (rel / r) * sustain;
+  }
+  return sustain;
+}
+
+function waveSample(type, phase) {
+  switch (type) {
+    case "square":
+      return Math.sign(Math.sin(phase)) || 0;
+    case "saw": {
+      const normalized = phase / (2 * Math.PI);
+      return 2 * (normalized - Math.floor(normalized + 0.5));
+    }
+    case "triangle":
+      return (2 / Math.PI) * Math.asin(Math.sin(phase));
+    default:
+      return Math.sin(phase);
+  }
+}
+
+function createChirpBuffer(
+  ctx,
+  {
+    startFreq,
+    endFreq = startFreq,
+    duration = 0.2,
+    attack = 0.01,
+    release = 0.12,
+    type = "sine",
+    volume = 0.4,
+  }
+) {
+  const sr = ctx.sampleRate;
+  const frames = Math.max(1, Math.floor(duration * sr));
+  const buffer = ctx.createBuffer(1, frames, sr);
+  const data = buffer.getChannelData(0);
+  let phase = 0;
+  for (let i = 0; i < frames; i += 1) {
+    const t = i / sr;
+    const progress = i / frames;
+    const freq = startFreq + (endFreq - startFreq) * progress;
+    phase += (freq * 2 * Math.PI) / sr;
+    const env = envelopeAt(t, duration, attack, release);
+    data[i] = waveSample(type, phase) * env * volume;
+  }
+  return buffer;
+}
+
+function createNoiseBuffer(
+  ctx,
+  { duration = 0.35, attack = 0.01, release = 0.25, volume = 0.32, smooth = 0.18 }
+) {
+  const sr = ctx.sampleRate;
+  const frames = Math.max(1, Math.floor(duration * sr));
+  const buffer = ctx.createBuffer(1, frames, sr);
+  const data = buffer.getChannelData(0);
+  const s = Math.min(Math.max(smooth, 0), 1);
+  let last = 0;
+  for (let i = 0; i < frames; i += 1) {
+    const t = i / sr;
+    const env = envelopeAt(t, duration, attack, release);
+    const white = Math.random() * 2 - 1;
+    last += s * (white - last);
+    data[i] = last * env * volume;
+  }
+  return buffer;
+}
+
+function mixBuffers(ctx, buffers) {
+  if (!buffers.length) {
+    return ctx.createBuffer(1, 1, ctx.sampleRate);
+  }
+  const frames = Math.max(...buffers.map((b) => b.length));
+  const mixed = ctx.createBuffer(1, frames, ctx.sampleRate);
+  const data = mixed.getChannelData(0);
+  let max = 0;
+  for (const buffer of buffers) {
+    const input = buffer.getChannelData(0);
+    for (let i = 0; i < input.length; i += 1) {
+      data[i] += input[i];
+      const abs = Math.abs(data[i]);
+      if (abs > max) max = abs;
+    }
+  }
+  if (max > 1) {
+    const inv = 1 / max;
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] *= inv;
+    }
+  }
+  return mixed;
+}
+
+export const sfxRegistry = {
+  pickup: (ctx) =>
+    createChirpBuffer(ctx, {
+      startFreq: 880,
+      endFreq: 1320,
+      duration: 0.12,
+      attack: 0.005,
+      release: 0.08,
+      type: "triangle",
+      volume: 0.38,
+    }),
+  plant: (ctx) =>
+    mixBuffers(ctx, [
+      createChirpBuffer(ctx, {
+        startFreq: 320,
+        endFreq: 210,
+        duration: 0.2,
+        attack: 0.01,
+        release: 0.14,
+        type: "sine",
+        volume: 0.28,
+      }),
+      createNoiseBuffer(ctx, {
+        duration: 0.22,
+        attack: 0.005,
+        release: 0.16,
+        volume: 0.18,
+        smooth: 0.1,
+      }),
+    ]),
+  sell: (ctx) =>
+    createChirpBuffer(ctx, {
+      startFreq: 520,
+      endFreq: 680,
+      duration: 0.18,
+      attack: 0.005,
+      release: 0.16,
+      type: "square",
+      volume: 0.3,
+    }),
+  water: (ctx) =>
+    createNoiseBuffer(ctx, {
+      duration: 0.45,
+      attack: 0.02,
+      release: 0.28,
+      volume: 0.32,
+      smooth: 0.24,
+    }),
+  ui: (ctx) =>
+    createChirpBuffer(ctx, {
+      startFreq: 700,
+      endFreq: 520,
+      duration: 0.1,
+      attack: 0.005,
+      release: 0.08,
+      type: "triangle",
+      volume: 0.34,
+    }),
+};
+
+export const globalSfx = new SFX(sfxRegistry);
+
+export function primeAudioUnlock() {
+  const events = ["pointerdown", "touchstart", "keydown"];
+  const handler = async () => {
+    await globalSfx.unlock();
+    for (const type of events) {
+      window.removeEventListener(type, handler, true);
+    }
+  };
+  for (const type of events) {
+    window.addEventListener(type, handler, { passive: true, capture: true });
+  }
+}
+
+function applyFade(channel, sampleRate, seconds, fadeIn) {
+  const samples = Math.min(channel.length, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  if (samples === 1) {
+    const index = fadeIn ? 0 : channel.length - 1;
+    channel[index] = 0;
+    return;
+  }
+  for (let i = 0; i < samples; i++) {
+    const denom = samples > 1 ? samples - 1 : 1;
+    const ratio = denom === 0 ? 1 : i / denom;
+    const index = fadeIn ? i : channel.length - samples + i;
+    const factor = fadeIn ? ratio : 1 - ratio;
+    channel[index] *= factor;
+  }
+}
+
+function applyLoopCrossfade(channel, sampleRate, seconds) {
+  const samples = Math.min(channel.length >> 1, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  const start = new Float32Array(samples);
+  const end = new Float32Array(samples);
+  start.set(channel.subarray(0, samples));
+  end.set(channel.subarray(channel.length - samples));
+  for (let i = 0; i < samples; i++) {
+    const mix = i / samples;
+    const blended = start[i] * (1 - mix) + end[i] * mix;
+    channel[i] = blended;
+    channel[channel.length - samples + i] = blended;
+  }
+}
+
+function adsr(t, duration, attack, decay, sustainLevel, release) {
+  if (t < 0 || t > duration) return 0;
+  if (attack > 0 && t < attack) {
+    return t / attack;
+  }
+  const decayStart = attack;
+  const decayEnd = attack + decay;
+  const sustainStart = decayEnd;
+  const sustainEnd = Math.max(sustainStart, duration - release);
+
+  if (t < decayEnd) {
+    if (decay <= 0) return 1;
+    const progress = (t - decayStart) / decay;
+    return 1 - (1 - sustainLevel) * progress;
+  }
+
+  if (t < sustainEnd) {
+    return sustainLevel;
+  }
+
+  if (release <= 0) {
+    return sustainLevel;
+  }
+
+  const releaseProgress = (t - sustainEnd) / release;
+  return Math.max(0, sustainLevel * (1 - releaseProgress));
+}
+
+function glide(start, end, t, duration, curve = 1) {
+  if (duration <= 0) return end;
+  const progress = Math.min(1, Math.max(0, t / duration));
+  const eased = curve !== 1 ? Math.pow(progress, curve) : progress;
+  return start + (end - start) * eased;
+}
+
+function makeNoise(seed = 1) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return (state / 0xffffffff) * 2 - 1;
+  };
+}
+
+function createNoiseLayer({ seed = 1, smoothing = 0.2, scale = 0.4, envelope = () => 1 }) {
+  const random = makeNoise(seed);
+  let value = 0;
+  return (t, i, sampleRate) => {
+    value += smoothing * (random() - value);
+    return envelope(t, i, sampleRate) * value * scale;
+  };
+}
+
+function applyFade(channel, sampleRate, seconds, fadeIn) {
+  const samples = Math.min(channel.length, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  if (samples === 1) {
+    const index = fadeIn ? 0 : channel.length - 1;
+    channel[index] = 0;
+    return;
+  }
+  for (let i = 0; i < samples; i++) {
+    const denom = samples > 1 ? samples - 1 : 1;
+    const ratio = denom === 0 ? 1 : i / denom;
+    const index = fadeIn ? i : channel.length - samples + i;
+    const factor = fadeIn ? ratio : 1 - ratio;
+    channel[index] *= factor;
+  }
+}
+
+function applyLoopCrossfade(channel, sampleRate, seconds) {
+  const samples = Math.min(channel.length >> 1, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  const start = new Float32Array(samples);
+  const end = new Float32Array(samples);
+  start.set(channel.subarray(0, samples));
+  end.set(channel.subarray(channel.length - samples));
+  for (let i = 0; i < samples; i++) {
+    const mix = i / samples;
+    const blended = start[i] * (1 - mix) + end[i] * mix;
+    channel[i] = blended;
+    channel[channel.length - samples + i] = blended;
+  }
+}
+
+function adsr(t, duration, attack, decay, sustainLevel, release) {
+  if (t < 0 || t > duration) return 0;
+  if (attack > 0 && t < attack) {
+    return t / attack;
+
+  }
+  const decayStart = attack;
+  const decayEnd = attack + decay;
+  const sustainStart = decayEnd;
+  const sustainEnd = Math.max(sustainStart, duration - release);
+
+  if (t < decayEnd) {
+    if (decay <= 0) return 1;
+    const progress = (t - decayStart) / decay;
+    return 1 - (1 - sustainLevel) * progress;
+  }
+
+  if (t < sustainEnd) {
+    return sustainLevel;
+  }
+
+  if (release <= 0) {
+    return sustainLevel;
+  }
+
+  const releaseProgress = (t - sustainEnd) / release;
+  return Math.max(0, sustainLevel * (1 - releaseProgress));
+}
+
+function glide(start, end, t, duration, curve = 1) {
+  if (duration <= 0) return end;
+  const progress = Math.min(1, Math.max(0, t / duration));
+  const eased = curve !== 1 ? Math.pow(progress, curve) : progress;
+  return start + (end - start) * eased;
+}
+
+function makeNoise(seed = 1) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return (state / 0xffffffff) * 2 - 1;
+  };
+}
+
+function createNoiseLayer({ seed = 1, smoothing = 0.2, scale = 0.4, envelope = () => 1 }) {
+  const random = makeNoise(seed);
+  let value = 0;
+  return (t, i, sampleRate) => {
+    value += smoothing * (random() - value);
+    return envelope(t, i, sampleRate) * value * scale;
+  };
+}
+
+function applyFade(channel, sampleRate, seconds, fadeIn) {
+  const samples = Math.min(channel.length, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  if (samples === 1) {
+    const index = fadeIn ? 0 : channel.length - 1;
+    channel[index] = 0;
+    return;
+  }
+  for (let i = 0; i < samples; i++) {
+    const denom = samples > 1 ? samples - 1 : 1;
+    const ratio = denom === 0 ? 1 : i / denom;
+    const index = fadeIn ? i : channel.length - samples + i;
+    const factor = fadeIn ? ratio : 1 - ratio;
+    channel[index] *= factor;
+  }
+}
+
+function applyLoopCrossfade(channel, sampleRate, seconds) {
+  const samples = Math.min(channel.length >> 1, Math.floor(seconds * sampleRate));
+  if (samples <= 0) return;
+  const start = new Float32Array(samples);
+  const end = new Float32Array(samples);
+  start.set(channel.subarray(0, samples));
+  end.set(channel.subarray(channel.length - samples));
+  for (let i = 0; i < samples; i++) {
+    const mix = i / samples;
+    const blended = start[i] * (1 - mix) + end[i] * mix;
+    channel[i] = blended;
+    channel[channel.length - samples + i] = blended;
+  }
+}
+
+function adsr(t, duration, attack, decay, sustainLevel, release) {
+  if (t < 0 || t > duration) return 0;
+  if (attack > 0 && t < attack) {
+    return t / attack;
+  }
+  const decayStart = attack;
+  const decayEnd = attack + decay;
+  const sustainStart = decayEnd;
+  const sustainEnd = Math.max(sustainStart, duration - release);
+
+  if (t < decayEnd) {
+    if (decay <= 0) return 1;
+    const progress = (t - decayStart) / decay;
+    return 1 - (1 - sustainLevel) * progress;
+  }
+
+  if (t < sustainEnd) {
+    return sustainLevel;
+  }
+
+  if (release <= 0) {
+    return sustainLevel;
+  }
+
+  const releaseProgress = (t - sustainEnd) / release;
+  return Math.max(0, sustainLevel * (1 - releaseProgress));
+}
+
+function glide(start, end, t, duration, curve = 1) {
+  if (duration <= 0) return end;
+  const progress = Math.min(1, Math.max(0, t / duration));
+  const eased = curve !== 1 ? Math.pow(progress, curve) : progress;
+  return start + (end - start) * eased;
+}
+
+function makeNoise(seed = 1) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return (state / 0xffffffff) * 2 - 1;
+  };
+}
+
+function createNoiseLayer({ seed = 1, smoothing = 0.2, scale = 0.4, envelope = () => 1 }) {
+  const random = makeNoise(seed);
+  let value = 0;
+  return (t, i, sampleRate) => {
+    value += smoothing * (random() - value);
+    return envelope(t, i, sampleRate) * value * scale;
+  };
 }
 
 function applyFade(channel, sampleRate, seconds, fadeIn) {
