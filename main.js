@@ -13,6 +13,7 @@ import {
   SPAWN,
   STONE,
   CONTROLS,
+  FLAGS,
   isBlockingSymbol,
   clamp,
   resolveAsset,
@@ -47,6 +48,46 @@ const PLAYER_COLORS = {
   pants: "#2f3e59",
   eyes: "#1b1a1a",
 };
+
+const PLANT_ORDER = ["corn", "cabbage", "moonflower"];
+const SKY_TOP_DAY = "#1c3850";
+const SKY_BOTTOM_DAY = "#09131b";
+const SKY_TOP_NIGHT = "#04060d";
+const SKY_BOTTOM_NIGHT = "#020307";
+const SKY_TOP_DAWN = "#2c1f3a";
+const SKY_BOTTOM_DAWN = "#120d19";
+=======
+const AREA_MAPPINGS = [
+  { key: "fieldArea", symbol: "f" },
+  { key: "yardArea", symbol: "y" },
+  { key: "pondArea", symbol: "w" },
+  { key: "clearingArea", symbol: "c" },
+  { key: "quarryArea", symbol: "q" },
+];
+const RESERVED_AREA_SYMBOLS = new Set(["f", "y", "w"]);
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean, 16);
+  return {
+    r: (value >> 16) & 0xff,
+    g: (value >> 8) & 0xff,
+    b: value & 0xff,
+  };
+}
+
+function mixColor(a, b, t) {
+  const ca = hexToRgb(a);
+  const cb = hexToRgb(b);
+  const r = Math.round(lerp(ca.r, cb.r, t));
+  const g = Math.round(lerp(ca.g, cb.g, t));
+  const bVal = Math.round(lerp(ca.b, cb.b, t));
+  return `rgb(${r}, ${g}, ${bVal})`;
+}
 
 const AREA_MAPPINGS = [
   { key: "fieldArea", symbol: "f" },
@@ -92,16 +133,22 @@ const hudElements = {
   corn: null,
   cabbage: null,
   seed: null,
+  moonseed: null,
+  moonflower: null,
   money: null,
   ammo: null,
   water: null,
   stamina: null,
+  day: null,
+  clock: null,
+  selection: null,
 };
 let joystickEl = null;
 let joystickHandle = null;
 let contextButton = null;
 let restartButton = null;
 let sprintButton = null;
+let plantButton = null;
 let dialogEl = null;
 let dialogBody = null;
 let dialogTitle = null;
@@ -114,6 +161,9 @@ let editorSave = null;
 let editorReset = null;
 let editorExit = null;
 let toastEl = null;
+=======
+let bootStarted = false;
+let bootScheduled = false;
 
 let bootStarted = false;
 let bootScheduled = false;
@@ -173,6 +223,22 @@ const state = {
   },
   debugOverlay: DEBUG,
   prngSeed: Date.now() % 2147483647,
+  day: {
+    time: 0,
+    length: WORLD.dayLength,
+    phase: 0,
+    count: 1,
+    clock: "06:00",
+    segment: "Morgen",
+  },
+  lighting: {
+    ambient: 1,
+  },
+  fireflies: [],
+  fireflyTimer: 0,
+  unlocks: {
+    moonflower: false,
+  },
 };
 
 function seededRandom() {
@@ -194,6 +260,21 @@ function tileKey(tx, ty, cols) {
 
 function tileCenter(tx, ty) {
   return { x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE };
+}
+
+function randomPointInArea(area, { jitter = 0.6 } = {}) {
+  if (!area) {
+    return { x: 0, y: 0 };
+  }
+  const tx = area.x + Math.random() * area.w;
+  const ty = area.y + Math.random() * area.h;
+  const baseX = tx * TILE + TILE * 0.5;
+  const baseY = ty * TILE + TILE * 0.5;
+  const j = TILE * jitter * 0.5;
+  return {
+    x: baseX + (Math.random() - 0.5) * j,
+    y: baseY + (Math.random() - 0.5) * j,
+  };
 }
 
 function rectContains(rect, tx, ty) {
@@ -290,6 +371,11 @@ function initDom() {
   hudElements.corn = document.querySelector("#hud-corn [data-value]");
   hudElements.cabbage = document.querySelector("#hud-cabbage [data-value]");
   hudElements.seed = document.querySelector("#hud-seed [data-value]");
+  hudElements.moonseed = document.querySelector("#hud-moonseed [data-value]");
+  hudElements.moonflower = document.querySelector("#hud-moonflower [data-value]");
+  hudElements.day = document.querySelector("#hud-day [data-value]");
+  hudElements.clock = document.querySelector("#hud-clock [data-value]");
+  hudElements.selection = document.querySelector("#hud-selection [data-value]");
   hudElements.money = document.querySelector("#hud-money [data-value]");
   hudElements.ammo = document.querySelector("#hud-ammo [data-value]");
   hudElements.water = document.querySelector("#hud-water [data-value]");
@@ -299,6 +385,7 @@ function initDom() {
   contextButton = document.getElementById("context-button");
   restartButton = document.getElementById("restart-button");
   sprintButton = document.getElementById("sprint-button");
+  plantButton = document.getElementById("plant-button");
   dialogEl = document.getElementById("dialog");
   dialogBody = document.getElementById("dialog-body");
   dialogTitle = document.getElementById("dialog-title");
@@ -434,6 +521,8 @@ function createPlayer() {
     corn: 0,
     cabbage: 0,
     cabbageSeed: 0,
+    moonflower: 0,
+    moonflowerSeed: 0,
     ammo: 0,
     carrying: null,
     watering: {
@@ -539,12 +628,14 @@ function applySave(data) {
   player.corn = clamp(sanitizeNumber(savedPlayer.corn, player.corn), 0, WORLD.inventoryLimit);
   player.cabbage = clamp(sanitizeNumber(savedPlayer.cabbage, player.cabbage), 0, WORLD.inventoryLimit);
   player.cabbageSeed = clamp(sanitizeNumber(savedPlayer.cabbageSeed, player.cabbageSeed), 0, WORLD.inventoryLimit);
+  player.moonflower = clamp(sanitizeNumber(savedPlayer.moonflower, player.moonflower), 0, WORLD.inventoryLimit);
+  player.moonflowerSeed = clamp(sanitizeNumber(savedPlayer.moonflowerSeed, player.moonflowerSeed), 0, WORLD.inventoryLimit);
   player.ammo = clamp(sanitizeNumber(savedPlayer.ammo, player.ammo), 0, WORLD.inventoryLimit);
   player.stamina = clamp(sanitizeNumber(savedPlayer.stamina, player.stamina), 0, player.maxStamina);
   player.hearts = clamp(sanitizeNumber(savedPlayer.hearts, player.hearts), 1, WORLD.maxHearts);
   player.yardDelivered = clamp(sanitizeNumber(savedPlayer.yardDelivered, player.yardDelivered), 0, WORLD.yardBatch);
   player.yardTotal = clamp(sanitizeNumber(savedPlayer.yardTotal, player.yardTotal), 0, 9999);
-  if (savedPlayer.selectedPlant === "cabbage" || savedPlayer.selectedPlant === "corn") {
+  if (savedPlayer.selectedPlant && PLANTS[savedPlayer.selectedPlant]) {
     player.selectedPlant = savedPlayer.selectedPlant;
   }
   if (savedPlayer.watering) {
@@ -570,6 +661,18 @@ function applySave(data) {
   if (data.editorLayout) {
     state.editor.layout = safeClone(data.editorLayout);
     applyEditorLayout(data.editorLayout, false);
+  }
+  if (data.unlocks && typeof data.unlocks === "object") {
+    state.unlocks.moonflower = Boolean(data.unlocks.moonflower);
+  } else if (player.moonflowerSeed > 0 || player.moonflower > 0) {
+    state.unlocks.moonflower = true;
+  }
+  if (data.day) {
+    const len = WORLD.dayLength;
+    const savedTime = sanitizeNumber(data.day.time, state.day.time, 0, len);
+    state.day.time = savedTime;
+    state.day.count = clamp(sanitizeNumber(data.day.count, state.day.count), 1, 9999);
+    syncDayState();
   }
   loadActorsFromSave(data);
 }
@@ -643,6 +746,13 @@ function initWorld() {
   state.stones = [];
   state.dirt = [];
   state.plants.clear();
+  state.fireflies = [];
+  state.fireflyTimer = 0;
+  state.day.length = WORLD.dayLength;
+  state.day.time = state.day.length * 0.25;
+  state.day.count = 1;
+  state.unlocks = { moonflower: false };
+  syncDayState();
   state.yard = { delivered: 0, total: 0, upgradeReady: false, upgradeNotified: false };
   state.spawnTimers.boulder = 0;
   state.spawnTimers.dirt = 0;
@@ -655,6 +765,7 @@ function initWorld() {
   } else {
     spawnInitialActors();
   }
+  syncDayState();
   updateHud();
 }
 
@@ -717,6 +828,8 @@ function setupInput() {
   if (editorExit) editorExit.addEventListener("click", () => exitEditor());
   setupJoystick();
   setupSprintButton();
+  if (plantButton) plantButton.addEventListener("click", () => cyclePlantSelection());
+=======
 }
 
 function onKeyDown(ev) {
@@ -727,6 +840,11 @@ function onKeyDown(ev) {
     triggerContextAction();
   }
   if (key === "1") {
+    setSelectedPlant("corn");
+  } else if (key === "2") {
+    setSelectedPlant("cabbage");
+  } else if (key === "3") {
+    setSelectedPlant("moonflower");
     state.player.selectedPlant = "corn";
     showToast("Saat: Mais");
   }
@@ -755,6 +873,113 @@ function setupJoystick() {
   window.addEventListener("pointermove", onJoyPointerMove);
   window.addEventListener("pointerup", onJoyPointerUp);
   window.addEventListener("pointercancel", onJoyPointerUp);
+}
+
+function setupSprintButton() {
+  if (!sprintButton) return;
+  const release = () => {
+    state.touchSprint = false;
+    state.sprintPointerId = null;
+    sprintButton.classList.remove("active");
+  };
+  sprintButton.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    state.touchSprint = true;
+    state.sprintPointerId = ev.pointerId;
+    sprintButton.classList.add("active");
+    sprintButton.setPointerCapture?.(ev.pointerId);
+  });
+  sprintButton.addEventListener("pointerup", release);
+  sprintButton.addEventListener("pointercancel", release);
+  sprintButton.addEventListener("pointerleave", release);
+  window.addEventListener("pointerup", release);
+}
+
+function getSelectablePlants() {
+  const options = [];
+  for (const kind of PLANT_ORDER) {
+    if (kind === "moonflower" && !state.unlocks.moonflower && state.player.moonflowerSeed <= 0 && state.player.moonflower <= 0) {
+      continue;
+    }
+    if (!PLANTS[kind]) continue;
+    options.push(kind);
+  }
+  return options;
+}
+
+function getPlantLabel(kind) {
+  return PLANTS[kind]?.label || kind;
+}
+
+function setSelectedPlant(kind, { silent = false } = {}) {
+  if (!PLANTS[kind]) return;
+  if (kind === "moonflower" && !state.unlocks.moonflower && state.player.moonflowerSeed <= 0 && state.player.moonflower <= 0) {
+    showToast("Mondbohnen noch nicht freigeschaltet");
+    return;
+  }
+  if (state.player.selectedPlant === kind) return;
+  state.player.selectedPlant = kind;
+  if (!silent) {
+    showToast(`Saat: ${getPlantLabel(kind)}`);
+  }
+  updateHud();
+}
+
+function cyclePlantSelection(direction = 1) {
+  const options = getSelectablePlants();
+  if (!options.length) return;
+  let index = options.indexOf(state.player.selectedPlant);
+  if (index === -1) index = 0;
+  const next = (index + direction + options.length) % options.length;
+  setSelectedPlant(options[next]);
+}
+
+function maybeEnterFullscreen(key) {
+  if (state.prefersTouch || state.fullscreenAttempted) return;
+  if (!FULLSCREEN_KEYS.has(key)) return;
+  state.fullscreenAttempted = true;
+  if (document.fullscreenElement) return;
+  const root = document.documentElement;
+  if (!root || !root.requestFullscreen) return;
+  try {
+    root.requestFullscreen();
+  } catch (err) {
+    console.warn("fullscreen request failed", err);
+  }
+}
+
+function onJoyPointerDown(ev) {
+  if (state.joystick.active) return;
+  state.joystick.active = true;
+  state.joystick.pointerId = ev.pointerId;
+  const rect = joystickEl.getBoundingClientRect();
+  state.joystick.startX = rect.left + rect.width / 2;
+  state.joystick.startY = rect.top + rect.height / 2;
+  state.joystick.dx = 0;
+  state.joystick.dy = 0;
+  joystickEl.setPointerCapture(ev.pointerId);
+}
+
+function onJoyPointerMove(ev) {
+  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
+  const dx = ev.clientX - state.joystick.startX;
+  const dy = ev.clientY - state.joystick.startY;
+  const radius = joystickEl.clientWidth / 2;
+  let nx = dx / radius;
+  let ny = dy / radius;
+  const len = Math.hypot(nx, ny);
+  if (len > 1) {
+    nx /= len;
+    ny /= len;
+  }
+  state.joystick.dx = nx;
+  state.joystick.dy = ny;
+  if (joystickHandle) {
+    joystickHandle.style.transform = `translate(${nx * radius * 0.55}px, ${ny * radius * 0.55}px)`;
+  }
+}
+
+=======
 }
 
 function setupSprintButton() {
@@ -919,6 +1144,9 @@ function updateHud() {
   if (hudElements.corn) hudElements.corn.textContent = `${player.corn}`;
   if (hudElements.cabbage) hudElements.cabbage.textContent = `${player.cabbage}`;
   if (hudElements.seed) hudElements.seed.textContent = `${player.cabbageSeed}`;
+  if (hudElements.moonseed) hudElements.moonseed.textContent = `${player.moonflowerSeed}`;
+  if (hudElements.moonflower) hudElements.moonflower.textContent = `${player.moonflower}`;
+=======
   if (hudElements.money) hudElements.money.textContent = `${player.money}`;
   if (hudElements.ammo) hudElements.ammo.textContent = `${player.ammo}`;
   if (hudElements.water) hudElements.water.textContent = `${player.watering.charges}/${player.watering.max}`;
@@ -926,6 +1154,22 @@ function updateHud() {
     const pct = Math.round((player.stamina / player.maxStamina) * 100);
     hudElements.stamina.textContent = `${pct}%`;
   }
+  if (hudElements.day) {
+    hudElements.day.textContent = `Tag ${state.day.count} – ${state.day.segment}`;
+  }
+  if (hudElements.clock) {
+    hudElements.clock.textContent = state.day.clock;
+  }
+  if (hudElements.selection) {
+    const label = getPlantLabel(player.selectedPlant);
+    hudElements.selection.textContent = label;
+  }
+  if (plantButton) {
+    const label = getPlantLabel(player.selectedPlant);
+    plantButton.textContent = `Saat: ${label}`;
+    plantButton.disabled = getSelectablePlants().length <= 1;
+  }
+=======
   if (state.contextAction) {
     if (contextButton) {
       contextButton.textContent = state.contextAction.label;
@@ -956,9 +1200,12 @@ function update(dt) {
     updateHud();
     return;
   }
+  updateDayNight(dt);
+=======
   handleSpawns(dt);
   updatePlayer(dt);
   updatePlants(dt);
+  updateFireflies(dt);
   state.contextAction = resolveContextAction();
   updateHud();
   maybeSave();
@@ -970,12 +1217,119 @@ function handleSpawns(dt) {
   if (state.spawnTimers.boulder >= state.nextSpawnDelay) {
     spawnStone();
     state.spawnTimers.boulder = 0;
-    state.nextSpawnDelay = randomBetween(SPAWN.boulderIntervalMs[0], SPAWN.boulderIntervalMs[1]);
+    const modifier = isNight() ? 0.8 : 1;
+    state.nextSpawnDelay = randomBetween(SPAWN.boulderIntervalMs[0], SPAWN.boulderIntervalMs[1]) * modifier;
   }
-  if (state.spawnTimers.dirt >= 16000) {
+  const dirtInterval = isNight() ? 12000 : 16000;
+  if (state.spawnTimers.dirt >= dirtInterval) {
     spawnDirt();
     state.spawnTimers.dirt = 0;
   }
+}
+
+function formatClockFromPhase(phase) {
+  const hoursFloat = (phase * 24) % 24;
+  const hours = Math.floor(hoursFloat);
+  const minutes = Math.floor((hoursFloat - hours) * 60);
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+}
+
+function resolveDaySegment(phase) {
+  if (phase < 0.2) return "Morgen";
+  if (phase < 0.45) return "Tag";
+  if (phase < 0.65) return "Abend";
+  if (phase < 0.85) return "Nacht";
+  return "Späte Nacht";
+}
+
+function computeAmbientLight(phase) {
+  const wave = (Math.cos((phase - 0.5) * TAU) + 1) / 2;
+  return clamp(0.22 + wave * 0.78, 0.18, 1);
+}
+
+function syncDayState() {
+  const length = Math.max(60, WORLD.dayLength || 240);
+  state.day.length = length;
+  if (!Number.isFinite(state.day.time)) {
+    state.day.time = 0;
+  }
+  while (state.day.time < 0) state.day.time += length;
+  while (state.day.time >= length) state.day.time -= length;
+  state.day.phase = state.day.time / length;
+  state.day.clock = formatClockFromPhase(state.day.phase);
+  state.day.segment = resolveDaySegment(state.day.phase);
+  state.lighting.ambient = FLAGS.dayNightEnabled ? computeAmbientLight(state.day.phase) : 1;
+}
+
+function isNightPhase(phase) {
+  return phase >= 0.7 || phase <= 0.22;
+}
+
+function isNight() {
+  if (!FLAGS.dayNightEnabled) return false;
+  return isNightPhase(state.day.phase);
+}
+
+function updateDayNight(dt) {
+  if (!FLAGS.dayNightEnabled) return;
+  state.day.time += dt;
+  if (state.day.time >= state.day.length) {
+    state.day.time -= state.day.length;
+    state.day.count += 1;
+  }
+  syncDayState();
+}
+
+function updateFireflies(dt) {
+  if (!FLAGS.dayNightEnabled) return;
+  const active = isNight();
+  const targetCount = active ? 18 : 0;
+  if (active) {
+    state.fireflyTimer += dt;
+    const spawnInterval = 0.25;
+    while (state.fireflies.length < targetCount && state.fireflyTimer >= spawnInterval) {
+      state.fireflyTimer -= spawnInterval;
+      spawnFirefly();
+    }
+  } else {
+    state.fireflyTimer = 0;
+  }
+  for (let i = state.fireflies.length - 1; i >= 0; i--) {
+    const fly = state.fireflies[i];
+    fly.age += dt;
+    fly.pulse += dt * fly.pulseSpeed;
+    fly.angle += dt * fly.drift;
+    fly.x = fly.baseX + Math.sin(fly.angle) * fly.swing;
+    fly.y = fly.baseY + Math.cos(fly.angle * 0.8) * fly.swing * 0.6;
+    const lifeDelta = active ? dt * 1.8 : -dt * 1.4;
+    fly.life = clamp(fly.life + lifeDelta, 0, 1);
+    if (!active && fly.life <= 0.02 && fly.age > 1.2) {
+      state.fireflies.splice(i, 1);
+    }
+  }
+  if (active && state.fireflies.length > targetCount) {
+    state.fireflies.length = targetCount;
+  }
+}
+
+function spawnFirefly() {
+  const area = state.map?.pondArea || MAPDATA.pondArea;
+  if (!area) return;
+  const point = randomPointInArea(area, { jitter: 1.1 });
+  const baseY = point.y - TILE * 0.2 + Math.random() * TILE * 0.4;
+  state.fireflies.push({
+    baseX: point.x,
+    baseY,
+    x: point.x,
+    y: baseY,
+    swing: randomBetween(TILE * 0.18, TILE * 0.5),
+    angle: Math.random() * TAU,
+    drift: randomBetween(0.6, 1.3),
+    pulse: Math.random() * TAU,
+    pulseSpeed: randomBetween(1.6, 2.6),
+    life: 0,
+    age: 0,
+  });
 }
 
 function updatePlayer(dt) {
@@ -1171,6 +1525,16 @@ function isAnyPressed(list) {
 function updatePlants(dt) {
   const now = state.time * 1000;
   for (const plant of state.plants.values()) {
+    if (plant.stage !== "growing") continue;
+    if (plant.kind === "moonflower" && isNight()) {
+      const def = PLANTS.moonflower;
+      if (def) {
+        const minReady = plant.plantedAt + (def.minMs ?? 0);
+        plant.readyAt = Math.max(minReady, plant.readyAt - dt * 1000 * def.nightSpeed);
+      }
+    }
+    if (now >= plant.readyAt) {
+=======
     if (plant.stage === "growing" && now >= plant.readyAt) {
       plant.stage = plant.success ? "ready" : "failed";
     }
@@ -1239,6 +1603,14 @@ function resolveContextAction() {
     }
     if (state.player.selectedPlant === "cabbage" && state.player.cabbageSeed > 0) {
       return { label: "Kohl pflanzen", handler: () => plantCrop(front.tx, front.ty, "cabbage") };
+    }
+    if (state.player.selectedPlant === "moonflower") {
+      const hasSeed = state.player.moonflowerSeed > 0;
+      return {
+        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
+        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
+        disabled: !hasSeed,
+      };
     }
   }
   if (tileAt(front.tx, front.ty) === "w" && state.player.watering.charges < state.player.watering.max) {
@@ -1332,10 +1704,11 @@ function deliverStone() {
 function collectDirt(dirt) {
   const idx = state.dirt.indexOf(dirt);
   if (idx !== -1) state.dirt.splice(idx, 1);
-  const chance = 0.1 + Math.random() * 0.05;
-  if (Math.random() < chance) {
+  const baseChance = 0.1 + Math.random() * 0.05;
+  const bonus = isNight() ? 0.08 : 0;
+  if (Math.random() < Math.min(0.95, baseChance + bonus)) {
     state.player.poop = clamp(state.player.poop + 1, 0, WORLD.inventoryLimit);
-    showToast("Ein bisschen 💩 gefunden");
+    showToast(isNight() ? "Mondschein-Bonus: 💩 gefunden" : "Ein bisschen 💩 gefunden");
   }
   globalSfx.play("pickup");
   scheduleSave();
@@ -1366,6 +1739,15 @@ function plantCrop(tx, ty, kind) {
     }
   } else if (kind === "cabbage") {
     state.player.cabbageSeed = clamp(state.player.cabbageSeed - 1, 0, WORLD.inventoryLimit);
+  } else if (kind === "moonflower") {
+    state.player.moonflowerSeed = clamp(state.player.moonflowerSeed - 1, 0, WORLD.inventoryLimit);
+    plant.success = true;
+    state.unlocks.moonflower = true;
+    const def = PLANTS.moonflower;
+    if (def && isNight()) {
+      const minReady = plant.plantedAt + (def.minMs ?? 0);
+      plant.readyAt = Math.max(minReady, plant.readyAt - def.nightSpeed * 1000 * 6);
+    }
   }
   state.plants.set(key, plant);
   globalSfx.play("plant");
@@ -1383,6 +1765,12 @@ function waterPlant(plant) {
   } else if (plant.kind === "cabbage") {
     const def = PLANTS.cabbage;
     plant.readyAt = Math.min(plant.readyAt, plant.plantedAt + def.wateredTotalMs);
+  } else if (plant.kind === "moonflower") {
+    const def = PLANTS.moonflower;
+    if (def) {
+      const minReady = plant.plantedAt + (def.minMs ?? 0);
+      plant.readyAt = Math.max(minReady, plant.readyAt - (def.waterBonusMs ?? 0));
+    }
   }
   globalSfx.play("water");
   scheduleSave();
@@ -1397,6 +1785,9 @@ function harvestPlant(plant) {
     }
   } else if (plant.kind === "cabbage") {
     state.player.cabbage = clamp(state.player.cabbage + 1, 0, WORLD.inventoryLimit);
+  } else if (plant.kind === "moonflower") {
+    state.player.moonflower = clamp(state.player.moonflower + 1, 0, WORLD.inventoryLimit);
+    state.unlocks.moonflower = true;
   }
   globalSfx.play("pickup");
   scheduleSave();
@@ -1434,6 +1825,19 @@ function openFredShop() {
       },
     });
   }
+  if (player.moonflower > 0) {
+    actions.push({
+      label: `Mondbohnen verkaufen (+${player.moonflower * ECON.moonflowerSell} €)`,
+      description: `${player.moonflower}x Mondbohne`,
+      onSelect: () => {
+        player.money += player.moonflower * ECON.moonflowerSell;
+        player.moonflower = 0;
+        state.unlocks.moonflower = true;
+        globalSfx.play("sell");
+        scheduleSave();
+      },
+    });
+  }
   actions.push({
     label: "Kohlsamen kaufen (2 €)",
     description: "Eins pro Klick",
@@ -1446,6 +1850,21 @@ function openFredShop() {
       scheduleSave();
     },
   });
+  if (state.yard.upgradeReady || state.unlocks.moonflower) {
+    actions.push({
+      label: "Mondbohnen-Saat (3 €)",
+      description: "Leuchtet bei Nacht",
+      disabled: player.money < 3,
+      onSelect: () => {
+        if (player.money < 3) return;
+        player.money -= 3;
+        player.moonflowerSeed = clamp(player.moonflowerSeed + 1, 0, WORLD.inventoryLimit);
+        state.unlocks.moonflower = true;
+        globalSfx.play("ui");
+        scheduleSave();
+      },
+    });
+  }
   if (state.yard.upgradeReady) {
     actions.push({
       label: "Karren kaufen (6 €)",
@@ -1573,6 +1992,8 @@ function saveGame() {
       corn: player.corn,
       cabbage: player.cabbage,
       cabbageSeed: player.cabbageSeed,
+      moonflower: player.moonflower,
+      moonflowerSeed: player.moonflowerSeed,
       ammo: player.ammo,
       stamina: player.stamina,
       hearts: player.hearts,
@@ -1583,6 +2004,8 @@ function saveGame() {
       upgrades: { ...player.upgrades },
     },
     yard: { ...state.yard },
+    unlocks: { ...state.unlocks },
+    day: { time: state.day.time, count: state.day.count },
     stones: state.stones.map(stone => ({ x: stone.x, y: stone.y })),
     dirt: state.dirt.map(clod => ({ x: clod.x, y: clod.y })),
     plants: Array.from(state.plants.values()).map(p => ({
@@ -1816,17 +2239,39 @@ function render() {
   drawDirt(view);
   drawStones(view);
   drawNPCs(view);
+  drawFireflies(view);
+=======
   drawPlayer();
   drawPreview(view);
   ctx.restore();
+  applyLightingOverlay(width, height);
   drawHudOverlay(width, height);
 }
 
 function drawBackground(width, height) {
-  const grd = ctx.createLinearGradient(0, 0, 0, height);
-  grd.addColorStop(0, "#0b1418");
-  grd.addColorStop(1, "#04070a");
-  ctx.fillStyle = grd;
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  if (FLAGS.dayNightEnabled) {
+    const ambient = state.lighting.ambient;
+    let top = mixColor(SKY_TOP_NIGHT, SKY_TOP_DAY, ambient);
+    let bottom = mixColor(SKY_BOTTOM_NIGHT, SKY_BOTTOM_DAY, ambient);
+    const phase = state.day.phase;
+    const dawnSpan = WORLD.dawnDuration ?? 0.12;
+    const duskSpan = WORLD.duskDuration ?? 0.12;
+    const dawnDistance = Math.min(Math.abs(phase - 0), Math.abs(phase - 1));
+    const dawnWeight = clamp(1 - dawnDistance / Math.max(0.001, dawnSpan), 0, 1);
+    const duskWeight = clamp(1 - Math.abs(phase - 0.5) / Math.max(0.001, duskSpan), 0, 1);
+    const warm = Math.max(dawnWeight, duskWeight);
+    if (warm > 0) {
+      top = mixColor(top, SKY_TOP_DAWN, warm * 0.8);
+      bottom = mixColor(bottom, SKY_BOTTOM_DAWN, warm * 0.8);
+    }
+    gradient.addColorStop(0, top);
+    gradient.addColorStop(1, bottom);
+  } else {
+    gradient.addColorStop(0, SKY_TOP_DAY);
+    gradient.addColorStop(1, SKY_BOTTOM_DAY);
+  }
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 }
 
@@ -1927,6 +2372,27 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
+
+function tileColor(sym) {
+  switch (sym) {
+    case "p": return "#6b5537";
+    case "h": return "#2c2f3b";
+    case "x": return "#0c1612";
+    case "w": return "#1b3f6e";
+    case "f": return "#3b6f36";
+    case "y": return "#6b4026";
+    case "c": return "#2d4b2a";
+    case "q": return "#4f4d49";
+    case "d": return "#5b3c2d";
+    case "b": return "#4a3a5b";
+    case "s": return "#37535c";
+    case "t": return "#2d604b";
+    default: return "#1e3a2b";
+  }
+}
+
 function drawPlants(view) {
   const { minX, maxX, minY, maxY } = view.tiles;
   for (const plant of state.plants.values()) {
@@ -1940,6 +2406,23 @@ function drawPlants(view) {
       ctx.beginPath();
       ctx.ellipse(0, 0, TILE * 0.22, TILE * 0.34, 0, 0, TAU);
       ctx.fill();
+    } else if (plant.kind === "moonflower") {
+      const baseColor = plant.stage === "failed" ? "#3f4652" : plant.stage === "ready" ? "#b8f3ff" : "#79d3ff";
+      if (plant.stage !== "failed") {
+        const pulse = (Math.sin(state.time * 4.2 + plant.tx + plant.ty) + 1) * 0.5;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = `rgba(140, 210, 255, ${0.28 + pulse * 0.32})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, TILE * (0.42 + pulse * 0.12), 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, TILE * 0.24, TILE * 0.32, 0, 0, TAU);
+      ctx.fill();
+=======
     } else {
       ctx.fillStyle = plant.stage === "ready" ? "#7ae38f" : plant.stage === "failed" ? "#4f5f4f" : "#4ecb6d";
       ctx.beginPath();
@@ -1981,6 +2464,25 @@ function drawNPCs(view) {
     drawNpcSprite(npc, facing, index);
     index += 1;
   }
+}
+
+function drawFireflies(view) {
+  if (!FLAGS.dayNightEnabled || !state.fireflies.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const fly of state.fireflies) {
+    if (fly.x < view.pixel.left - TILE || fly.x > view.pixel.right + TILE) continue;
+    if (fly.y < view.pixel.top - TILE || fly.y > view.pixel.bottom + TILE) continue;
+    const pulse = (Math.sin(fly.pulse) + 1) * 0.5;
+    const alpha = clamp(fly.life * (0.45 + pulse * 0.5), 0, 1);
+    if (alpha <= 0.01) continue;
+    const radius = TILE * (0.1 + pulse * 0.12);
+    ctx.fillStyle = `rgba(150, 220, 255, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(fly.x, fly.y, radius, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawNpcSprite(npc, facing, index) {
@@ -2218,6 +2720,26 @@ function drawPreview(view) {
   ctx.restore();
 }
 
+function applyLightingOverlay(width, height) {
+  if (!FLAGS.dayNightEnabled) return;
+  const ambient = state.lighting.ambient;
+  if (ambient >= 0.995) return;
+  const darkness = clamp(1 - ambient, 0, 1);
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = `rgba(12, 16, 24, ${0.35 + darkness * 0.4})`;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+  if (ambient < 0.6) {
+    ctx.save();
+    ctx.globalAlpha = clamp((0.6 - ambient) * 0.85, 0, 0.5);
+    ctx.fillStyle = "rgba(70, 110, 180, 0.65)";
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+}
+
+=======
 function drawHudOverlay(width, height) {
   ctx.save();
   ctx.fillStyle = "rgba(255,255,255,0.5)";

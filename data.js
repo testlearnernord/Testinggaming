@@ -1,7 +1,7 @@
-export const APP_VERSION = "v1.3.0";
+export const APP_VERSION = "v1.4.0";
 export const APP_BASE_PATH = "/";
-export const SAVE_KEY = "pb_save_v7";
-export const GAME_VERSION = 7;
+export const SAVE_KEY = "pb_save_v8";
+export const GAME_VERSION = 8;
 
 export const DEBUG = false;
 
@@ -26,6 +26,9 @@ export const WORLD = {
   maxHearts: 3,
   baseWater: 7,
   editorLayoutKey: "pb_editor_layout_v1",
+  dayLength: 240,
+  dawnDuration: 0.12,
+  duskDuration: 0.12,
 };
 
 export const MAPDATA = {
@@ -203,11 +206,24 @@ export const PLANTS = {
     seedCost: 1,
     sellPrice: 7,
   },
+  moonflower: {
+    id: "moonflower",
+    label: "Mondbohne",
+    growMs: 90000,
+    minMs: 25000,
+    waterBonusMs: 45000,
+    nightSpeed: 2.1,
+    seedCost: 3,
+    sellPrice: 11,
+  },
+=======
 };
 
 export const ECON = {
   cornSell: 1,
   cabbageSell: 7,
+  moonflowerSell: 11,
+=======
 };
 
 export const CAN_MAX = 13;
@@ -226,6 +242,8 @@ export const STONE = {
 };
 
 export const FLAGS = {
+  dayNightEnabled: true,
+=======
   dayNightEnabled: false,
   monstersEnabled: false,
 };
@@ -250,6 +268,9 @@ export const STORAGE_DEFAULTS = {
   corn: 0,
   cabbage: 0,
   cabbageSeed: 0,
+  moonflower: 0,
+  moonflowerSeed: 0,
+=======
   yardDelivered: 0,
   yardPending: 0,
   upgrades: {
