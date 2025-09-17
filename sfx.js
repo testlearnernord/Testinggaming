@@ -53,6 +53,13 @@ export class SFX {
     if (!this.ctx) return null;
     if (this.buffers.has(id)) return this.buffers.get(id);
 
+    let generator = null;
+    if (typeof spec === "function") {
+      generator = spec;
+    } else if (spec && typeof spec.create === "function") {
+      generator = spec.create;
+    }
+=======
     const generator = typeof spec === "function" ? spec : spec?.create;
     if (typeof generator !== "function") {
       return null;

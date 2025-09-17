@@ -1,4 +1,5 @@
-# Poopboy v1.4.0
+# Poopboy v1.4.1
+
 
 Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und baue Mais, Kohl oder Mondbohnen an. Die Version ist für mobile und Desktop ausgelegt, nutzt Canvas 2D und speichert automatisch unter `pb_save_v8` im `localStorage`.
 
@@ -9,6 +10,23 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
 4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
 
+
+## Neu in v1.4.1
+
+- Kein Blackscreen mehr auf GitHub Pages: Modernes Optional-Chaining wurde entfernt, sodass auch ältere Browser das Spiel wieder starten.
+- Touch- und Desktop-Steuerung besitzen Fallbacks für Pointer-Capture & Layoutdaten, damit Sprint-Button und NPC-Editor überall funktionieren.
+- Pflanzenwachstum und Nacht-Boni arbeiten mit defensiven Default-Werten – Mondbohnen und Bewässerung bleiben stabil.
+
+## Neu in v1.4.0
+
+- Dynamischer Tag-Nacht-Zyklus mit Ambient-Licht, HUD-Uhrzeit und Tagesabschnitt.
+- Glühwürmchen und Mondschein-Bonus nachts rund um den Teich (höhere 💩-Dropchance).
+- Neue Feldfrucht **Mondbohne**: leuchtet nachts, wächst schneller im Dunkeln und verkauft sich für 11 €.
+- Touch- und Desktop-Steuerung erhalten einen Saat-Button bzw. Taste **3**, um die Saatarten schnell zu wechseln.
+
+## Neu in v1.3.0
+
+=======
 ## Neu in v1.4.0
 
 - Dynamischer Tag-Nacht-Zyklus mit Ambient-Licht, HUD-Uhrzeit und Tagesabschnitt.
@@ -103,7 +121,7 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 ## QA Checkliste
 
 - Start ohne Konsolenfehler (Desktop & Mobile)
-- HUD zeigt Version `v1.3.0` im Overlay an
+- HUD zeigt Version `v1.4.1` im Overlay an
 - Sprint verbraucht Ausdauer und regeneriert beim Stehen
 - Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
 - NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig

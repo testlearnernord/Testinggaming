@@ -57,6 +57,7 @@ const SKY_BOTTOM_NIGHT = "#020307";
 const SKY_TOP_DAWN = "#2c1f3a";
 const SKY_BOTTOM_DAWN = "#120d19";
 =======
+=======
 const AREA_MAPPINGS = [
   { key: "fieldArea", symbol: "f" },
   { key: "yardArea", symbol: "y" },
@@ -69,6 +70,27 @@ const RESERVED_AREA_SYMBOLS = new Set(["f", "y", "w"]);
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean, 16);
+  return {
+    r: (value >> 16) & 0xff,
+    g: (value >> 8) & 0xff,
+    b: value & 0xff,
+  };
+}
+
+function mixColor(a, b, t) {
+  const ca = hexToRgb(a);
+  const cb = hexToRgb(b);
+  const r = Math.round(lerp(ca.r, cb.r, t));
+  const g = Math.round(lerp(ca.g, cb.g, t));
+  const bVal = Math.round(lerp(ca.b, cb.b, t));
+  return `rgb(${r}, ${g}, ${bVal})`;
+}
+
+=======
 
 function hexToRgb(hex) {
   const clean = hex.replace("#", "");
@@ -162,6 +184,9 @@ let editorReset = null;
 let editorExit = null;
 let toastEl = null;
 =======
+let bootStarted = false;
+let bootScheduled = false;
+
 let bootStarted = false;
 let bootScheduled = false;
 
@@ -341,7 +366,9 @@ function applyInputMode() {
     state.joystick.dx = 0;
     state.joystick.dy = 0;
     state.touchSprint = false;
-    sprintButton?.classList.remove("active");
+    if (sprintButton) {
+      sprintButton.classList.remove("active");
+    }
   }
   resizeCanvas();
 }
@@ -475,6 +502,10 @@ function rebuildSpawnable(areas) {
   return spots;
 }
 
+function isStoneSpawnable(sym, tx, ty, areas) {
+  const areaSource = areas || (state && state.map) || MAPDATA;
+  const areaSymbol = areaSymbolAt(tx, ty, areaSource);
+=======
 function isStoneSpawnable(sym, tx, ty, areas = state?.map ?? MAPDATA) {
   const areaSymbol = areaSymbolAt(tx, ty, areas);
   const inField = areaSymbol === "f";
@@ -713,7 +744,12 @@ function loadActorsFromSave(data) {
     let stage = typeof savedPlant.stage === "string" ? savedPlant.stage : "growing";
     if (stage !== "ready" && stage !== "failed") stage = "growing";
     const watered = Boolean(savedPlant.watered);
-    const maxWatered = spec.wateredTotalMs ?? spec.growMs ?? 0;
+    let maxWatered = 0;
+    if (Number.isFinite(spec.wateredTotalMs)) {
+      maxWatered = spec.wateredTotalMs;
+    } else if (Number.isFinite(spec.growMs)) {
+      maxWatered = spec.growMs;
+    }
     const wateredMs = clamp(sanitizeNumber(savedPlant.wateredMs, 0), 0, maxWatered);
     const success = savedPlant.success !== false;
     state.plants.set(tileKey(tx, ty, state.map.cols), {
@@ -830,6 +866,7 @@ function setupInput() {
   setupSprintButton();
   if (plantButton) plantButton.addEventListener("click", () => cyclePlantSelection());
 =======
+=======
 }
 
 function onKeyDown(ev) {
@@ -845,6 +882,7 @@ function onKeyDown(ev) {
     setSelectedPlant("cabbage");
   } else if (key === "3") {
     setSelectedPlant("moonflower");
+=======
     state.player.selectedPlant = "corn";
     showToast("Saat: Mais");
   }
@@ -865,6 +903,10 @@ function onBlur() {
   state.keys.clear();
   state.once.clear();
   state.touchSprint = false;
+  if (sprintButton) {
+    sprintButton.classList.remove("active");
+  }
+=======
   sprintButton?.classList.remove("active");
 }
 function setupJoystick() {
@@ -887,6 +929,10 @@ function setupSprintButton() {
     state.touchSprint = true;
     state.sprintPointerId = ev.pointerId;
     sprintButton.classList.add("active");
+    if (typeof sprintButton.setPointerCapture === "function") {
+      sprintButton.setPointerCapture(ev.pointerId);
+    }
+=======
     sprintButton.setPointerCapture?.(ev.pointerId);
   });
   sprintButton.addEventListener("pointerup", release);
@@ -908,6 +954,12 @@ function getSelectablePlants() {
 }
 
 function getPlantLabel(kind) {
+  const def = PLANTS[kind];
+  if (def && typeof def.label === "string") {
+    return def.label;
+  }
+  return kind;
+=======
   return PLANTS[kind]?.label || kind;
 }
 
@@ -977,6 +1029,20 @@ function onJoyPointerMove(ev) {
   if (joystickHandle) {
     joystickHandle.style.transform = `translate(${nx * radius * 0.55}px, ${ny * radius * 0.55}px)`;
   }
+}
+
+function onJoyPointerUp(ev) {
+  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
+  state.joystick.active = false;
+  state.joystick.pointerId = null;
+  state.joystick.dx = 0;
+  state.joystick.dy = 0;
+  if (joystickHandle) {
+    joystickHandle.style.transform = "translate(-50%, -50%)";
+  }
+}
+
+=======
 }
 
 =======
@@ -1106,7 +1172,9 @@ function openDialog({ title, subtitle = "", actions = [] }) {
     }
     btn.addEventListener("click", () => {
       if (action.disabled) return;
-      action.onSelect?.();
+      if (typeof action.onSelect === "function") {
+        action.onSelect();
+      }
       closeDialog();
     });
     dialogBody.appendChild(btn);
@@ -1146,7 +1214,7 @@ function updateHud() {
   if (hudElements.seed) hudElements.seed.textContent = `${player.cabbageSeed}`;
   if (hudElements.moonseed) hudElements.moonseed.textContent = `${player.moonflowerSeed}`;
   if (hudElements.moonflower) hudElements.moonflower.textContent = `${player.moonflower}`;
-=======
+
   if (hudElements.money) hudElements.money.textContent = `${player.money}`;
   if (hudElements.ammo) hudElements.ammo.textContent = `${player.ammo}`;
   if (hudElements.water) hudElements.water.textContent = `${player.watering.charges}/${player.watering.max}`;
@@ -1169,7 +1237,7 @@ function updateHud() {
     plantButton.textContent = `Saat: ${label}`;
     plantButton.disabled = getSelectablePlants().length <= 1;
   }
-=======
+
   if (state.contextAction) {
     if (contextButton) {
       contextButton.textContent = state.contextAction.label;
@@ -1201,7 +1269,7 @@ function update(dt) {
     return;
   }
   updateDayNight(dt);
-=======
+
   handleSpawns(dt);
   updatePlayer(dt);
   updatePlants(dt);
@@ -1313,6 +1381,8 @@ function updateFireflies(dt) {
 }
 
 function spawnFirefly() {
+  const area = state.map && state.map.pondArea ? state.map.pondArea : MAPDATA.pondArea;
+=======
   const area = state.map?.pondArea || MAPDATA.pondArea;
   if (!area) return;
   const point = randomPointInArea(area, { jitter: 1.1 });
@@ -1498,6 +1568,7 @@ function resolveFootstepSurface(tx, ty) {
   }
   if (symbol === "w") {
     return "soft";
+=======
   }
   return "grass";
 }
@@ -1574,6 +1645,97 @@ function resolveContextAction() {
       handler: () => pickupStone(stone),
     };
   }
+  return "grass";
+}
+
+function playFootstepSound(surface, sprinting) {
+  if (sprinting) {
+    globalSfx.play("footstepSprint", { volume: 0.42, cooldown: 0 });
+    return;
+  }
+  if (surface === "stone") {
+    globalSfx.play("footstepSoft", { volume: 0.34, cooldown: 0 });
+  } else {
+    globalSfx.play("footstepGrass", { volume: 0.32, cooldown: 0 });
+  }
+}
+
+function isAnyPressed(list) {
+  if (!list) return false;
+  for (const key of list) {
+    if (state.keys.has(key)) return true;
+  }
+  return false;
+}
+
+function updatePlants(dt) {
+  const now = state.time * 1000;
+  for (const plant of state.plants.values()) {
+    if (plant.stage !== "growing") continue;
+    if (plant.kind === "moonflower" && isNight()) {
+      const def = PLANTS.moonflower;
+      if (def) {
+        const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
+        const minReady = plant.plantedAt + minMs;
+        plant.readyAt = Math.max(minReady, plant.readyAt - dt * 1000 * def.nightSpeed);
+      }
+=======
+  const front = getFrontTile();
+  const key = tileKey(front.tx, front.ty, state.map.cols);
+  const plant = state.plants.get(key);
+  if (plant) {
+    if (plant.stage === "ready") {
+      return { label: "Ernten", handler: () => harvestPlant(plant) };
+    }
+    if (plant.stage === "growing" && state.player.watering.charges > 0) {
+      return { label: "Gießen", handler: () => waterPlant(plant) };
+    }
+    if (plant.stage === "failed") {
+      return { label: "Entfernen", handler: () => { state.plants.delete(key); scheduleSave(); } };
+    }
+  } else if (areaSymbolAt(front.tx, front.ty) === "f") {
+    if (state.player.selectedPlant === "corn" && state.player.poop > 0) {
+      return { label: "Mais säen", handler: () => plantCrop(front.tx, front.ty, "corn") };
+    }
+    if (now >= plant.readyAt) {
+      plant.stage = plant.success ? "ready" : "failed";
+    }
+  }
+}
+function resolveContextAction() {
+  const player = state.player;
+  const { tx: playerTx, ty: playerTy } = worldToTile(player.x, player.y);
+  if (areaSymbolAt(playerTx, playerTy) === "y" && player.carrying && player.carrying.kind === "stone") {
+    return {
+      label: `Abliefern (${player.yardDelivered}/5)`,
+      handler: deliverStone,
+    };
+  }
+  if (player.carrying && player.carrying.kind === "stone") {
+    const preview = placementPreview();
+    state.preview = preview;
+    return {
+      label: preview.valid ? "Stein platzieren" : "Kein Platz",
+      handler: () => preview.valid && placeStone(preview.tx, preview.ty),
+      disabled: !preview.valid,
+    };
+  } else {
+    state.preview = null;
+  }
+  const dirt = findNearby(state.dirt, player.x, player.y, TILE * 0.6);
+  if (dirt) {
+    return {
+      label: "Erdbrocken einsammeln",
+      handler: () => collectDirt(dirt),
+    };
+  }
+  const stone = findNearby(state.stones, player.x, player.y, TILE * 0.75);
+  if (stone) {
+    return {
+      label: "Stein aufnehmen",
+      handler: () => pickupStone(stone),
+    };
+  }
   const npc = findNPCNearby(player.x, player.y, TILE * 0.9);
   if (npc) {
     if (npc.id === "fred") return { label: "Fecalfreds Stand", handler: openFredShop };
@@ -1603,6 +1765,14 @@ function resolveContextAction() {
     }
     if (state.player.selectedPlant === "cabbage" && state.player.cabbageSeed > 0) {
       return { label: "Kohl pflanzen", handler: () => plantCrop(front.tx, front.ty, "cabbage") };
+=======
+    if (state.player.selectedPlant === "moonflower") {
+      const hasSeed = state.player.moonflowerSeed > 0;
+      return {
+        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
+        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
+        disabled: !hasSeed,
+      };
     }
     if (state.player.selectedPlant === "moonflower") {
       const hasSeed = state.player.moonflowerSeed > 0;
@@ -1745,6 +1915,9 @@ function plantCrop(tx, ty, kind) {
     state.unlocks.moonflower = true;
     const def = PLANTS.moonflower;
     if (def && isNight()) {
+      const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
+      const minReady = plant.plantedAt + minMs;
+=======
       const minReady = plant.plantedAt + (def.minMs ?? 0);
       plant.readyAt = Math.max(minReady, plant.readyAt - def.nightSpeed * 1000 * 6);
     }
@@ -1768,6 +1941,11 @@ function waterPlant(plant) {
   } else if (plant.kind === "moonflower") {
     const def = PLANTS.moonflower;
     if (def) {
+      const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
+      const bonusMs = Number.isFinite(def.waterBonusMs) ? def.waterBonusMs : 0;
+      const minReady = plant.plantedAt + minMs;
+      plant.readyAt = Math.max(minReady, plant.readyAt - bonusMs);
+=======
       const minReady = plant.plantedAt + (def.minMs ?? 0);
       plant.readyAt = Math.max(minReady, plant.readyAt - (def.waterBonusMs ?? 0));
     }
@@ -2122,6 +2300,11 @@ function applyEditorLayout(layout, updatePanel = true) {
     const match = Array.isArray(layout.npcs) ? layout.npcs.find(entry => entry && entry.id === npc.id) : null;
     const fallbackX = npc.x / TILE;
     const fallbackY = npc.y / TILE;
+    const matchX = match ? match.x : undefined;
+    const matchY = match ? match.y : undefined;
+    const nx = sanitizeNumber(matchX, fallbackX, 1, state.map.cols - 2);
+    const ny = sanitizeNumber(matchY, fallbackY, 1, state.map.rows - 2);
+=======
     const nx = sanitizeNumber(match?.x, fallbackX, 1, state.map.cols - 2);
     const ny = sanitizeNumber(match?.y, fallbackY, 1, state.map.rows - 2);
     npc.x = nx * TILE;
@@ -2241,6 +2424,7 @@ function render() {
   drawNPCs(view);
   drawFireflies(view);
 =======
+=======
   drawPlayer();
   drawPreview(view);
   ctx.restore();
@@ -2255,6 +2439,9 @@ function drawBackground(width, height) {
     let top = mixColor(SKY_TOP_NIGHT, SKY_TOP_DAY, ambient);
     let bottom = mixColor(SKY_BOTTOM_NIGHT, SKY_BOTTOM_DAY, ambient);
     const phase = state.day.phase;
+    const dawnSpan = typeof WORLD.dawnDuration === "number" ? WORLD.dawnDuration : 0.12;
+    const duskSpan = typeof WORLD.duskDuration === "number" ? WORLD.duskDuration : 0.12;
+=======
     const dawnSpan = WORLD.dawnDuration ?? 0.12;
     const duskSpan = WORLD.duskDuration ?? 0.12;
     const dawnDistance = Math.min(Math.abs(phase - 0), Math.abs(phase - 1));
@@ -2393,6 +2580,27 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
+
+function tileColor(sym) {
+  switch (sym) {
+    case "p": return "#6b5537";
+    case "h": return "#2c2f3b";
+    case "x": return "#0c1612";
+    case "w": return "#1b3f6e";
+    case "f": return "#3b6f36";
+    case "y": return "#6b4026";
+    case "c": return "#2d4b2a";
+    case "q": return "#4f4d49";
+    case "d": return "#5b3c2d";
+    case "b": return "#4a3a5b";
+    case "s": return "#37535c";
+    case "t": return "#2d604b";
+    default: return "#1e3a2b";
+  }
+}
+
 function drawPlants(view) {
   const { minX, maxX, minY, maxY } = view.tiles;
   for (const plant of state.plants.values()) {
@@ -2422,6 +2630,7 @@ function drawPlants(view) {
       ctx.beginPath();
       ctx.ellipse(0, 0, TILE * 0.24, TILE * 0.32, 0, 0, TAU);
       ctx.fill();
+=======
 =======
     } else {
       ctx.fillStyle = plant.stage === "ready" ? "#7ae38f" : plant.stage === "failed" ? "#4f5f4f" : "#4ecb6d";
@@ -2615,7 +2824,8 @@ function drawCarriedStone(player, bob) {
   ctx.translate(player.x, player.y - TILE * 0.72 - bob);
   ctx.fillStyle = "#b9c3cf";
   ctx.beginPath();
-  ctx.ellipse(0, Math.sin((player.anim?.phase || 0) * 2) * TILE * 0.04, TILE * 0.26, TILE * 0.18, 0, 0, TAU);
+  const animPhase = player.anim && typeof player.anim.phase === "number" ? player.anim.phase : 0;
+  ctx.ellipse(0, Math.sin(animPhase * 2) * TILE * 0.04, TILE * 0.26, TILE * 0.18, 0, 0, TAU);
   ctx.fill();
   ctx.restore();
 }
@@ -2739,6 +2949,7 @@ function applyLightingOverlay(width, height) {
   }
 }
 
+=======
 =======
 function drawHudOverlay(width, height) {
   ctx.save();

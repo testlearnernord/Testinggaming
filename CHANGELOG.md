@@ -1,12 +1,17 @@
 # Changelog
 
+## 1.4.1 — 2025-09-19
+- Kompatibilitätspatch für GitHub Pages: Optionals (`?.`, `??`) wurden entfernt und durch klassische Guards ersetzt, damit ältere Browser nicht mehr mit `Unexpected token "==="` abbrechen.
+- Sprint-Button und Editor behalten nun fallback-sichere Pointer- und Layout-Werte bei, falls APIs fehlen – die Steuerung funktioniert dadurch auch auf konservativen Geräten.
+- Mondbohnen-, Bewässerungs- und Tag/Nacht-Logik verwenden robuste Default-Werte, sodass das Wachstum nie mehr durch `undefined`-Checks blockiert wird.
+
 ## 1.4.0 — 2025-09-19
 - Tag-Nacht-Zyklus mit Ambient-Licht, Tagesanzeige im HUD und glühenden Teich-Szenen.
 - Mondschein-Events: Glühwürmchen, schnellere Mondbohnen-Reifung und erhöhte 💩-Dropchance bei Nacht.
 - Neue Kultur "Mondbohne" inkl. Saat (3 €), Nacht-Turbo und Verkaufserlös von 11 €.
 - Touch-kompatibler Saat-Button und Desktop-Hotkey **3** zum schnellen Wechseln der Saatarten.
 
-=======
+
 ## 1.3.0 — 2025-09-18
 - Boot-Sequenz lauscht auf `DOMContentLoaded`, `load` und bereits geladene Dokumente, bevor sie initialisiert. Das verhindert schwarze Bildschirme auf GitHub Pages, auch wenn Skripte verspätet geladen werden.
 - Renderer setzt die Canvas-Transform zu Beginn jedes Frames zurück. Unerklärliche Offsets oder komplett schwarze Frames gehören damit der Vergangenheit an.
