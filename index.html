@@ -81,9 +81,6 @@
     }
 
 
-
-
-
     canvas#game {
       width: 100%;
       aspect-ratio: 16 / 9;
@@ -216,9 +213,6 @@
       background: rgba(110, 240, 196, 0.35);
       border-color: rgba(110, 240, 196, 0.65);
     }
-
-
-
 
 
     .context-buttons button:active {
@@ -375,6 +369,15 @@
     <canvas id="game" width="640" height="360" role="img" aria-label="Poopboy Spielfeld"></canvas>
     <div id="hud" aria-live="polite">
       <div class="hud__row">
+        <div class="hud__pill" id="hud-health"><img class="hud__icon" data-icon="assets/icons/heart.svg" src="assets/icons/heart.svg" alt="Herzen" width="24" height="24"/><span data-value>3</span></div>
+        <div class="hud__pill" id="hud-poop"><img class="hud__icon" data-icon="assets/icons/poop.svg" src="assets/icons/poop.svg" alt="Dünger" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-corn"><img class="hud__icon" data-icon="assets/icons/corn.svg" src="assets/icons/corn.svg" alt="Mais" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-cabbage"><img class="hud__icon" data-icon="assets/icons/cabbage.svg" src="assets/icons/cabbage.svg" alt="Kohl" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-seed"><img class="hud__icon" data-icon="assets/icons/seed.svg" src="assets/icons/seed.svg" alt="Saat" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-money"><img class="hud__icon" data-icon="assets/icons/money.svg" src="assets/icons/money.svg" alt="Geld" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-ammo"><img class="hud__icon" data-icon="assets/icons/ammo.svg" src="assets/icons/ammo.svg" alt="Munition" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-water"><img class="hud__icon" data-icon="assets/icons/water.svg" src="assets/icons/water.svg" alt="Wasser" width="24" height="24"/><span data-value>0</span></div>
+        <div class="hud__pill" id="hud-stamina"><img class="hud__icon" data-icon="assets/icons/stamina.svg" src="assets/icons/stamina.svg" alt="Ausdauer" width="24" height="24"/><span data-value>100%</span></div>
         <div class="hud__pill" id="hud-health"><img class="hud__icon" src="assets/icons/heart.svg" alt="Herzen" width="24" height="24"/><span data-value>3</span></div>
         <div class="hud__pill" id="hud-poop"><img class="hud__icon" src="assets/icons/poop.svg" alt="Dünger" width="24" height="24"/><span data-value>0</span></div>
         <div class="hud__pill" id="hud-corn"><img class="hud__icon" src="assets/icons/corn.svg" alt="Mais" width="24" height="24"/><span data-value>0</span></div>
@@ -427,8 +430,6 @@
     </div>
     <div id="toast" role="status" aria-live="assertive"></div>
   </div>
-  <script type="module" src="./data.js" defer></script>
-  <script type="module" src="./sfx.js" defer></script>
-  <script type="module" src="./main.js" defer></script>
+
 </body>
 </html>

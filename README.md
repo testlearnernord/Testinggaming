@@ -2,9 +2,6 @@
 # Poopboy v1.2.1
 
 
-
-# Poopboy v1.2.1
-
 Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und baue Mais oder Kohl an. Die Version ist für mobile und Desktop ausgelegt, nutzt Canvas 2D und speichert automatisch unter `pb_save_v7` im `localStorage`.
 
 ## Quickstart
@@ -30,9 +27,11 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 
 
 
+
 2. Assets liegen flach im Repo (`index.html`, `data.js`, `main.js`, `sfx.js`, `/assets`). Kein Build-Schritt nötig; die SFX entstehen prozedural in `sfx.js`, daher keine Binärdateien.
 3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
 4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
+
 
 
 
@@ -44,20 +43,13 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 
 - **Shift** – Sprint (verbraucht Ausdauer)
 
-
-- **Shift** – Sprint (verbraucht Ausdauer)
-
-
-- **Shift** – Sprint (verbraucht Ausdauer)
-
-- **Shift** – Sprint (verbraucht Ausdauer)
-
-
 - **Leertaste** – Kontextaktion (Shop, Pflanzen, Abliefern, Editor)
 - **1 / 2** – Saatart wählen (Mais / Kohl)
 
 ### Mobile
 - Virtueller Joystick links
+- Sprint-Button rechts oder Joystick bis zum Rand halten
+=======
 
 - Sprint-Button rechts oder Joystick bis zum Rand halten
 
@@ -98,6 +90,8 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - `ECON` (Verkaufspreise)
 - `STONE` (Tragespeed, Munitionsertrag)
 - `SPAWN` für Stein-/Dirt-Spawns
+- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
+
 
 - `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
 
@@ -128,23 +122,7 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 
 - Alle Pfade sind relativ (`./assets/...`) und funktionieren unter GitHub Pages (`/` oder `/<repo>/`).
 - Nach Commit einfach pushen, Pages baut automatisch.
-
 - Optional Tag setzen (`git tag v1.2.1`).
-
-
-
-- Optional Tag setzen (`git tag v1.2.1`).
-
-
-- Optional Tag setzen (`git tag v1.2.0`).
-
-
-- Optional Tag setzen (`git tag v1.2.0`).
-
-- Optional Tag setzen (`git tag v1.1.0`).
-
-
-
 
 
 ## Troubleshooting

@@ -176,6 +176,12 @@ export class SFX {
       return null;
     }
 
+=======
+
+    if (!buffer || typeof buffer.getChannelData !== "function") {
+      return null;
+    }
+
     this.buffers.set(id, buffer);
     return buffer;
   }
@@ -227,6 +233,341 @@ export class SFX {
     if (fadeMs > 0) {
       gain.gain.setValueAtTime(0, now);
       gain.gain.linearRampToValueAtTime(volume, now + fadeMs / 1000);
+    } else {
+      gain.gain.setValueAtTime(volume, now);
+    }
+
+    const handle = { source, gain };
+    source.onended = () => {
+      this.loops.delete(id);
+    };
+    this.loops.set(id, handle);
+    return handle;
+  }
+
+  stopLoop(id, { fadeMs = 600 } = {}) {
+    const handle = this.loops.get(id);
+    if (!handle || !this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    handle.gain.gain.cancelScheduledValues(now);
+    if (fadeMs > 0) {
+      handle.gain.gain.setValueAtTime(handle.gain.gain.value, now);
+      handle.gain.gain.linearRampToValueAtTime(0, now + fadeMs / 1000);
+      handle.source.stop(now + fadeMs / 1000 + 0.05);
+    } else {
+      handle.source.stop();
+    }
+
+    this.loops.delete(id);
+  }
+}
+
+const audioManifest = {
+  pickup: { create: ctx => createPickupBuffer(ctx) },
+  plant: { create: ctx => createPlantBuffer(ctx) },
+  sell: { create: ctx => createSellBuffer(ctx) },
+  water: { create: ctx => createWaterBuffer(ctx) },
+  ui: { create: ctx => createUiBuffer(ctx) },
+  footstepSoft: { create: ctx => createFootstepBuffer(ctx, { seed: 31, hardness: 0.25, energy: 0.9, crunch: 0.1, duration: 0.32 }) },
+  footstepGrass: { create: ctx => createFootstepBuffer(ctx, { seed: 59, hardness: 0.45, energy: 1, crunch: 0.35, duration: 0.28 }) },
+  footstepSprint: { create: ctx => createFootstepBuffer(ctx, { seed: 73, hardness: 0.6, energy: 1.2, crunch: 0.2, duration: 0.22 }) },
+  musicFarm: { create: ctx => createMusicBuffer(ctx) },
+};
+
+export const globalSfx = new SFX(audioManifest);
+
+export function primeAudioUnlock() {
+  const events = ["pointerdown", "touchstart", "keydown"];
+  let musicStarted = false;
+  const handler = async () => {
+    await globalSfx.unlock();
+    if (!musicStarted) {
+      musicStarted = true;
+      globalSfx.startLoop("musicFarm", { volume: 0.32, fadeMs: 1200 });
+    }
+    for (const type of events) {
+      window.removeEventListener(type, handler, true);
+    }
+  };
+  for (const type of events) {
+    window.addEventListener(type, handler, { passive: true, capture: true });
+  }
+}
+
+function createPickupBuffer(ctx) {
+  const duration = 0.24;
+  return renderLayers(
+    ctx,
+    duration,
+    [
+      (t) => {
+        const env = adsr(t, duration, 0.005, 0.06, 0.6, 0.1);
+        const freq = glide(820, 1380, t, duration, 0.75);
+        return env * Math.sin(2 * Math.PI * freq * t);
+      },
+      (t) => {
+        const env = adsr(t, duration, 0.01, 0.08, 0.45, 0.1);
+        const freq = glide(1240, 1860, t, duration, 1.25);
+        return 0.42 * env * Math.sin(2 * Math.PI * freq * t + 0.6);
+      },
+    ],
+    { fadeOut: 0.05, normalize: 0.9 }
+  );
+}
+
+function createPlantBuffer(ctx) {
+  const duration = 0.34;
+  return renderLayers(
+    ctx,
+    duration,
+    [
+      (t) => {
+        const env = adsr(t, duration, 0.012, 0.08, 0.55, 0.14);
+        const freq = glide(220, 160, t, duration, 0.8);
+        return 0.6 * env * Math.sin(2 * Math.PI * freq * t);
+      },
+      createNoiseLayer({
+        seed: 521,
+        smoothing: 0.38,
+        scale: 0.42,
+        envelope: (time) => adsr(time, duration, 0.01, 0.1, 0.4, 0.12),
+      }),
+    ],
+    { fadeOut: 0.08, normalize: 0.88 }
+  );
+}
+
+function createSellBuffer(ctx) {
+  const duration = 0.4;
+  return renderLayers(
+    ctx,
+    duration,
+    [
+      (t) => {
+        const env = adsr(t, duration, 0.008, 0.08, 0.55, 0.12);
+        const freq = glide(480, 720, t, duration, 0.9);
+        return env * Math.sin(2 * Math.PI * freq * t);
+      },
+      (t) => {
+        const env = adsr(t, duration, 0.012, 0.12, 0.5, 0.14);
+        const freq = glide(720, 990, t, duration, 1.1);
+        return 0.55 * env * Math.sin(2 * Math.PI * freq * t + 1.2);
+      },
+      (t) => {
+        const env = adsr(t, duration, 0.02, 0.16, 0.4, 0.1);
+        const freq = glide(960, 1320, t, duration, 1.4);
+        return 0.22 * env * Math.sin(2 * Math.PI * freq * t * 1.5 + 0.3);
+      },
+    ],
+    { fadeOut: 0.08, normalize: 0.85 }
+  );
+}
+
+function createWaterBuffer(ctx) {
+  const duration = 0.68;
+  return renderLayers(
+    ctx,
+    duration,
+    [
+      createNoiseLayer({
+        seed: 811,
+        smoothing: 0.55,
+        scale: 0.6,
+        envelope: (t) => adsr(t, duration, 0.02, 0.18, 0.5, 0.22),
+      }),
+      createNoiseLayer({
+        seed: 833,
+        smoothing: 0.12,
+        scale: 0.28,
+        envelope: (t) => adsr(t, duration, 0.01, 0.14, 0.4, 0.22),
+      }),
+      (t) => {
+        const env = adsr(t, duration, 0.04, 0.18, 0.35, 0.24);
+        const freq = glide(140, 120, t, duration, 1);
+        return 0.3 * env * Math.sin(2 * Math.PI * freq * t + 1.6);
+      },
+    ],
+    { fadeOut: 0.14, normalize: 0.82 }
+  );
+}
+
+function createUiBuffer(ctx) {
+  const duration = 0.18;
+  return renderLayers(
+    ctx,
+    duration,
+    [
+      (t) => {
+        const env = adsr(t, duration, 0.004, 0.05, 0.5, 0.06);
+        const freq = glide(880, 1240, t, duration, 0.9);
+        return env * Math.sin(2 * Math.PI * freq * t);
+      },
+      (t) => {
+        const env = adsr(t, duration, 0.008, 0.05, 0.45, 0.07);
+        const freq = glide(1320, 1760, t, duration, 1.2);
+        return 0.35 * env * Math.sin(2 * Math.PI * freq * t + 0.4);
+      },
+    ],
+    { fadeOut: 0.04, normalize: 0.88 }
+  );
+}
+
+function createFootstepBuffer(ctx, { duration = 0.3, seed = 1, hardness = 0.4, energy = 1, crunch = 0.2 } = {}) {
+  const baseFreq = 65 + hardness * 45;
+  const bodyEnv = (t) => adsr(t, duration, 0.004, 0.05, 0.55, 0.08);
+  const noiseEnv = (t) => adsr(t, duration, 0.002, 0.05, 0.4 + hardness * 0.2, 0.12);
+  const crunchEnv = (t) => adsr(t, duration, 0.001, 0.03, 0.3, 0.06);
+
+  const layers = [
+    (t) => energy * 0.7 * bodyEnv(t) * Math.sin(2 * Math.PI * baseFreq * t),
+    (t) => energy * 0.45 * bodyEnv(t) * Math.sin(2 * Math.PI * baseFreq * 2.1 * t + 0.5),
+    createNoiseLayer({
+      seed: 900 + seed,
+      smoothing: 0.18 + hardness * 0.12,
+      scale: energy * (0.32 + hardness * 0.24),
+      envelope: noiseEnv,
+    }),
+  ];
+
+  if (crunch > 0) {
+    layers.push(
+      createNoiseLayer({
+        seed: 1400 + seed,
+        smoothing: 0.05,
+        scale: energy * crunch * 0.38,
+        envelope: crunchEnv,
+      })
+    );
+  }
+
+  return renderLayers(ctx, duration, layers, { fadeOut: 0.06, normalize: 0.92 });
+}
+
+function createMusicBuffer(ctx) {
+  const sampleRate = ctx.sampleRate;
+  const bpm = 82;
+  const beats = 16;
+  const secondsPerBeat = 60 / bpm;
+  const duration = beats * secondsPerBeat;
+  const length = Math.max(1, Math.floor(duration * sampleRate));
+  const buffer = ctx.createBuffer(1, length, sampleRate);
+  const channel = buffer.getChannelData(0);
+
+  const chords = [
+    { notes: [261.63, 329.63, 392], bass: 65.41 },
+    { notes: [293.66, 349.23, 440], bass: 73.42 },
+    { notes: [329.63, 392.0, 493.88], bass: 82.41 },
+    { notes: [246.94, 392.0, 523.25], bass: 98.0 },
+  ];
+  const leadPattern = [0, 2, 4, 7, 4, 2, 0, -3];
+  const noise = makeNoise(4242);
+  let hatState = 0;
+
+  for (let i = 0; i < length; i++) {
+    const t = i / sampleRate;
+    const beat = t / secondsPerBeat;
+    const chordIndex = Math.floor(beat / 4) % chords.length;
+    const chord = chords[chordIndex];
+    const chordProgress = (beat % 4) / 4;
+    const chordEnv = Math.sin(Math.PI * chordProgress) ** 2;
+
+    let pad = 0;
+    for (const freq of chord.notes) {
+      pad += Math.sin(2 * Math.PI * freq * t);
+      pad += 0.45 * Math.sin(2 * Math.PI * freq * 2 * t + 0.3);
+    }
+    channel[i] += 0.18 * chordEnv * (pad / chord.notes.length);
+
+    const bassEnv = Math.sin(Math.PI * Math.min(1, chordProgress * 1.1)) ** 2;
+    channel[i] += 0.22 * bassEnv * Math.sin(2 * Math.PI * chord.bass * t + 0.15 * chordIndex);
+
+    const quarter = Math.floor(beat);
+    const quarterPos = beat - quarter;
+    if (quarterPos < 0.45) {
+      const freq = chord.notes[quarter % chord.notes.length] * 2;
+      const pluckEnv = Math.sin(Math.PI * (quarterPos / 0.45)) ** 2;
+      channel[i] += 0.12 * pluckEnv * Math.sin(2 * Math.PI * freq * t + 1.3);
+    }
+
+    const step = Math.floor(beat * 2);
+    const stepPos = beat * 2 - step;
+    const leadEnv = Math.sin(Math.PI * Math.min(1, stepPos)) ** 2;
+    const noteOffset = leadPattern[step % leadPattern.length];
+    const leadFreq = chord.notes[0] * Math.pow(2, noteOffset / 12);
+    channel[i] += 0.08 * leadEnv * Math.sin(2 * Math.PI * leadFreq * t + 0.4 * chordIndex);
+
+    const hatPhase = beat * 4 - Math.floor(beat * 4);
+    let hatEnv = 0;
+    if (hatPhase < 0.08) {
+      hatEnv = Math.exp(-hatPhase * 34);
+    }
+    hatState = hatState * 0.5 + noise() * 0.5;
+    channel[i] += 0.03 * hatEnv * hatState;
+  }
+
+  finalizeChannel(channel, sampleRate, {
+    normalize: 0.55,
+    loop: true,
+    crossFade: 0.1,
+    fadeIn: 0.02,
+    fadeOut: 0,
+  });
+
+  return buffer;
+}
+
+function renderLayers(ctx, duration, layers, options = {}) {
+  const sampleRate = ctx.sampleRate;
+  const length = Math.max(1, Math.floor(duration * sampleRate));
+  const buffer = ctx.createBuffer(1, length, sampleRate);
+  const channel = buffer.getChannelData(0);
+
+  for (let i = 0; i < length; i++) {
+    const t = i / sampleRate;
+    let sample = 0;
+    for (const layer of layers) {
+      sample += layer(t, i, sampleRate) || 0;
+    }
+    channel[i] = sample;
+  }
+
+  finalizeChannel(channel, sampleRate, options);
+  return buffer;
+}
+
+function finalizeChannel(channel, sampleRate, options = {}) {
+  const {
+    fadeIn = 0.002,
+    fadeOut = 0.02,
+    normalize = 0.9,
+    loop = false,
+    crossFade = 0,
+    dcBlock = true,
+  } = options;
+
+  if (loop && crossFade > 0) {
+    applyLoopCrossfade(channel, sampleRate, crossFade);
+  }
+
+  if (fadeIn > 0) {
+    applyFade(channel, sampleRate, fadeIn, true);
+  }
+  if (!loop && fadeOut > 0) {
+    applyFade(channel, sampleRate, fadeOut, false);
+  }
+
+  if (dcBlock) {
+    let sum = 0;
+    for (let i = 0; i < channel.length; i++) {
+      sum += channel[i];
+    }
+    const mean = sum / channel.length;
+    if (Math.abs(mean) > 1e-7) {
+      for (let i = 0; i < channel.length; i++) {
+        channel[i] -= mean;
+      }
+=======
     } else {
       gain.gain.setValueAtTime(volume, now);
     }
@@ -475,7 +816,28 @@ export class SFX {
     } else {
       gain.gain.setValueAtTime(volume, now);
     }
+  }
 
+  if (normalize > 0) {
+    let peak = 0;
+    for (let i = 0; i < channel.length; i++) {
+      const value = Math.abs(channel[i]);
+      if (value > peak) peak = value;
+    }
+    if (peak > 0) {
+      const target = normalize;
+      const maxScale = 4;
+      const scale = Math.max(Math.min(target / peak, maxScale), target < peak ? target / peak : 1 / maxScale);
+      if (Math.abs(scale - 1) > 1e-3) {
+        for (let i = 0; i < channel.length; i++) {
+          channel[i] *= scale;
+        }
+      }
+    }
+  }
+}
+
+=======
     const handle = { source, gain };
     source.onended = () => {
       this.loops.delete(id);

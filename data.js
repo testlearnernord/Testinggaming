@@ -1,3 +1,4 @@
+export const APP_VERSION = "v1.2.1";
 
 export const APP_VERSION = "v1.2.1";
 
@@ -24,6 +25,7 @@ export const WORLD = {
   width: 40,
   height: 40,
   walkSpeed: 2.8,
+=======
 
   sprintMultiplier: 1.35,
   shoesSpeedBonus: 0.12,
@@ -134,7 +136,6 @@ export const NPCS = [
       accent: "#f8d57a",
       eyes: "#2a221f",
     },
-=======
 
   },
   {
@@ -151,7 +152,6 @@ export const NPCS = [
       accent: "#68d4f5",
       eyes: "#221b28",
     },
-=======
   },
   {
     id: "stefan",
@@ -231,6 +231,66 @@ export const PLANTS = {
     sellPrice: 7,
   },
 };
+
+export const ECON = {
+  cornSell: 1,
+  cabbageSell: 7,
+};
+
+export const CAN_MAX = 13;
+
+export const SPAWN = {
+  boulderInit: 24,
+  dirtInit: 40,
+  boulderCap: 60,
+  boulderIntervalMs: [12000, 20000],
+};
+
+export const STONE = {
+  carrySlow: 0.72,
+  cartBonus: 1.1,
+  crusherYield: 8,
+};
+
+export const FLAGS = {
+  dayNightEnabled: false,
+  monstersEnabled: false,
+};
+
+export const CONTROLS = {
+  keyboard: {
+    up: ["w", "arrowup"],
+    down: ["s", "arrowdown"],
+    left: ["a", "arrowleft"],
+    right: ["d", "arrowright"],
+    action: [" ", "space"],
+    sprint: ["shift"],
+    editor: ["e"],
+  },
+  touchDeadZone: 0.18,
+};
+
+export const STORAGE_DEFAULTS = {
+  money: 0,
+  poop: 0,
+  ammo: 0,
+  corn: 0,
+  cabbage: 0,
+  cabbageSeed: 0,
+  yardDelivered: 0,
+  yardPending: 0,
+  upgrades: {
+    watering: false,
+    shoes: false,
+    crusher: false,
+    cart: false,
+  },
+  watering: {
+    charges: WORLD.baseWater,
+  },
+};
+
+=======
 
 export const ECON = {
   cornSell: 1,
@@ -418,6 +478,17 @@ export function resolveAsset(path) {
   }
   const base = APP_BASE_PATH.endsWith("/") ? APP_BASE_PATH : `${APP_BASE_PATH}/`;
   return `${base}${clean}`;
+}
+
+export function isWalkableSymbol(symbol) {
+  return symbol === "." || symbol === "p" || symbol === "f" || symbol === "c" || symbol === "y" || symbol === "q" || symbol === "d" || symbol === "b" || symbol === "s" || symbol === "t";
+}
+
+export function isBlockingSymbol(symbol) {
+  return !isWalkableSymbol(symbol);
+}
+
+=======
 
 }
 
