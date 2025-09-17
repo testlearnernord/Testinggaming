@@ -1,7 +1,9 @@
 
 export const APP_VERSION = "v1.2.0";
-=======
+
+export const APP_VERSION = "v1.2.0";
 export const APP_VERSION = "v1.1.0";
+
 
 export const APP_BASE_PATH = "/";
 export const SAVE_KEY = "pb_save_v7";
@@ -25,7 +27,6 @@ export const WORLD = {
   runAnimRate: 11,
   walkStepInterval: 0.42,
   runStepInterval: 0.28,
-=======
   sprintBonus: 0.35,
   staminaDrain: 0.22,
   staminaRecovery: 0.35,
@@ -217,33 +218,8 @@ export const PLANTS = {
     poopCost: 0,
     seedCost: 1,
     sellPrice: 7,
-
   },
 };
-
-export const PLANTS = {
-  corn: {
-    id: "corn",
-    label: "Mais",
-    growMs: 40000,
-    chance: 0.6,
-    minMs: 10000,
-    waterBonusMs: 30000,
-    poopCost: 1,
-    sellPrice: 1,
-  },
-  cabbage: {
-    id: "cabbage",
-    label: "Kohl",
-    growMs: 120000,
-    wateredTotalMs: 40000,
-    poopCost: 0,
-    seedCost: 1,
-    sellPrice: 7,
-  },
-};
-
-=======
 
 export const ECON = {
   cornSell: 1,
@@ -319,6 +295,111 @@ export function isWalkableSymbol(symbol) {
 export function isBlockingSymbol(symbol) {
   return !isWalkableSymbol(symbol);
 }
+
+
+
+  },
+};
+
+export const PLANTS = {
+  corn: {
+    id: "corn",
+    label: "Mais",
+    growMs: 40000,
+    chance: 0.6,
+    minMs: 10000,
+    waterBonusMs: 30000,
+    poopCost: 1,
+    sellPrice: 1,
+  },
+  cabbage: {
+    id: "cabbage",
+    label: "Kohl",
+    growMs: 120000,
+    wateredTotalMs: 40000,
+    poopCost: 0,
+    seedCost: 1,
+    sellPrice: 7,
+  },
+};
+
+
+
+export const ECON = {
+  cornSell: 1,
+  cabbageSell: 7,
+};
+
+export const CAN_MAX = 13;
+
+export const SPAWN = {
+  boulderInit: 24,
+  dirtInit: 40,
+  boulderCap: 60,
+  boulderIntervalMs: [12000, 20000],
+};
+
+export const STONE = {
+  carrySlow: 0.72,
+  cartBonus: 1.1,
+  crusherYield: 8,
+};
+
+export const FLAGS = {
+  dayNightEnabled: false,
+  monstersEnabled: false,
+};
+
+export const CONTROLS = {
+  keyboard: {
+    up: ["w", "arrowup"],
+    down: ["s", "arrowdown"],
+    left: ["a", "arrowleft"],
+    right: ["d", "arrowright"],
+    action: [" ", "space"],
+    sprint: ["shift"],
+    editor: ["e"],
+  },
+  touchDeadZone: 0.18,
+};
+
+export const STORAGE_DEFAULTS = {
+  money: 0,
+  poop: 0,
+  ammo: 0,
+  corn: 0,
+  cabbage: 0,
+  cabbageSeed: 0,
+  yardDelivered: 0,
+  yardPending: 0,
+  upgrades: {
+    watering: false,
+    shoes: false,
+    crusher: false,
+    cart: false,
+  },
+  watering: {
+    charges: WORLD.baseWater,
+  },
+};
+
+export function resolveAsset(path) {
+  const clean = path.replace(/^\//, "");
+  if (APP_BASE_PATH === "/" || APP_BASE_PATH === "./") {
+    return `./${clean}`;
+  }
+  const base = APP_BASE_PATH.endsWith("/") ? APP_BASE_PATH : `${APP_BASE_PATH}/`;
+  return `${base}${clean}`;
+}
+
+export function isWalkableSymbol(symbol) {
+  return symbol === "." || symbol === "p" || symbol === "f" || symbol === "c" || symbol === "y" || symbol === "q" || symbol === "d" || symbol === "b" || symbol === "s" || symbol === "t";
+}
+
+export function isBlockingSymbol(symbol) {
+  return !isWalkableSymbol(symbol);
+}
+
 
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));

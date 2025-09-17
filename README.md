@@ -1,9 +1,4 @@
 
-# Poopboy v1.2.0
-=======
-
-
-
 Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und baue Mais oder Kohl an. Die Version ist für mobile und Desktop ausgelegt, nutzt Canvas 2D und speichert automatisch unter `pb_save_v7` im `localStorage`.
 
 ## Quickstart
@@ -20,10 +15,11 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 - NPCs mit individuellen Farbpaletten und Häusern, inkl. Bannern und Emblemen zur besseren Orientierung.
 - Sprint- und Ausdauersystem mit prozedural generierten Schrittgeräuschen sowie entspannter Farm-Hintergrundmusik.
 - Desktop-Keyboardspiel startet automatisch im Vollbild, Mobile erhält einen eigenen Sprint-Button.
-=======
+
 2. Assets liegen flach im Repo (`index.html`, `data.js`, `main.js`, `sfx.js`, `/assets`). Kein Build-Schritt nötig; die SFX entstehen prozedural in `sfx.js`, daher keine Binärdateien.
 3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
 4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
+
 
 
 ## Steuerung
@@ -32,7 +28,8 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 - **WASD / Pfeile** – Bewegung
 
 - **Shift** – Sprint (verbraucht Ausdauer)
-=======
+
+- **Shift** – Sprint (verbraucht Ausdauer)
 
 - **Leertaste** – Kontextaktion (Shop, Pflanzen, Abliefern, Editor)
 - **1 / 2** – Saatart wählen (Mais / Kohl)
@@ -42,6 +39,10 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 
 - Sprint-Button rechts oder Joystick bis zum Rand halten
 =======
+
+- Sprint-Button rechts oder Joystick bis zum Rand halten
+=======
+
 
 - Kontextbutton rechts
 - Restart-Button setzt den Speicherstand zurück
@@ -69,8 +70,12 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - `SPAWN` für Stein-/Dirt-Spawns
 
 - `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
-=======
+
+
+- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
+
 - `WORLD` für Basisgeschwindigkeit, Wasser-Kapazität etc.
+
 
 
 ## Savegame
@@ -86,7 +91,11 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 
 - Optional Tag setzen (`git tag v1.2.0`).
 =======
+
+- Optional Tag setzen (`git tag v1.2.0`).
+=======
 - Optional Tag setzen (`git tag v1.1.0`).
+
 
 
 ## Troubleshooting
@@ -107,12 +116,16 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 
 - Start ohne Konsolenfehler (Desktop & Mobile)
 
+
+
+
 - HUD zeigt Version `v1.2.0` im Overlay an
 - Sprint verbraucht Ausdauer und regeneriert beim Stehen
 - Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
 - NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig
-=======
+
 - HUD zeigt Version `v1.1.0` unten links
+
 
 - Steinabgabe liefert 💩 wie erwartet
 - Pflanzen wachsen und lassen sich gießen/ernten
