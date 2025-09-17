@@ -5,27 +5,20 @@ Top-down Farm-Arcade für GitHub Pages. Sammle Felsen, wandle sie in 💩 um und
 ## Quickstart
 
 1. Repository auf den GitHub Pages Branch (`work`) klonen.
-n
 2. Assets liegen flach im Repo (`index.html`, `data.js`, `main.js`, `sfx.js`, `/assets`). Kein Build-Schritt nötig; Audio wird beim Unlock prozedural in `sfx.js` erzeugt (keine Binärdateien).
 3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
 4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
 
 ## Neu in v1.3.0
 
-- Sicherer Start: Der Bootstraper triggert jetzt auch bei bereits geladenem DOM und setzt den Canvas-Transform pro Frame zurück – dadurch verschwinden auch sporadische Blackscreens ohne Konsolenfehler.
-- Performance: Renderer cullt Tiles, Steine, Dirt und NPCs außerhalb des Viewports und reduziert damit Fillrate und Batterieverbrauch auf schwächeren Geräten.
-- Wartbarkeit: Schutzflächen (Feld, Yard, Teich) werden zentral geprüft, damit Spawn-/Platzierungslogik keine doppelten Sonderfälle mehr braucht und Tests leichter fallen.
-
-## Highlights v1.2.1
-
-- Start-Fix: DOM-Referenzen werden erst beim `load`-Event aufgebaut, damit Chrome auf GitHub Pages nicht mehr mit Null-Elementen abstürzt und einen schwarzen Bildschirm zeigt.
-
-=======
+- Robuster Start: Die Boot-Sequenz lauscht auf `DOMContentLoaded`, `load` und bereits geladene Dokumente, bevor sie initiiert. So startet die App zuverlässig auf GitHub Pages, auch wenn das Skript nachträglich geladen wird.
+- Stabile Darstellung: Der Renderer setzt die Canvas-Transform nun pro Frame zurück. Zufällige schwarze Frames oder schleichende Offsets verschwinden.
+- Performance: Tiles, NPCs, Steine und Dirt werden nur noch gezeichnet, wenn sie im sichtbaren Bereich der Kamera liegen. Das reduziert die Fillrate spürbar – gerade auf Mobilgeräten.
+- Gemeinsame Helfer: Feld-, Hof- und Teich-Schutzflächen werden zentral geprüft. Spawn-, Platzierungs- und Interaktionslogik teilen sich denselben Code und bleiben wartbar.
 
 ## Neu in v1.2.1
 
 - Start-Fix: DOM-Referenzen werden erst beim `load`-Event aufgebaut, damit Chrome auf GitHub Pages nicht mehr mit Null-Elementen abstürzt und einen schwarzen Bildschirm zeigt.
-
 
 ## Highlights v1.2.0
 
@@ -33,25 +26,12 @@ n
 - NPCs mit individuellen Farbpaletten und Häusern, inkl. Bannern und Emblemen zur besseren Orientierung.
 - Sprint- und Ausdauersystem mit prozedural generierten Schrittgeräuschen sowie entspannter Farm-Hintergrundmusik.
 - Desktop-Keyboardspiel startet automatisch im Vollbild, Mobile erhält einen eigenen Sprint-Button.
-=======
-
-
-
-
-2. Assets liegen flach im Repo (`index.html`, `data.js`, `main.js`, `sfx.js`, `/assets`). Kein Build-Schritt nötig; die SFX entstehen prozedural in `sfx.js`, daher keine Binärdateien.
-3. Lokalen HTTP-Server starten (`python -m http.server` o. ä.).
-4. App im Browser öffnen. Beim ersten Tap/Klick wird Audio freigeschaltet.
-
-
-
-
 
 ## Steuerung
 
 ### Desktop
 - **WASD / Pfeile** – Bewegung
 - **Shift** – Sprint (verbraucht Ausdauer)
-
 - **Leertaste** – Kontextaktion (Shop, Pflanzen, Abliefern, Editor)
 - **1 / 2** – Saatart wählen (Mais / Kohl)
 
@@ -82,7 +62,7 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - `ECON` (Verkaufspreise)
 - `STONE` (Tragespeed, Munitionsertrag)
 - `SPAWN` für Stein-/Dirt-Spawns
-- `WORLD` für Basisgeschwindigkeit, Wasser-Kapazität etc.
+- `WORLD` für Basisgeschwindigkeit, Wasser-/Ausdauer-Kapazität und Sprint-Tuning
 
 ## Savegame
 
@@ -94,15 +74,13 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 
 - Alle Pfade sind relativ (`./assets/...`) und funktionieren unter GitHub Pages (`/` oder `/<repo>/`).
 - Nach Commit einfach pushen, Pages baut automatisch.
-- Optional Tag setzen (`git tag v1.3.0`).
-
+- Optional Tag setzen (`git tag v1.2.1`).
 
 ## Troubleshooting
 
 **Schwarzer Bildschirm:**
-- Scripts laden jetzt strikt in Reihenfolge (`data.js → sfx.js → main.js`).
-- Initialisierung läuft in `try/catch`; Fehlermeldung erscheint als Toast.
-- Bei hartnäckigen Problemen Hard-Reload (Ctrl/Cmd + Shift + R).
+- Die Initialisierung wartet auf `DOMContentLoaded` *und* `load`. Sollte dennoch etwas hängen bleiben, erscheint eine Toast-Fehlermeldung.
+- Bei hartnäckigen Problemen hilft weiterhin ein Hard-Reload (Ctrl/Cmd + Shift + R).
 
 **Kein Sound:**
 - Der erste User-Input schaltet Audio via `primeAudioUnlock()` frei. Bei blockierenden Browsern einmal tippen/klicken.
@@ -118,27 +96,6 @@ Alle Balancing-Werte liegen zentral in [`data.js`](data.js):
 - Sprint verbraucht Ausdauer und regeneriert beim Stehen
 - Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
 - NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig
-
-- HUD zeigt Version `v1.2.1` im Overlay an
-- Sprint verbraucht Ausdauer und regeneriert beim Stehen
-- Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
-- NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig
-
-
-
-
-
-
-- HUD zeigt Version `v1.2.0` im Overlay an
-- Sprint verbraucht Ausdauer und regeneriert beim Stehen
-- Fußschritte klingen je nach Untergrund, Musik startet nach erstem Input
-- NPC-Gesichter folgen der Spielerposition, Häuser wirken visuell eindeutig
-
-- HUD zeigt Version `v1.1.0` unten links
-
-
-
-
 - Steinabgabe liefert 💩 wie erwartet
 - Pflanzen wachsen und lassen sich gießen/ernten
 - Upgrades wirken direkt nach Kauf
