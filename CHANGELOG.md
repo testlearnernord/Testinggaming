@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2 — 2025-09-20
+- Module-freier Build: `data.js`, `sfx.js` und `main.js` registrieren sich nun am `window`, wodurch klassische Skripttags ohne `type="module"` ausreichen und ältere Browser kein `Unexpected token "==="` mehr melden.
+- Fallback-Audio: Falls `sfx.js` fehlt oder WebAudio blockiert, sorgen Stub-Methoden für stumme, aber fehlerfreie Aufrufe.
+- Version auf v1.4.2 angehoben und Skriptreihenfolge via `defer` fixiert, damit GitHub Pages deterministisch bootet.
+
+=======
 ## 1.4.1 — 2025-09-19
 - Kompatibilitätspatch für GitHub Pages: Optionals (`?.`, `??`) wurden entfernt und durch klassische Guards ersetzt, damit ältere Browser nicht mehr mit `Unexpected token "==="` abbrechen.
 - Sprint-Button und Editor behalten nun fallback-sichere Pointer- und Layout-Werte bei, falls APIs fehlen – die Steuerung funktioniert dadurch auch auf konservativen Geräten.

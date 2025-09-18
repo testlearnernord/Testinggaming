@@ -1,3 +1,11 @@
+;(function () {
+const APP_VERSION = "v1.4.2";
+const APP_BASE_PATH = "/";
+const SAVE_KEY = "pb_save_v8";
+const GAME_VERSION = 8;
+
+const DEBUG = false;
+=======
 export const APP_VERSION = "v1.4.1";
 =======
 export const APP_VERSION = "v1.4.0";
@@ -5,9 +13,7 @@ export const APP_BASE_PATH = "/";
 export const SAVE_KEY = "pb_save_v8";
 export const GAME_VERSION = 8;
 
-export const DEBUG = false;
-
-export const WORLD = {
+const WORLD = {
   tileSize: 32,
   width: 40,
   height: 40,
@@ -33,7 +39,7 @@ export const WORLD = {
   duskDuration: 0.12,
 };
 
-export const MAPDATA = {
+const MAPDATA = {
   legend: {
     ".": "grass",
     "p": "path",
@@ -101,7 +107,7 @@ export const MAPDATA = {
   cameraBounds: { x: 2, y: 2, w: 36, h: 36 },
 };
 
-export const NPCS = [
+const NPCS = [
   {
     id: "fred",
     name: "Fecalfred",
@@ -149,7 +155,7 @@ export const NPCS = [
   },
 ];
 
-export const HOUSES = [
+const HOUSES = [
   {
     id: "fred",
     area: { x: 4, y: 2, w: 3, h: 5 },
@@ -188,7 +194,7 @@ export const HOUSES = [
   },
 ];
 
-export const PLANTS = {
+const PLANTS = {
   corn: {
     id: "corn",
     label: "Mais",
@@ -218,6 +224,71 @@ export const PLANTS = {
     seedCost: 3,
     sellPrice: 11,
   },
+};
+
+const ECON = {
+  cornSell: 1,
+  cabbageSell: 7,
+  moonflowerSell: 11,
+};
+
+const CAN_MAX = 13;
+
+const SPAWN = {
+  boulderInit: 24,
+  dirtInit: 40,
+  boulderCap: 60,
+  boulderIntervalMs: [12000, 20000],
+};
+
+const STONE = {
+  carrySlow: 0.72,
+  cartBonus: 1.1,
+  crusherYield: 8,
+};
+
+const FLAGS = {
+  dayNightEnabled: true,
+  monstersEnabled: false,
+};
+
+const CONTROLS = {
+  keyboard: {
+    up: ["w", "arrowup"],
+    down: ["s", "arrowdown"],
+    left: ["a", "arrowleft"],
+    right: ["d", "arrowright"],
+    action: [" ", "space"],
+    sprint: ["shift"],
+    editor: ["e"],
+  },
+  touchDeadZone: 0.18,
+};
+
+const STORAGE_DEFAULTS = {
+  money: 0,
+  poop: 0,
+  ammo: 0,
+  corn: 0,
+  cabbage: 0,
+  cabbageSeed: 0,
+  moonflower: 0,
+  moonflowerSeed: 0,
+  yardDelivered: 0,
+  yardPending: 0,
+  upgrades: {
+    watering: false,
+    shoes: false,
+    crusher: false,
+    cart: false,
+  },
+  watering: {
+    charges: WORLD.baseWater,
+  },
+};
+
+function resolveAsset(path) {
+=======
 =======
 =======
 };
@@ -299,14 +370,59 @@ export function resolveAsset(path) {
   return `${base}${clean}`;
 }
 
+function isWalkableSymbol(symbol) {
+  return symbol === "." || symbol === "p" || symbol === "f" || symbol === "c" || symbol === "y" || symbol === "q" || symbol === "d" || symbol === "b" || symbol === "s" || symbol === "t";
+}
+
+function isBlockingSymbol(symbol) {
+  return !isWalkableSymbol(symbol);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+=======
 export function isWalkableSymbol(symbol) {
   return symbol === "." || symbol === "p" || symbol === "f" || symbol === "c" || symbol === "y" || symbol === "q" || symbol === "d" || symbol === "b" || symbol === "s" || symbol === "t";
 }
 
-export function isBlockingSymbol(symbol) {
-  return !isWalkableSymbol(symbol);
+const rootScope =
+  (typeof window !== "undefined" && window) ||
+  (typeof self !== "undefined" && self) ||
+  (typeof globalThis !== "undefined" && globalThis) ||
+  Function("return this")();
+
+const dataExports = {
+  APP_VERSION,
+  APP_BASE_PATH,
+  SAVE_KEY,
+  GAME_VERSION,
+  DEBUG,
+  WORLD,
+  MAPDATA,
+  NPCS,
+  HOUSES,
+  PLANTS,
+  ECON,
+  CAN_MAX,
+  SPAWN,
+  STONE,
+  FLAGS,
+  CONTROLS,
+  STORAGE_DEFAULTS,
+  resolveAsset,
+  isWalkableSymbol,
+  isBlockingSymbol,
+  clamp,
+};
+
+if (rootScope && typeof rootScope === "object") {
+  rootScope.PoopboyData = dataExports;
 }
 
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = dataExports;
+=======
 export function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
+})();

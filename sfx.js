@@ -1,6 +1,7 @@
+;(function () {
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 
-export class SFX {
+class SFX {
   constructor(manifest = {}) {
     this.manifest = manifest;
     this.ctx = null;
@@ -59,6 +60,7 @@ export class SFX {
     } else if (spec && typeof spec.create === "function") {
       generator = spec.create;
     }
+=======
 =======
     const generator = typeof spec === "function" ? spec : spec?.create;
     if (typeof generator !== "function") {
@@ -173,9 +175,9 @@ const audioManifest = {
   musicFarm: { create: ctx => createMusicBuffer(ctx) },
 };
 
-export const globalSfx = new SFX(audioManifest);
+const globalSfx = new SFX(audioManifest);
 
-export function primeAudioUnlock() {
+function primeAudioUnlock() {
   const events = ["pointerdown", "touchstart", "keydown"];
   let musicStarted = false;
   const handler = async () => {
@@ -569,4 +571,27 @@ function createNoiseLayer({ seed = 1, smoothing = 0.2, scale = 0.4, envelope = (
     value += smoothing * (random() - value);
     return envelope(t, i, sampleRate) * value * scale;
   };
+=======
+  }
 }
+
+const rootScope =
+  (typeof window !== "undefined" && window) ||
+  (typeof self !== "undefined" && self) ||
+  (typeof globalThis !== "undefined" && globalThis) ||
+  Function("return this")();
+
+const sfxExports = {
+  SFX,
+  globalSfx,
+  primeAudioUnlock,
+};
+
+if (rootScope && typeof rootScope === "object") {
+  rootScope.PoopboySfx = sfxExports;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = sfxExports;
+}
+})();
