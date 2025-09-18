@@ -44,6 +44,9 @@ const primeAudioUnlock =
   typeof sfxExports.primeAudioUnlock === "function"
     ? sfxExports.primeAudioUnlock
     : function primeAudioUnlockFallback() {};
+=======
+} from "./data.js";
+import { globalSfx, primeAudioUnlock } from "./sfx.js";
 
 const TAU = Math.PI * 2;
 const TILE = WORLD.tileSize;
@@ -81,6 +84,17 @@ const SKY_TOP_NIGHT = "#04060d";
 const SKY_BOTTOM_NIGHT = "#020307";
 const SKY_TOP_DAWN = "#2c1f3a";
 const SKY_BOTTOM_DAWN = "#120d19";
+=======
+=======
+=======
+const AREA_MAPPINGS = [
+  { key: "fieldArea", symbol: "f" },
+  { key: "yardArea", symbol: "y" },
+  { key: "pondArea", symbol: "w" },
+  { key: "clearingArea", symbol: "c" },
+  { key: "quarryArea", symbol: "q" },
+];
+const RESERVED_AREA_SYMBOLS = new Set(["f", "y", "w"]);
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -96,6 +110,40 @@ function hexToRgb(hex) {
   };
 }
 
+=======
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean, 16);
+  return {
+    r: (value >> 16) & 0xff,
+    g: (value >> 8) & 0xff,
+    b: value & 0xff,
+  };
+}
+
+function mixColor(a, b, t) {
+  const ca = hexToRgb(a);
+  const cb = hexToRgb(b);
+  const r = Math.round(lerp(ca.r, cb.r, t));
+  const g = Math.round(lerp(ca.g, cb.g, t));
+  const bVal = Math.round(lerp(ca.b, cb.b, t));
+  return `rgb(${r}, ${g}, ${bVal})`;
+}
+
+=======
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean, 16);
+  return {
+    r: (value >> 16) & 0xff,
+    g: (value >> 8) & 0xff,
+    b: value & 0xff,
+  };
+}
+
+ main
 function mixColor(a, b, t) {
   const ca = hexToRgb(a);
   const cb = hexToRgb(b);
@@ -177,6 +225,15 @@ let editorSave = null;
 let editorReset = null;
 let editorExit = null;
 let toastEl = null;
+=======
+let bootStarted = false;
+let bootScheduled = false;
+
+let bootStarted = false;
+let bootScheduled = false;
+
+let bootStarted = false;
+let bootScheduled = false;
 
 let bootStarted = false;
 let bootScheduled = false;
@@ -493,6 +550,10 @@ function rebuildSpawnable(areas) {
 function isStoneSpawnable(sym, tx, ty, areas) {
   const areaSource = areas || (state && state.map) || MAPDATA;
   const areaSymbol = areaSymbolAt(tx, ty, areaSource);
+=======
+=======
+function isStoneSpawnable(sym, tx, ty, areas = state?.map ?? MAPDATA) {
+  const areaSymbol = areaSymbolAt(tx, ty, areas);
   const inField = areaSymbol === "f";
   const inYard = areaSymbol === "y";
   const inPond = areaSymbol === "w";
@@ -850,6 +911,7 @@ function setupInput() {
   setupJoystick();
   setupSprintButton();
   if (plantButton) plantButton.addEventListener("click", () => cyclePlantSelection());
+
 }
 
 function onKeyDown(ev) {
@@ -865,6 +927,14 @@ function onKeyDown(ev) {
     setSelectedPlant("cabbage");
   } else if (key === "3") {
     setSelectedPlant("moonflower");
+=======
+=======
+    state.player.selectedPlant = "corn";
+    showToast("Saat: Mais");
+  }
+  if (key === "2") {
+    state.player.selectedPlant = "cabbage";
+    showToast("Saat: Kohl");
   }
   state.keys.set(key, true);
 }
@@ -882,6 +952,9 @@ function onBlur() {
   if (sprintButton) {
     sprintButton.classList.remove("active");
   }
+=======
+=======
+  sprintButton?.classList.remove("active");
 }
 function setupJoystick() {
   if (!joystickEl || !joystickHandle) return;
@@ -906,6 +979,9 @@ function setupSprintButton() {
     if (typeof sprintButton.setPointerCapture === "function") {
       sprintButton.setPointerCapture(ev.pointerId);
     }
+=======
+=======
+    sprintButton.setPointerCapture?.(ev.pointerId);
   });
   sprintButton.addEventListener("pointerup", release);
   sprintButton.addEventListener("pointercancel", release);
@@ -931,6 +1007,9 @@ function getPlantLabel(kind) {
     return def.label;
   }
   return kind;
+=======
+=======
+  return PLANTS[kind]?.label || kind;
 }
 
 function setSelectedPlant(kind, { silent = false } = {}) {
@@ -954,6 +1033,102 @@ function cyclePlantSelection(direction = 1) {
   if (index === -1) index = 0;
   const next = (index + direction + options.length) % options.length;
   setSelectedPlant(options[next]);
+}
+
+function maybeEnterFullscreen(key) {
+  if (state.prefersTouch || state.fullscreenAttempted) return;
+  if (!FULLSCREEN_KEYS.has(key)) return;
+  state.fullscreenAttempted = true;
+  if (document.fullscreenElement) return;
+  const root = document.documentElement;
+  if (!root || !root.requestFullscreen) return;
+  try {
+    root.requestFullscreen();
+  } catch (err) {
+    console.warn("fullscreen request failed", err);
+  }
+}
+
+function onJoyPointerDown(ev) {
+  if (state.joystick.active) return;
+  state.joystick.active = true;
+  state.joystick.pointerId = ev.pointerId;
+  const rect = joystickEl.getBoundingClientRect();
+  state.joystick.startX = rect.left + rect.width / 2;
+  state.joystick.startY = rect.top + rect.height / 2;
+  state.joystick.dx = 0;
+  state.joystick.dy = 0;
+  joystickEl.setPointerCapture(ev.pointerId);
+}
+
+function onJoyPointerMove(ev) {
+  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
+  const dx = ev.clientX - state.joystick.startX;
+  const dy = ev.clientY - state.joystick.startY;
+  const radius = joystickEl.clientWidth / 2;
+  let nx = dx / radius;
+  let ny = dy / radius;
+  const len = Math.hypot(nx, ny);
+  if (len > 1) {
+    nx /= len;
+    ny /= len;
+  }
+  state.joystick.dx = nx;
+  state.joystick.dy = ny;
+  if (joystickHandle) {
+    joystickHandle.style.transform = `translate(${nx * radius * 0.55}px, ${ny * radius * 0.55}px)`;
+  }
+}
+
+function onJoyPointerUp(ev) {
+  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
+  state.joystick.active = false;
+  state.joystick.pointerId = null;
+  state.joystick.dx = 0;
+  state.joystick.dy = 0;
+  if (joystickHandle) {
+    joystickHandle.style.transform = "translate(-50%, -50%)";
+  }
+}
+
+=======
+}
+
+function onJoyPointerUp(ev) {
+  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
+  state.joystick.active = false;
+  state.joystick.pointerId = null;
+  state.joystick.dx = 0;
+  state.joystick.dy = 0;
+  if (joystickHandle) {
+    joystickHandle.style.transform = "translate(-50%, -50%)";
+  }
+}
+
+=======
+}
+
+=======
+}
+
+function setupSprintButton() {
+  if (!sprintButton) return;
+  const release = () => {
+    state.touchSprint = false;
+    state.sprintPointerId = null;
+    sprintButton.classList.remove("active");
+  };
+  sprintButton.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    state.touchSprint = true;
+    state.sprintPointerId = ev.pointerId;
+    sprintButton.classList.add("active");
+    sprintButton.setPointerCapture?.(ev.pointerId);
+  });
+  sprintButton.addEventListener("pointerup", release);
+  sprintButton.addEventListener("pointercancel", release);
+  sprintButton.addEventListener("pointerleave", release);
+  window.addEventListener("pointerup", release);
 }
 
 function maybeEnterFullscreen(key) {
@@ -1102,6 +1277,7 @@ function updateHud() {
   if (hudElements.seed) hudElements.seed.textContent = `${player.cabbageSeed}`;
   if (hudElements.moonseed) hudElements.moonseed.textContent = `${player.moonflowerSeed}`;
   if (hudElements.moonflower) hudElements.moonflower.textContent = `${player.moonflower}`;
+
   if (hudElements.money) hudElements.money.textContent = `${player.money}`;
   if (hudElements.ammo) hudElements.ammo.textContent = `${player.ammo}`;
   if (hudElements.water) hudElements.water.textContent = `${player.watering.charges}/${player.watering.max}`;
@@ -1124,6 +1300,7 @@ function updateHud() {
     plantButton.textContent = `Saat: ${label}`;
     plantButton.disabled = getSelectablePlants().length <= 1;
   }
+
   if (state.contextAction) {
     if (contextButton) {
       contextButton.textContent = state.contextAction.label;
@@ -1155,6 +1332,7 @@ function update(dt) {
     return;
   }
   updateDayNight(dt);
+
   handleSpawns(dt);
   updatePlayer(dt);
   updatePlants(dt);
@@ -1267,6 +1445,9 @@ function updateFireflies(dt) {
 
 function spawnFirefly() {
   const area = state.map && state.map.pondArea ? state.map.pondArea : MAPDATA.pondArea;
+=======
+=======
+  const area = state.map?.pondArea || MAPDATA.pondArea;
   if (!area) return;
   const point = randomPointInArea(area, { jitter: 1.1 });
   const baseY = point.y - TILE * 0.2 + Math.random() * TILE * 0.4;
@@ -1451,6 +1632,83 @@ function resolveFootstepSurface(tx, ty) {
   }
   if (symbol === "w") {
     return "soft";
+=======
+=======
+  }
+  return "grass";
+}
+
+function playFootstepSound(surface, sprinting) {
+  if (sprinting) {
+    globalSfx.play("footstepSprint", { volume: 0.42, cooldown: 0 });
+    return;
+  }
+  if (surface === "stone") {
+    globalSfx.play("footstepSoft", { volume: 0.34, cooldown: 0 });
+  } else {
+    globalSfx.play("footstepGrass", { volume: 0.32, cooldown: 0 });
+  }
+}
+
+function isAnyPressed(list) {
+  if (!list) return false;
+  for (const key of list) {
+    if (state.keys.has(key)) return true;
+  }
+  return false;
+}
+
+function updatePlants(dt) {
+  const now = state.time * 1000;
+  for (const plant of state.plants.values()) {
+    if (plant.stage !== "growing") continue;
+    if (plant.kind === "moonflower" && isNight()) {
+      const def = PLANTS.moonflower;
+      if (def) {
+        const minReady = plant.plantedAt + (def.minMs ?? 0);
+        plant.readyAt = Math.max(minReady, plant.readyAt - dt * 1000 * def.nightSpeed);
+      }
+    }
+    if (now >= plant.readyAt) {
+=======
+    if (plant.stage === "growing" && now >= plant.readyAt) {
+      plant.stage = plant.success ? "ready" : "failed";
+    }
+  }
+}
+function resolveContextAction() {
+  const player = state.player;
+  const { tx: playerTx, ty: playerTy } = worldToTile(player.x, player.y);
+  if (areaSymbolAt(playerTx, playerTy) === "y" && player.carrying && player.carrying.kind === "stone") {
+    return {
+      label: `Abliefern (${player.yardDelivered}/5)`,
+      handler: deliverStone,
+    };
+  }
+  if (player.carrying && player.carrying.kind === "stone") {
+    const preview = placementPreview();
+    state.preview = preview;
+    return {
+      label: preview.valid ? "Stein platzieren" : "Kein Platz",
+      handler: () => preview.valid && placeStone(preview.tx, preview.ty),
+      disabled: !preview.valid,
+    };
+  } else {
+    state.preview = null;
+  }
+  const dirt = findNearby(state.dirt, player.x, player.y, TILE * 0.6);
+  if (dirt) {
+    return {
+      label: "Erdbrocken einsammeln",
+      handler: () => collectDirt(dirt),
+    };
+  }
+  const stone = findNearby(state.stones, player.x, player.y, TILE * 0.75);
+  if (stone) {
+    return {
+      label: "Stein aufnehmen",
+      handler: () => pickupStone(stone),
+    };
   }
   return "grass";
 }
@@ -1486,6 +1744,24 @@ function updatePlants(dt) {
         const minReady = plant.plantedAt + minMs;
         plant.readyAt = Math.max(minReady, plant.readyAt - dt * 1000 * def.nightSpeed);
       }
+=======
+=======
+  const front = getFrontTile();
+  const key = tileKey(front.tx, front.ty, state.map.cols);
+  const plant = state.plants.get(key);
+  if (plant) {
+    if (plant.stage === "ready") {
+      return { label: "Ernten", handler: () => harvestPlant(plant) };
+    }
+    if (plant.stage === "growing" && state.player.watering.charges > 0) {
+      return { label: "Gießen", handler: () => waterPlant(plant) };
+    }
+    if (plant.stage === "failed") {
+      return { label: "Entfernen", handler: () => { state.plants.delete(key); scheduleSave(); } };
+    }
+  } else if (areaSymbolAt(front.tx, front.ty) === "f") {
+    if (state.player.selectedPlant === "corn" && state.player.poop > 0) {
+      return { label: "Mais säen", handler: () => plantCrop(front.tx, front.ty, "corn") };
     }
     if (now >= plant.readyAt) {
       plant.stage = plant.success ? "ready" : "failed";
@@ -1555,6 +1831,22 @@ function resolveContextAction() {
     }
     if (state.player.selectedPlant === "cabbage" && state.player.cabbageSeed > 0) {
       return { label: "Kohl pflanzen", handler: () => plantCrop(front.tx, front.ty, "cabbage") };
+=======
+    if (state.player.selectedPlant === "moonflower") {
+      const hasSeed = state.player.moonflowerSeed > 0;
+      return {
+        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
+        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
+        disabled: !hasSeed,
+      };
+    }
+    if (state.player.selectedPlant === "moonflower") {
+      const hasSeed = state.player.moonflowerSeed > 0;
+      return {
+        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
+        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
+        disabled: !hasSeed,
+      };
     }
     if (state.player.selectedPlant === "moonflower") {
       const hasSeed = state.player.moonflowerSeed > 0;
@@ -1699,6 +1991,9 @@ function plantCrop(tx, ty, kind) {
     if (def && isNight()) {
       const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
       const minReady = plant.plantedAt + minMs;
+=======
+=======
+      const minReady = plant.plantedAt + (def.minMs ?? 0);
       plant.readyAt = Math.max(minReady, plant.readyAt - def.nightSpeed * 1000 * 6);
     }
   }
@@ -1725,6 +2020,10 @@ function waterPlant(plant) {
       const bonusMs = Number.isFinite(def.waterBonusMs) ? def.waterBonusMs : 0;
       const minReady = plant.plantedAt + minMs;
       plant.readyAt = Math.max(minReady, plant.readyAt - bonusMs);
+=======
+=======
+      const minReady = plant.plantedAt + (def.minMs ?? 0);
+      plant.readyAt = Math.max(minReady, plant.readyAt - (def.waterBonusMs ?? 0));
     }
   }
   globalSfx.play("water");
@@ -2081,6 +2380,10 @@ function applyEditorLayout(layout, updatePanel = true) {
     const matchY = match ? match.y : undefined;
     const nx = sanitizeNumber(matchX, fallbackX, 1, state.map.cols - 2);
     const ny = sanitizeNumber(matchY, fallbackY, 1, state.map.rows - 2);
+=======
+=======
+    const nx = sanitizeNumber(match?.x, fallbackX, 1, state.map.cols - 2);
+    const ny = sanitizeNumber(match?.y, fallbackY, 1, state.map.rows - 2);
     npc.x = nx * TILE;
     npc.y = ny * TILE;
     normalized.npcs.push({ id: npc.id, x: nx, y: ny });
@@ -2197,6 +2500,7 @@ function render() {
   drawStones(view);
   drawNPCs(view);
   drawFireflies(view);
+
   drawPlayer();
   drawPreview(view);
   ctx.restore();
@@ -2213,6 +2517,9 @@ function drawBackground(width, height) {
     const phase = state.day.phase;
     const dawnSpan = typeof WORLD.dawnDuration === "number" ? WORLD.dawnDuration : 0.12;
     const duskSpan = typeof WORLD.duskDuration === "number" ? WORLD.duskDuration : 0.12;
+
+    const dawnSpan = WORLD.dawnDuration ?? 0.12;
+    const duskSpan = WORLD.duskDuration ?? 0.12;
     const dawnDistance = Math.min(Math.abs(phase - 0), Math.abs(phase - 1));
     const dawnWeight = clamp(1 - dawnDistance / Math.max(0.001, dawnSpan), 0, 1);
     const duskWeight = clamp(1 - Math.abs(phase - 0.5) / Math.max(0.001, duskSpan), 0, 1);
@@ -2328,6 +2635,69 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
+
+function tileColor(sym) {
+  switch (sym) {
+    case "p": return "#6b5537";
+    case "h": return "#2c2f3b";
+    case "x": return "#0c1612";
+    case "w": return "#1b3f6e";
+    case "f": return "#3b6f36";
+    case "y": return "#6b4026";
+    case "c": return "#2d4b2a";
+    case "q": return "#4f4d49";
+    case "d": return "#5b3c2d";
+    case "b": return "#4a3a5b";
+    case "s": return "#37535c";
+    case "t": return "#2d604b";
+    default: return "#1e3a2b";
+  }
+}
+
+=======
+}
+
+function tileColor(sym) {
+  switch (sym) {
+    case "p": return "#6b5537";
+    case "h": return "#2c2f3b";
+    case "x": return "#0c1612";
+    case "w": return "#1b3f6e";
+    case "f": return "#3b6f36";
+    case "y": return "#6b4026";
+    case "c": return "#2d4b2a";
+    case "q": return "#4f4d49";
+    case "d": return "#5b3c2d";
+    case "b": return "#4a3a5b";
+    case "s": return "#37535c";
+    case "t": return "#2d604b";
+    default: return "#1e3a2b";
+  }
+}
+
+=======
+}
+
+function tileColor(sym) {
+  switch (sym) {
+    case "p": return "#6b5537";
+    case "h": return "#2c2f3b";
+    case "x": return "#0c1612";
+    case "w": return "#1b3f6e";
+    case "f": return "#3b6f36";
+    case "y": return "#6b4026";
+    case "c": return "#2d4b2a";
+    case "q": return "#4f4d49";
+    case "d": return "#5b3c2d";
+    case "b": return "#4a3a5b";
+    case "s": return "#37535c";
+    case "t": return "#2d604b";
+    default: return "#1e3a2b";
+  }
+}
+
 function drawPlants(view) {
   const { minX, maxX, minY, maxY } = view.tiles;
   for (const plant of state.plants.values()) {
@@ -2357,6 +2727,7 @@ function drawPlants(view) {
       ctx.beginPath();
       ctx.ellipse(0, 0, TILE * 0.24, TILE * 0.32, 0, 0, TAU);
       ctx.fill();
+
     } else {
       ctx.fillStyle = plant.stage === "ready" ? "#7ae38f" : plant.stage === "failed" ? "#4f5f4f" : "#4ecb6d";
       ctx.beginPath();
@@ -2673,6 +3044,7 @@ function applyLightingOverlay(width, height) {
     ctx.restore();
   }
 }
+
 
 function drawHudOverlay(width, height) {
   ctx.save();

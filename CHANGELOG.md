@@ -5,6 +5,7 @@
 - Fallback-Audio: Falls `sfx.js` fehlt oder WebAudio blockiert, sorgen Stub-Methoden für stumme, aber fehlerfreie Aufrufe.
 - Version auf v1.4.2 angehoben und Skriptreihenfolge via `defer` fixiert, damit GitHub Pages deterministisch bootet.
 
+=======
 ## 1.4.1 — 2025-09-19
 - Kompatibilitätspatch für GitHub Pages: Optionals (`?.`, `??`) wurden entfernt und durch klassische Guards ersetzt, damit ältere Browser nicht mehr mit `Unexpected token "==="` abbrechen.
 - Sprint-Button und Editor behalten nun fallback-sichere Pointer- und Layout-Werte bei, falls APIs fehlen – die Steuerung funktioniert dadurch auch auf konservativen Geräten.
@@ -15,6 +16,7 @@
 - Mondschein-Events: Glühwürmchen, schnellere Mondbohnen-Reifung und erhöhte 💩-Dropchance bei Nacht.
 - Neue Kultur "Mondbohne" inkl. Saat (3 €), Nacht-Turbo und Verkaufserlös von 11 €.
 - Touch-kompatibler Saat-Button und Desktop-Hotkey **3** zum schnellen Wechseln der Saatarten.
+
 
 ## 1.3.0 — 2025-09-18
 - Boot-Sequenz lauscht auf `DOMContentLoaded`, `load` und bereits geladene Dokumente, bevor sie initialisiert. Das verhindert schwarze Bildschirme auf GitHub Pages, auch wenn Skripte verspätet geladen werden.

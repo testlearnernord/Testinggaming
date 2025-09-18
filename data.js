@@ -5,6 +5,13 @@ const SAVE_KEY = "pb_save_v8";
 const GAME_VERSION = 8;
 
 const DEBUG = false;
+=======
+export const APP_VERSION = "v1.4.1";
+=======
+export const APP_VERSION = "v1.4.0";
+export const APP_BASE_PATH = "/";
+export const SAVE_KEY = "pb_save_v8";
+export const GAME_VERSION = 8;
 
 const WORLD = {
   tileSize: 32,
@@ -281,6 +288,80 @@ const STORAGE_DEFAULTS = {
 };
 
 function resolveAsset(path) {
+=======
+=======
+=======
+};
+
+export const ECON = {
+  cornSell: 1,
+  cabbageSell: 7,
+  moonflowerSell: 11,
+=======
+=======
+};
+
+export const CAN_MAX = 13;
+
+export const SPAWN = {
+  boulderInit: 24,
+  dirtInit: 40,
+  boulderCap: 60,
+  boulderIntervalMs: [12000, 20000],
+};
+
+export const STONE = {
+  carrySlow: 0.72,
+  cartBonus: 1.1,
+  crusherYield: 8,
+};
+
+export const FLAGS = {
+  dayNightEnabled: true,
+=======
+=======
+  dayNightEnabled: false,
+  monstersEnabled: false,
+};
+
+export const CONTROLS = {
+  keyboard: {
+    up: ["w", "arrowup"],
+    down: ["s", "arrowdown"],
+    left: ["a", "arrowleft"],
+    right: ["d", "arrowright"],
+    action: [" ", "space"],
+    sprint: ["shift"],
+    editor: ["e"],
+  },
+  touchDeadZone: 0.18,
+};
+
+export const STORAGE_DEFAULTS = {
+  money: 0,
+  poop: 0,
+  ammo: 0,
+  corn: 0,
+  cabbage: 0,
+  cabbageSeed: 0,
+  moonflower: 0,
+  moonflowerSeed: 0,
+=======
+=======
+  yardDelivered: 0,
+  yardPending: 0,
+  upgrades: {
+    watering: false,
+    shoes: false,
+    crusher: false,
+    cart: false,
+  },
+  watering: {
+    charges: WORLD.baseWater,
+  },
+};
+
+export function resolveAsset(path) {
   const clean = path.replace(/^\//, "");
   if (APP_BASE_PATH === "/" || APP_BASE_PATH === "./") {
     return `./${clean}`;
@@ -299,6 +380,9 @@ function isBlockingSymbol(symbol) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+=======
+export function isWalkableSymbol(symbol) {
+  return symbol === "." || symbol === "p" || symbol === "f" || symbol === "c" || symbol === "y" || symbol === "q" || symbol === "d" || symbol === "b" || symbol === "s" || symbol === "t";
 }
 
 const rootScope =
@@ -337,5 +421,8 @@ if (rootScope && typeof rootScope === "object") {
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = dataExports;
+=======
+export function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 })();
