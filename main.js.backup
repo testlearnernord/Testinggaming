@@ -81,6 +81,7 @@ const SKY_TOP_NIGHT = "#04060d";
 const SKY_BOTTOM_NIGHT = "#020307";
 const SKY_TOP_DAWN = "#2c1f3a";
 const SKY_BOTTOM_DAWN = "#120d19";
+
 const AREA_MAPPINGS = [
   { key: "fieldArea", symbol: "f" },
   { key: "yardArea", symbol: "y" },
@@ -104,6 +105,8 @@ function hexToRgb(hex) {
   };
 }
 
+=======
+
 function hexToRgb(hex) {
   const clean = hex.replace("#", "");
   const value = Number.parseInt(clean, 16);
@@ -122,6 +125,8 @@ function mixColor(a, b, t) {
   const bVal = Math.round(lerp(ca.b, cb.b, t));
   return `rgb(${r}, ${g}, ${bVal})`;
 }
+
+=======
 
 function hexToRgb(hex) {
   const clean = hex.replace("#", "");
@@ -142,6 +147,15 @@ function mixColor(a, b, t) {
   const bVal = Math.round(lerp(ca.b, cb.b, t));
   return `rgb(${r}, ${g}, ${bVal})`;
 }
+
+const AREA_MAPPINGS = [
+  { key: "fieldArea", symbol: "f" },
+  { key: "yardArea", symbol: "y" },
+  { key: "pondArea", symbol: "w" },
+  { key: "clearingArea", symbol: "c" },
+  { key: "quarryArea", symbol: "q" },
+];
+const RESERVED_AREA_SYMBOLS = new Set(["f", "y", "w"]);
 
 let canvas = null;
 let ctx = null;
@@ -206,8 +220,18 @@ let editorSave = null;
 let editorReset = null;
 let editorExit = null;
 let toastEl = null;
-let bootScheduled = false;
+=======
 let bootStarted = false;
+let bootScheduled = false;
+
+let bootStarted = false;
+let bootScheduled = false;
+
+let bootStarted = false;
+let bootScheduled = false;
+
+let bootStarted = false;
+let bootScheduled = false;
 
 const state = {
   dpr: window.devicePixelRatio || 1,
@@ -521,6 +545,8 @@ function rebuildSpawnable(areas) {
 function isStoneSpawnable(sym, tx, ty, areas) {
   const areaSource = areas || (state && state.map) || MAPDATA;
   const areaSymbol = areaSymbolAt(tx, ty, areaSource);
+=======
+=======
 function isStoneSpawnable(sym, tx, ty, areas = state?.map ?? MAPDATA) {
   const areaSymbol = areaSymbolAt(tx, ty, areas);
   const inField = areaSymbol === "f";
@@ -896,6 +922,8 @@ function onKeyDown(ev) {
     setSelectedPlant("cabbage");
   } else if (key === "3") {
     setSelectedPlant("moonflower");
+=======
+=======
     state.player.selectedPlant = "corn";
     showToast("Saat: Mais");
   }
@@ -919,6 +947,8 @@ function onBlur() {
   if (sprintButton) {
     sprintButton.classList.remove("active");
   }
+=======
+=======
   sprintButton?.classList.remove("active");
 }
 function setupJoystick() {
@@ -944,6 +974,8 @@ function setupSprintButton() {
     if (typeof sprintButton.setPointerCapture === "function") {
       sprintButton.setPointerCapture(ev.pointerId);
     }
+=======
+=======
     sprintButton.setPointerCapture?.(ev.pointerId);
   });
   sprintButton.addEventListener("pointerup", release);
@@ -970,6 +1002,8 @@ function getPlantLabel(kind) {
     return def.label;
   }
   return kind;
+=======
+=======
   return PLANTS[kind]?.label || kind;
 }
 
@@ -1052,6 +1086,8 @@ function onJoyPointerUp(ev) {
   }
 }
 
+=======
+}
 
 function onJoyPointerUp(ev) {
   if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
@@ -1064,7 +1100,11 @@ function onJoyPointerUp(ev) {
   }
 }
 
+=======
+}
 
+=======
+}
 
 function setupSprintButton() {
   if (!sprintButton) return;
@@ -1400,6 +1440,8 @@ function updateFireflies(dt) {
 
 function spawnFirefly() {
   const area = state.map && state.map.pondArea ? state.map.pondArea : MAPDATA.pondArea;
+=======
+=======
   const area = state.map?.pondArea || MAPDATA.pondArea;
   if (!area) return;
   const point = randomPointInArea(area, { jitter: 1.1 });
@@ -1585,6 +1627,8 @@ function resolveFootstepSurface(tx, ty) {
   }
   if (symbol === "w") {
     return "soft";
+=======
+=======
   }
   return "grass";
 }
@@ -1621,6 +1665,8 @@ function updatePlants(dt) {
       }
     }
     if (now >= plant.readyAt) {
+=======
+    if (plant.stage === "growing" && now >= plant.readyAt) {
       plant.stage = plant.success ? "ready" : "failed";
     }
   }
@@ -1693,6 +1739,8 @@ function updatePlants(dt) {
         const minReady = plant.plantedAt + minMs;
         plant.readyAt = Math.max(minReady, plant.readyAt - dt * 1000 * def.nightSpeed);
       }
+=======
+=======
   const front = getFrontTile();
   const key = tileKey(front.tx, front.ty, state.map.cols);
   const plant = state.plants.get(key);
@@ -1778,6 +1826,8 @@ function resolveContextAction() {
     }
     if (state.player.selectedPlant === "cabbage" && state.player.cabbageSeed > 0) {
       return { label: "Kohl pflanzen", handler: () => plantCrop(front.tx, front.ty, "cabbage") };
+=======
+    if (state.player.selectedPlant === "moonflower") {
       const hasSeed = state.player.moonflowerSeed > 0;
       return {
         label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
@@ -1936,6 +1986,8 @@ function plantCrop(tx, ty, kind) {
     if (def && isNight()) {
       const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
       const minReady = plant.plantedAt + minMs;
+=======
+=======
       const minReady = plant.plantedAt + (def.minMs ?? 0);
       plant.readyAt = Math.max(minReady, plant.readyAt - def.nightSpeed * 1000 * 6);
     }
@@ -1963,6 +2015,8 @@ function waterPlant(plant) {
       const bonusMs = Number.isFinite(def.waterBonusMs) ? def.waterBonusMs : 0;
       const minReady = plant.plantedAt + minMs;
       plant.readyAt = Math.max(minReady, plant.readyAt - bonusMs);
+=======
+=======
       const minReady = plant.plantedAt + (def.minMs ?? 0);
       plant.readyAt = Math.max(minReady, plant.readyAt - (def.waterBonusMs ?? 0));
     }
@@ -2321,6 +2375,8 @@ function applyEditorLayout(layout, updatePanel = true) {
     const matchY = match ? match.y : undefined;
     const nx = sanitizeNumber(matchX, fallbackX, 1, state.map.cols - 2);
     const ny = sanitizeNumber(matchY, fallbackY, 1, state.map.rows - 2);
+=======
+=======
     const nx = sanitizeNumber(match?.x, fallbackX, 1, state.map.cols - 2);
     const ny = sanitizeNumber(match?.y, fallbackY, 1, state.map.rows - 2);
     npc.x = nx * TILE;
@@ -2574,6 +2630,8 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
 
 function tileColor(sym) {
   switch (sym) {
@@ -2593,6 +2651,8 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
 
 function tileColor(sym) {
   switch (sym) {
@@ -2612,6 +2672,8 @@ function tileColor(sym) {
   }
 }
 
+=======
+}
 
 function tileColor(sym) {
   switch (sym) {

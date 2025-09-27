@@ -60,9 +60,7 @@ class SFX {
     } else if (spec && typeof spec.create === "function") {
       generator = spec.create;
     }
-=======
-=======
-    const generator = typeof spec === "function" ? spec : spec?.create;
+    
     if (typeof generator !== "function") {
       return null;
     }
@@ -571,8 +569,6 @@ function createNoiseLayer({ seed = 1, smoothing = 0.2, scale = 0.4, envelope = (
     value += smoothing * (random() - value);
     return envelope(t, i, sampleRate) * value * scale;
   };
-=======
-  }
 }
 
 const rootScope =
