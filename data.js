@@ -191,31 +191,31 @@ const PLANTS = {
   corn: {
     id: "corn",
     label: "Mais",
-    growMs: 40000,
-    chance: 0.6,
-    minMs: 10000,
-    waterBonusMs: 30000,
+    growMs: 35000, // Reduced from 40000 for faster gameplay
+    chance: 0.75, // Increased from 0.6 for better success rate
+    minMs: 8000, // Reduced from 10000
+    waterBonusMs: 25000, // Reduced from 30000
     poopCost: 1,
-    sellPrice: 1,
+    sellPrice: 2, // Increased from 1 for better economy balance
   },
   cabbage: {
     id: "cabbage",
     label: "Kohl",
-    growMs: 120000,
-    wateredTotalMs: 40000,
+    growMs: 100000, // Reduced from 120000
+    wateredTotalMs: 35000, // Reduced from 40000
     poopCost: 0,
     seedCost: 1,
-    sellPrice: 7,
+    sellPrice: 8, // Increased from 7
   },
   moonflower: {
     id: "moonflower",
     label: "Mondbohne",
-    growMs: 90000,
-    minMs: 25000,
-    waterBonusMs: 45000,
-    nightSpeed: 2.1,
-    seedCost: 3,
-    sellPrice: 11,
+    growMs: 75000, // Reduced from 90000
+    minMs: 20000, // Reduced from 25000
+    waterBonusMs: 40000, // Reduced from 45000
+    nightSpeed: 2.5, // Increased from 2.1 for better night bonus
+    seedCost: 2, // Reduced from 3 to make it more accessible
+    sellPrice: 12, // Increased from 11
   },
 };
 

@@ -1165,6 +1165,296 @@ function mainLoop(now) {
   requestAnimationFrame(mainLoop);
 }
 
+function render() {
+  if (!canvas || !ctx) return;
+  
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  // Clear canvas
+  ctx.fillStyle = '#0c1116';
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw game world with improved graphics
+  const phase = state.dayNight ? state.dayNight.phase : 0.25;
+  drawBackground(width, height, phase);
+  drawWorld(width, height);
+  
+  // Draw player if exists
+  if (state.player) {
+    drawPlayer(state.player, width, height);
+  }
+  
+  // Draw game objects
+  if (state.stones && state.stones.length > 0) {
+    drawStones(state.stones);
+  }
+  
+  if (state.plants && state.plants.size > 0) {
+    drawPlants(Array.from(state.plants.values()));
+  }
+  
+  // Apply lighting effects for day/night
+  applyLightingOverlay(width, height, phase);
+  
+  // Draw FPS counter in debug mode
+  if (DEBUG) {
+    drawHudOverlay(width, height);
+  }
+}
+
+function drawWorld(width, height) {
+  if (!state.map || !state.player) return;
+  
+  const tileSize = TILE;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // Calculate viewport bounds
+  const viewX = state.player.x - centerX;
+  const viewY = state.player.y - centerY;
+  
+  const startTileX = Math.floor(viewX / tileSize) - 1;
+  const endTileX = Math.ceil((viewX + width) / tileSize) + 1;
+  const startTileY = Math.floor(viewY / tileSize) - 1;
+  const endTileY = Math.ceil((viewY + height) / tileSize) + 1;
+  
+  // Draw tiles
+  for (let ty = startTileY; ty <= endTileY; ty++) {
+    for (let tx = startTileX; tx <= endTileX; tx++) {
+      const worldX = tx * tileSize - viewX;
+      const worldY = ty * tileSize - viewY;
+      
+      if (worldX + tileSize < 0 || worldX > width || worldY + tileSize < 0 || worldY > height) continue;
+      
+      const tileType = getTileType(tx, ty);
+      drawTile(worldX, worldY, tileSize, tileType);
+    }
+  }
+}
+
+function getTileType(tx, ty) {
+  if (!state.map) return 'grass';
+  
+  // Check bounds
+  if (tx < 0 || ty < 0 || tx >= WORLD.width || ty >= WORLD.height) return 'woods';
+  
+  // Get base tile from map data
+  const row = MAPDATA.layout[ty];
+  if (!row) return 'grass';
+  const symbol = row[tx];
+  
+  // Convert symbol to tile type
+  const legend = MAPDATA.legend;
+  return legend[symbol] || 'grass';
+}
+
+function drawTile(x, y, size, type) {
+  ctx.save();
+  
+  switch (type) {
+    case 'grass':
+      ctx.fillStyle = '#4a7c59';
+      ctx.fillRect(x, y, size, size);
+      // Add some texture
+      ctx.fillStyle = '#5d8f6b';
+      ctx.fillRect(x + size * 0.2, y + size * 0.1, size * 0.6, size * 0.1);
+      ctx.fillRect(x + size * 0.1, y + size * 0.7, size * 0.8, size * 0.1);
+      break;
+      
+    case 'path':
+      ctx.fillStyle = '#8b7355';
+      ctx.fillRect(x, y, size, size);
+      break;
+      
+    case 'woods':
+      ctx.fillStyle = '#2d4a34';
+      ctx.fillRect(x, y, size, size);
+      // Add tree representation
+      ctx.fillStyle = '#1a2e1f';
+      ctx.fillRect(x + size * 0.2, y + size * 0.1, size * 0.6, size * 0.8);
+      break;
+      
+    case 'water':
+      ctx.fillStyle = '#4a7ba7';
+      ctx.fillRect(x, y, size, size);
+      // Add water shimmer effect
+      const shimmer = Math.sin(state.time * 2) * 0.1 + 0.1;
+      ctx.fillStyle = `rgba(135, 206, 235, ${shimmer})`;
+      ctx.fillRect(x, y, size, size * 0.3);
+      break;
+      
+    case 'field':
+      ctx.fillStyle = '#8b4513';
+      ctx.fillRect(x, y, size, size);
+      // Add furrow lines
+      ctx.strokeStyle = '#654321';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        const lineY = y + (i + 1) * size / 4;
+        ctx.beginPath();
+        ctx.moveTo(x, lineY);
+        ctx.lineTo(x + size, lineY);
+        ctx.stroke();
+      }
+      break;
+      
+    case 'house':
+      ctx.fillStyle = '#8b4513';
+      ctx.fillRect(x, y, size, size);
+      // Add roof
+      ctx.fillStyle = '#654321';
+      ctx.fillRect(x, y, size, size * 0.3);
+      // Add door
+      ctx.fillStyle = '#2f1b14';
+      ctx.fillRect(x + size * 0.4, y + size * 0.5, size * 0.2, size * 0.5);
+      break;
+      
+    default:
+      ctx.fillStyle = '#4a7c59';
+      ctx.fillRect(x, y, size, size);
+  }
+  
+  ctx.restore();
+}
+
+function drawPlants(plants) {
+  if (!plants || !state.player) return;
+  
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const viewX = state.player.x - centerX;
+  const viewY = state.player.y - centerY;
+  
+  for (const plant of plants) {
+    const screenX = plant.x - viewX;
+    const screenY = plant.y - viewY;
+    
+    if (screenX < -TILE || screenX > canvas.width + TILE || 
+        screenY < -TILE || screenY > canvas.height + TILE) continue;
+    
+    drawPlant(screenX, screenY, plant);
+  }
+}
+
+function drawPlant(x, y, plant) {
+  ctx.save();
+  
+  // Different colors for different plant types and stages
+  let color = '#4a7c59'; // Default green
+  let size = TILE * 0.6;
+  
+  switch (plant.kind) {
+    case 'corn':
+      color = plant.stage === 'mature' ? '#ffd700' : '#90ee90';
+      size = plant.stage === 'mature' ? TILE * 0.8 : TILE * 0.4;
+      break;
+    case 'cabbage':
+      color = plant.stage === 'mature' ? '#32cd32' : '#98fb98';
+      size = plant.stage === 'mature' ? TILE * 0.7 : TILE * 0.3;
+      break;
+    case 'moonflower':
+      color = plant.stage === 'mature' ? '#9370db' : '#dda0dd';
+      size = plant.stage === 'mature' ? TILE * 0.6 : TILE * 0.3;
+      if (plant.stage === 'mature' && isNight()) {
+        // Add glow effect for moonflowers at night
+        ctx.shadowColor = '#9370db';
+        ctx.shadowBlur = 10;
+      }
+      break;
+  }
+  
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x + TILE / 2, y + TILE / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+function applyLightingOverlay(width, height, phase) {
+  // Apply day/night lighting effects
+  if (!phase) return;
+  
+  const isNightTime = phase > 0.5 && phase < 0.9;
+  if (isNightTime) {
+    // Apply dark overlay for night
+    const nightIntensity = Math.sin((phase - 0.5) * Math.PI * 2.5) * 0.3 + 0.3;
+    ctx.fillStyle = `rgba(0, 10, 20, ${nightIntensity})`;
+    ctx.fillRect(0, 0, width, height);
+  }
+}
+
+function isNight() {
+  if (!state.dayNight) return false;
+  const phase = state.dayNight.phase;
+  return phase > 0.7 || phase < 0.2; // Night time periods
+}
+
+function drawBackground(width, height, phase) {
+  // Draw sky gradient based on time of day
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  
+  // Day/night color interpolation
+  const dayTop = '#1c3850';
+  const dayBottom = '#09131b';
+  const nightTop = '#04060d';
+  const nightBottom = '#020307';
+  
+  // Simple day/night transition (phase 0-1, where 0.25 = day, 0.75 = night)
+  const isNightTime = phase > 0.5 && phase < 0.9;
+  const skyTop = isNightTime ? nightTop : dayTop;
+  const skyBottom = isNightTime ? nightBottom : dayBottom;
+  
+  gradient.addColorStop(0, skyTop);
+  gradient.addColorStop(1, skyBottom);
+  
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw simple ground
+  ctx.fillStyle = '#2d5a3d';
+  ctx.fillRect(0, height * 0.7, width, height * 0.3);
+}
+
+function drawPlayer(player, width, height) {
+  if (!player) return;
+  
+  // Center camera on player
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // Draw simple player representation
+  ctx.fillStyle = '#f6e0c8'; // Skin color
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 16, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw simple body
+  ctx.fillStyle = '#4f79b7'; // Shirt color
+  ctx.fillRect(centerX - 12, centerY + 5, 24, 30);
+  
+  // Draw simple legs
+  ctx.fillStyle = '#2f3e59'; // Pants color
+  ctx.fillRect(centerX - 10, centerY + 25, 8, 20);
+  ctx.fillRect(centerX + 2, centerY + 25, 8, 20);
+}
+
+function drawStones(stones) {
+  ctx.fillStyle = '#666';
+  for (const stone of stones) {
+    ctx.beginPath();
+    ctx.arc(stone.x, stone.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawHudOverlay(width, height) {
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '12px Inter, sans-serif';
+  ctx.fillText(`FPS: ${state.fps.toFixed(0)}`, width - 80, height - 16);
+}
+
 function update(dt) {
   if (state.dialog.open || state.editor.open) {
     state.contextAction = state.dialog.open
@@ -1236,11 +1526,6 @@ function syncDayState() {
 
 function isNightPhase(phase) {
   return phase >= 0.7 || phase <= 0.22;
-}
-
-function isNight() {
-  if (!FLAGS.dayNightEnabled) return false;
-  return isNightPhase(state.day.phase);
 }
 
 function updateDayNight(dt) {
@@ -1548,5 +1833,104 @@ function resolveContextAction() {
   return "grass";
 }
 
+function findNearby(list, x, y, radius) {
+  if (!list || !Array.isArray(list)) return null;
+  for (const item of list) {
+    if (!item || typeof item.x !== 'number' || typeof item.y !== 'number') continue;
+    const dx = item.x - x;
+    const dy = item.y - y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= radius) {
+      return item;
+    }
+  }
+  return null;
+}
 
+function maybeSave() {
+  // Simple auto-save placeholder - just store the current state periodically
+  if (state.time % 30 < 0.1) { // Save every 30 seconds
+    try {
+      const saveData = {
+        player: state.player,
+        stones: state.stones || [],
+        plants: state.plants || new Map(),
+        time: state.time,
+        dayNight: state.dayNight
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    } catch (err) {
+      console.warn("Auto-save failed:", err);
+    }
+  }
+}
+
+function boot() {
+  try {
+    initDom();
+    setupCanvas();
+    watchInputMode();
+    
+    // Set up fullscreen change listener
+    document.addEventListener("fullscreenchange", () => resizeCanvas());
+    
+    // Initialize game state
+    state.map = createMap();
+    state.player = createPlayer();
+    state.npcs = buildNPCs();
+    
+    // Initialize audio (safely)
+    if (typeof primeAudioUnlock === "function") {
+      primeAudioUnlock();
+    }
+    
+    setupInput();
+    initWorld();
+    
+    // Mark as ready and start the game loop
+    state.ready = true;
+    state.lastTick = performance.now();
+    requestAnimationFrame(mainLoop);
+    
+    console.log("Poopboy game initialized successfully");
+  } catch (err) {
+    failBoot(err);
+  }
+}
+
+function requestBoot() {
+  if (bootStarted) return;
+  bootStarted = true;
+  try {
+    boot();
+  } catch (err) {
+    failBoot(err);
+  }
+}
+
+function scheduleBoot() {
+  if (bootStarted || bootScheduled) return;
+  bootScheduled = true;
+  setTimeout(() => {
+    bootScheduled = false;
+    requestBoot();
+  }, 0);
+}
+
+function initBoot() {
+  if (typeof document === "undefined") {
+    requestBoot();
+    return;
+  }
+  const ready = document.readyState;
+  if (ready === "complete" || ready === "interactive") {
+    scheduleBoot();
+    return;
+  }
+  document.addEventListener("DOMContentLoaded", scheduleBoot, { once: true });
+  window.addEventListener("load", scheduleBoot, { once: true });
+}
+
+// Start the game
+initBoot();
 
