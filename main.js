@@ -44,9 +44,6 @@ const primeAudioUnlock =
   typeof sfxExports.primeAudioUnlock === "function"
     ? sfxExports.primeAudioUnlock
     : function primeAudioUnlockFallback() {};
-=======
-} from "./data.js";
-import { globalSfx, primeAudioUnlock } from "./sfx.js";
 
 const TAU = Math.PI * 2;
 const TILE = WORLD.tileSize;
@@ -84,9 +81,6 @@ const SKY_TOP_NIGHT = "#04060d";
 const SKY_BOTTOM_NIGHT = "#020307";
 const SKY_TOP_DAWN = "#2c1f3a";
 const SKY_BOTTOM_DAWN = "#120d19";
-=======
-=======
-=======
 const AREA_MAPPINGS = [
   { key: "fieldArea", symbol: "f" },
   { key: "yardArea", symbol: "y" },
@@ -110,17 +104,6 @@ function hexToRgb(hex) {
   };
 }
 
-=======
-
-function hexToRgb(hex) {
-  const clean = hex.replace("#", "");
-  const value = Number.parseInt(clean, 16);
-  return {
-    r: (value >> 16) & 0xff,
-    g: (value >> 8) & 0xff,
-    b: value & 0xff,
-  };
-}
 
 function mixColor(a, b, t) {
   const ca = hexToRgb(a);
@@ -130,37 +113,6 @@ function mixColor(a, b, t) {
   const bVal = Math.round(lerp(ca.b, cb.b, t));
   return `rgb(${r}, ${g}, ${bVal})`;
 }
-
-=======
-
-function hexToRgb(hex) {
-  const clean = hex.replace("#", "");
-  const value = Number.parseInt(clean, 16);
-  return {
-    r: (value >> 16) & 0xff,
-    g: (value >> 8) & 0xff,
-    b: value & 0xff,
-  };
-}
-
- main
-function mixColor(a, b, t) {
-  const ca = hexToRgb(a);
-  const cb = hexToRgb(b);
-  const r = Math.round(lerp(ca.r, cb.r, t));
-  const g = Math.round(lerp(ca.g, cb.g, t));
-  const bVal = Math.round(lerp(ca.b, cb.b, t));
-  return `rgb(${r}, ${g}, ${bVal})`;
-}
-
-const AREA_MAPPINGS = [
-  { key: "fieldArea", symbol: "f" },
-  { key: "yardArea", symbol: "y" },
-  { key: "pondArea", symbol: "w" },
-  { key: "clearingArea", symbol: "c" },
-  { key: "quarryArea", symbol: "q" },
-];
-const RESERVED_AREA_SYMBOLS = new Set(["f", "y", "w"]);
 
 let canvas = null;
 let ctx = null;
@@ -225,18 +177,8 @@ let editorSave = null;
 let editorReset = null;
 let editorExit = null;
 let toastEl = null;
-=======
-let bootStarted = false;
 let bootScheduled = false;
-
 let bootStarted = false;
-let bootScheduled = false;
-
-let bootStarted = false;
-let bootScheduled = false;
-
-let bootStarted = false;
-let bootScheduled = false;
 
 const state = {
   dpr: window.devicePixelRatio || 1,
@@ -547,11 +489,6 @@ function rebuildSpawnable(areas) {
   return spots;
 }
 
-function isStoneSpawnable(sym, tx, ty, areas) {
-  const areaSource = areas || (state && state.map) || MAPDATA;
-  const areaSymbol = areaSymbolAt(tx, ty, areaSource);
-=======
-=======
 function isStoneSpawnable(sym, tx, ty, areas = state?.map ?? MAPDATA) {
   const areaSymbol = areaSymbolAt(tx, ty, areas);
   const inField = areaSymbol === "f";
@@ -927,8 +864,6 @@ function onKeyDown(ev) {
     setSelectedPlant("cabbage");
   } else if (key === "3") {
     setSelectedPlant("moonflower");
-=======
-=======
     state.player.selectedPlant = "corn";
     showToast("Saat: Mais");
   }
@@ -952,8 +887,6 @@ function onBlur() {
   if (sprintButton) {
     sprintButton.classList.remove("active");
   }
-=======
-=======
   sprintButton?.classList.remove("active");
 }
 function setupJoystick() {
@@ -979,8 +912,6 @@ function setupSprintButton() {
     if (typeof sprintButton.setPointerCapture === "function") {
       sprintButton.setPointerCapture(ev.pointerId);
     }
-=======
-=======
     sprintButton.setPointerCapture?.(ev.pointerId);
   });
   sprintButton.addEventListener("pointerup", release);
@@ -1007,8 +938,6 @@ function getPlantLabel(kind) {
     return def.label;
   }
   return kind;
-=======
-=======
   return PLANTS[kind]?.label || kind;
 }
 
@@ -1091,101 +1020,14 @@ function onJoyPointerUp(ev) {
   }
 }
 
-=======
-}
 
-function onJoyPointerUp(ev) {
-  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
-  state.joystick.active = false;
-  state.joystick.pointerId = null;
-  state.joystick.dx = 0;
-  state.joystick.dy = 0;
-  if (joystickHandle) {
-    joystickHandle.style.transform = "translate(-50%, -50%)";
-  }
-}
 
-=======
-}
 
-=======
-}
 
-function setupSprintButton() {
-  if (!sprintButton) return;
-  const release = () => {
-    state.touchSprint = false;
-    state.sprintPointerId = null;
-    sprintButton.classList.remove("active");
-  };
-  sprintButton.addEventListener("pointerdown", ev => {
-    ev.preventDefault();
-    state.touchSprint = true;
-    state.sprintPointerId = ev.pointerId;
-    sprintButton.classList.add("active");
-    sprintButton.setPointerCapture?.(ev.pointerId);
-  });
-  sprintButton.addEventListener("pointerup", release);
-  sprintButton.addEventListener("pointercancel", release);
-  sprintButton.addEventListener("pointerleave", release);
-  window.addEventListener("pointerup", release);
-}
 
-function maybeEnterFullscreen(key) {
-  if (state.prefersTouch || state.fullscreenAttempted) return;
-  if (!FULLSCREEN_KEYS.has(key)) return;
-  state.fullscreenAttempted = true;
-  if (document.fullscreenElement) return;
-  const root = document.documentElement;
-  if (!root || !root.requestFullscreen) return;
-  try {
-    root.requestFullscreen();
-  } catch (err) {
-    console.warn("fullscreen request failed", err);
-  }
-}
 
-function onJoyPointerDown(ev) {
-  if (state.joystick.active) return;
-  state.joystick.active = true;
-  state.joystick.pointerId = ev.pointerId;
-  const rect = joystickEl.getBoundingClientRect();
-  state.joystick.startX = rect.left + rect.width / 2;
-  state.joystick.startY = rect.top + rect.height / 2;
-  state.joystick.dx = 0;
-  state.joystick.dy = 0;
-  joystickEl.setPointerCapture(ev.pointerId);
-}
 
-function onJoyPointerMove(ev) {
-  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
-  const dx = ev.clientX - state.joystick.startX;
-  const dy = ev.clientY - state.joystick.startY;
-  const radius = joystickEl.clientWidth / 2;
-  let nx = dx / radius;
-  let ny = dy / radius;
-  const len = Math.hypot(nx, ny);
-  if (len > 1) {
-    nx /= len;
-    ny /= len;
-  }
-  state.joystick.dx = nx;
-  state.joystick.dy = ny;
-  if (joystickHandle) {
-    joystickHandle.style.transform = `translate(${nx * radius * 0.55}px, ${ny * radius * 0.55}px)`;
-  }
-}
 
-function onJoyPointerUp(ev) {
-  if (!state.joystick.active || ev.pointerId !== state.joystick.pointerId) return;
-  state.joystick.active = false;
-  state.joystick.pointerId = null;
-  state.joystick.dx = 0;
-  state.joystick.dy = 0;
-  if (joystickHandle) {
-    joystickHandle.style.transform = "translate(-50%, -50%)";
-  }
-}
 
 function triggerContextAction() {
   if (state.dialog.open) {
@@ -1323,6 +1165,296 @@ function mainLoop(now) {
   requestAnimationFrame(mainLoop);
 }
 
+function render() {
+  if (!canvas || !ctx) return;
+  
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  // Clear canvas
+  ctx.fillStyle = '#0c1116';
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw game world with improved graphics
+  const phase = state.dayNight ? state.dayNight.phase : 0.25;
+  drawBackground(width, height, phase);
+  drawWorld(width, height);
+  
+  // Draw player if exists
+  if (state.player) {
+    drawPlayer(state.player, width, height);
+  }
+  
+  // Draw game objects
+  if (state.stones && state.stones.length > 0) {
+    drawStones(state.stones);
+  }
+  
+  if (state.plants && state.plants.size > 0) {
+    drawPlants(Array.from(state.plants.values()));
+  }
+  
+  // Apply lighting effects for day/night
+  applyLightingOverlay(width, height, phase);
+  
+  // Draw FPS counter in debug mode
+  if (DEBUG) {
+    drawHudOverlay(width, height);
+  }
+}
+
+function drawWorld(width, height) {
+  if (!state.map || !state.player) return;
+  
+  const tileSize = TILE;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // Calculate viewport bounds
+  const viewX = state.player.x - centerX;
+  const viewY = state.player.y - centerY;
+  
+  const startTileX = Math.floor(viewX / tileSize) - 1;
+  const endTileX = Math.ceil((viewX + width) / tileSize) + 1;
+  const startTileY = Math.floor(viewY / tileSize) - 1;
+  const endTileY = Math.ceil((viewY + height) / tileSize) + 1;
+  
+  // Draw tiles
+  for (let ty = startTileY; ty <= endTileY; ty++) {
+    for (let tx = startTileX; tx <= endTileX; tx++) {
+      const worldX = tx * tileSize - viewX;
+      const worldY = ty * tileSize - viewY;
+      
+      if (worldX + tileSize < 0 || worldX > width || worldY + tileSize < 0 || worldY > height) continue;
+      
+      const tileType = getTileType(tx, ty);
+      drawTile(worldX, worldY, tileSize, tileType);
+    }
+  }
+}
+
+function getTileType(tx, ty) {
+  if (!state.map) return 'grass';
+  
+  // Check bounds
+  if (tx < 0 || ty < 0 || tx >= WORLD.width || ty >= WORLD.height) return 'woods';
+  
+  // Get base tile from map data
+  const row = MAPDATA.layout[ty];
+  if (!row) return 'grass';
+  const symbol = row[tx];
+  
+  // Convert symbol to tile type
+  const legend = MAPDATA.legend;
+  return legend[symbol] || 'grass';
+}
+
+function drawTile(x, y, size, type) {
+  ctx.save();
+  
+  switch (type) {
+    case 'grass':
+      ctx.fillStyle = '#4a7c59';
+      ctx.fillRect(x, y, size, size);
+      // Add some texture
+      ctx.fillStyle = '#5d8f6b';
+      ctx.fillRect(x + size * 0.2, y + size * 0.1, size * 0.6, size * 0.1);
+      ctx.fillRect(x + size * 0.1, y + size * 0.7, size * 0.8, size * 0.1);
+      break;
+      
+    case 'path':
+      ctx.fillStyle = '#8b7355';
+      ctx.fillRect(x, y, size, size);
+      break;
+      
+    case 'woods':
+      ctx.fillStyle = '#2d4a34';
+      ctx.fillRect(x, y, size, size);
+      // Add tree representation
+      ctx.fillStyle = '#1a2e1f';
+      ctx.fillRect(x + size * 0.2, y + size * 0.1, size * 0.6, size * 0.8);
+      break;
+      
+    case 'water':
+      ctx.fillStyle = '#4a7ba7';
+      ctx.fillRect(x, y, size, size);
+      // Add water shimmer effect
+      const shimmer = Math.sin(state.time * 2) * 0.1 + 0.1;
+      ctx.fillStyle = `rgba(135, 206, 235, ${shimmer})`;
+      ctx.fillRect(x, y, size, size * 0.3);
+      break;
+      
+    case 'field':
+      ctx.fillStyle = '#8b4513';
+      ctx.fillRect(x, y, size, size);
+      // Add furrow lines
+      ctx.strokeStyle = '#654321';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        const lineY = y + (i + 1) * size / 4;
+        ctx.beginPath();
+        ctx.moveTo(x, lineY);
+        ctx.lineTo(x + size, lineY);
+        ctx.stroke();
+      }
+      break;
+      
+    case 'house':
+      ctx.fillStyle = '#8b4513';
+      ctx.fillRect(x, y, size, size);
+      // Add roof
+      ctx.fillStyle = '#654321';
+      ctx.fillRect(x, y, size, size * 0.3);
+      // Add door
+      ctx.fillStyle = '#2f1b14';
+      ctx.fillRect(x + size * 0.4, y + size * 0.5, size * 0.2, size * 0.5);
+      break;
+      
+    default:
+      ctx.fillStyle = '#4a7c59';
+      ctx.fillRect(x, y, size, size);
+  }
+  
+  ctx.restore();
+}
+
+function drawPlants(plants) {
+  if (!plants || !state.player) return;
+  
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const viewX = state.player.x - centerX;
+  const viewY = state.player.y - centerY;
+  
+  for (const plant of plants) {
+    const screenX = plant.x - viewX;
+    const screenY = plant.y - viewY;
+    
+    if (screenX < -TILE || screenX > canvas.width + TILE || 
+        screenY < -TILE || screenY > canvas.height + TILE) continue;
+    
+    drawPlant(screenX, screenY, plant);
+  }
+}
+
+function drawPlant(x, y, plant) {
+  ctx.save();
+  
+  // Different colors for different plant types and stages
+  let color = '#4a7c59'; // Default green
+  let size = TILE * 0.6;
+  
+  switch (plant.kind) {
+    case 'corn':
+      color = plant.stage === 'mature' ? '#ffd700' : '#90ee90';
+      size = plant.stage === 'mature' ? TILE * 0.8 : TILE * 0.4;
+      break;
+    case 'cabbage':
+      color = plant.stage === 'mature' ? '#32cd32' : '#98fb98';
+      size = plant.stage === 'mature' ? TILE * 0.7 : TILE * 0.3;
+      break;
+    case 'moonflower':
+      color = plant.stage === 'mature' ? '#9370db' : '#dda0dd';
+      size = plant.stage === 'mature' ? TILE * 0.6 : TILE * 0.3;
+      if (plant.stage === 'mature' && isNight()) {
+        // Add glow effect for moonflowers at night
+        ctx.shadowColor = '#9370db';
+        ctx.shadowBlur = 10;
+      }
+      break;
+  }
+  
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x + TILE / 2, y + TILE / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+function applyLightingOverlay(width, height, phase) {
+  // Apply day/night lighting effects
+  if (!phase) return;
+  
+  const isNightTime = phase > 0.5 && phase < 0.9;
+  if (isNightTime) {
+    // Apply dark overlay for night
+    const nightIntensity = Math.sin((phase - 0.5) * Math.PI * 2.5) * 0.3 + 0.3;
+    ctx.fillStyle = `rgba(0, 10, 20, ${nightIntensity})`;
+    ctx.fillRect(0, 0, width, height);
+  }
+}
+
+function isNight() {
+  if (!state.dayNight) return false;
+  const phase = state.dayNight.phase;
+  return phase > 0.7 || phase < 0.2; // Night time periods
+}
+
+function drawBackground(width, height, phase) {
+  // Draw sky gradient based on time of day
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  
+  // Day/night color interpolation
+  const dayTop = '#1c3850';
+  const dayBottom = '#09131b';
+  const nightTop = '#04060d';
+  const nightBottom = '#020307';
+  
+  // Simple day/night transition (phase 0-1, where 0.25 = day, 0.75 = night)
+  const isNightTime = phase > 0.5 && phase < 0.9;
+  const skyTop = isNightTime ? nightTop : dayTop;
+  const skyBottom = isNightTime ? nightBottom : dayBottom;
+  
+  gradient.addColorStop(0, skyTop);
+  gradient.addColorStop(1, skyBottom);
+  
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw simple ground
+  ctx.fillStyle = '#2d5a3d';
+  ctx.fillRect(0, height * 0.7, width, height * 0.3);
+}
+
+function drawPlayer(player, width, height) {
+  if (!player) return;
+  
+  // Center camera on player
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // Draw simple player representation
+  ctx.fillStyle = '#f6e0c8'; // Skin color
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 16, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw simple body
+  ctx.fillStyle = '#4f79b7'; // Shirt color
+  ctx.fillRect(centerX - 12, centerY + 5, 24, 30);
+  
+  // Draw simple legs
+  ctx.fillStyle = '#2f3e59'; // Pants color
+  ctx.fillRect(centerX - 10, centerY + 25, 8, 20);
+  ctx.fillRect(centerX + 2, centerY + 25, 8, 20);
+}
+
+function drawStones(stones) {
+  ctx.fillStyle = '#666';
+  for (const stone of stones) {
+    ctx.beginPath();
+    ctx.arc(stone.x, stone.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawHudOverlay(width, height) {
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '12px Inter, sans-serif';
+  ctx.fillText(`FPS: ${state.fps.toFixed(0)}`, width - 80, height - 16);
+}
+
 function update(dt) {
   if (state.dialog.open || state.editor.open) {
     state.contextAction = state.dialog.open
@@ -1396,11 +1528,6 @@ function isNightPhase(phase) {
   return phase >= 0.7 || phase <= 0.22;
 }
 
-function isNight() {
-  if (!FLAGS.dayNightEnabled) return false;
-  return isNightPhase(state.day.phase);
-}
-
 function updateDayNight(dt) {
   if (!FLAGS.dayNightEnabled) return;
   state.day.time += dt;
@@ -1444,9 +1571,6 @@ function updateFireflies(dt) {
 }
 
 function spawnFirefly() {
-  const area = state.map && state.map.pondArea ? state.map.pondArea : MAPDATA.pondArea;
-=======
-=======
   const area = state.map?.pondArea || MAPDATA.pondArea;
   if (!area) return;
   const point = randomPointInArea(area, { jitter: 1.1 });
@@ -1632,8 +1756,6 @@ function resolveFootstepSurface(tx, ty) {
   }
   if (symbol === "w") {
     return "soft";
-=======
-=======
   }
   return "grass";
 }
@@ -1670,8 +1792,6 @@ function updatePlants(dt) {
       }
     }
     if (now >= plant.readyAt) {
-=======
-    if (plant.stage === "growing" && now >= plant.readyAt) {
       plant.stage = plant.success ? "ready" : "failed";
     }
   }
@@ -1713,1361 +1833,69 @@ function resolveContextAction() {
   return "grass";
 }
 
-function playFootstepSound(surface, sprinting) {
-  if (sprinting) {
-    globalSfx.play("footstepSprint", { volume: 0.42, cooldown: 0 });
-    return;
-  }
-  if (surface === "stone") {
-    globalSfx.play("footstepSoft", { volume: 0.34, cooldown: 0 });
-  } else {
-    globalSfx.play("footstepGrass", { volume: 0.32, cooldown: 0 });
-  }
-}
-
-function isAnyPressed(list) {
-  if (!list) return false;
-  for (const key of list) {
-    if (state.keys.has(key)) return true;
-  }
-  return false;
-}
-
-function updatePlants(dt) {
-  const now = state.time * 1000;
-  for (const plant of state.plants.values()) {
-    if (plant.stage !== "growing") continue;
-    if (plant.kind === "moonflower" && isNight()) {
-      const def = PLANTS.moonflower;
-      if (def) {
-        const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
-        const minReady = plant.plantedAt + minMs;
-        plant.readyAt = Math.max(minReady, plant.readyAt - dt * 1000 * def.nightSpeed);
-      }
-=======
-=======
-  const front = getFrontTile();
-  const key = tileKey(front.tx, front.ty, state.map.cols);
-  const plant = state.plants.get(key);
-  if (plant) {
-    if (plant.stage === "ready") {
-      return { label: "Ernten", handler: () => harvestPlant(plant) };
-    }
-    if (plant.stage === "growing" && state.player.watering.charges > 0) {
-      return { label: "Gießen", handler: () => waterPlant(plant) };
-    }
-    if (plant.stage === "failed") {
-      return { label: "Entfernen", handler: () => { state.plants.delete(key); scheduleSave(); } };
-    }
-  } else if (areaSymbolAt(front.tx, front.ty) === "f") {
-    if (state.player.selectedPlant === "corn" && state.player.poop > 0) {
-      return { label: "Mais säen", handler: () => plantCrop(front.tx, front.ty, "corn") };
-    }
-    if (now >= plant.readyAt) {
-      plant.stage = plant.success ? "ready" : "failed";
-    }
-  }
-}
-function resolveContextAction() {
-  const player = state.player;
-  const { tx: playerTx, ty: playerTy } = worldToTile(player.x, player.y);
-  if (areaSymbolAt(playerTx, playerTy) === "y" && player.carrying && player.carrying.kind === "stone") {
-    return {
-      label: `Abliefern (${player.yardDelivered}/5)`,
-      handler: deliverStone,
-    };
-  }
-  if (player.carrying && player.carrying.kind === "stone") {
-    const preview = placementPreview();
-    state.preview = preview;
-    return {
-      label: preview.valid ? "Stein platzieren" : "Kein Platz",
-      handler: () => preview.valid && placeStone(preview.tx, preview.ty),
-      disabled: !preview.valid,
-    };
-  } else {
-    state.preview = null;
-  }
-  const dirt = findNearby(state.dirt, player.x, player.y, TILE * 0.6);
-  if (dirt) {
-    return {
-      label: "Erdbrocken einsammeln",
-      handler: () => collectDirt(dirt),
-    };
-  }
-  const stone = findNearby(state.stones, player.x, player.y, TILE * 0.75);
-  if (stone) {
-    return {
-      label: "Stein aufnehmen",
-      handler: () => pickupStone(stone),
-    };
-  }
-  const npc = findNPCNearby(player.x, player.y, TILE * 0.9);
-  if (npc) {
-    if (npc.id === "fred") return { label: "Fecalfreds Stand", handler: openFredShop };
-    if (npc.id === "berta") return { label: "Bertas Werkbank", handler: openBertaShop };
-    if (npc.id === "stefan") return { label: "Mit Stefan planen", handler: openStefanDialog };
-  }
-  const tableCenter = tileCenter(state.map.editorTable.x, state.map.editorTable.y);
-  if (distance(player.x, player.y, tableCenter.x, tableCenter.y) < TILE) {
-    return { label: "Editor öffnen", handler: enterEditor };
-  }
-  const front = getFrontTile();
-  const key = tileKey(front.tx, front.ty, state.map.cols);
-  const plant = state.plants.get(key);
-  if (plant) {
-    if (plant.stage === "ready") {
-      return { label: "Ernten", handler: () => harvestPlant(plant) };
-    }
-    if (plant.stage === "growing" && state.player.watering.charges > 0) {
-      return { label: "Gießen", handler: () => waterPlant(plant) };
-    }
-    if (plant.stage === "failed") {
-      return { label: "Entfernen", handler: () => { state.plants.delete(key); scheduleSave(); } };
-    }
-  } else if (areaSymbolAt(front.tx, front.ty) === "f") {
-    if (state.player.selectedPlant === "corn" && state.player.poop > 0) {
-      return { label: "Mais säen", handler: () => plantCrop(front.tx, front.ty, "corn") };
-    }
-    if (state.player.selectedPlant === "cabbage" && state.player.cabbageSeed > 0) {
-      return { label: "Kohl pflanzen", handler: () => plantCrop(front.tx, front.ty, "cabbage") };
-=======
-    if (state.player.selectedPlant === "moonflower") {
-      const hasSeed = state.player.moonflowerSeed > 0;
-      return {
-        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
-        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
-        disabled: !hasSeed,
-      };
-    }
-    if (state.player.selectedPlant === "moonflower") {
-      const hasSeed = state.player.moonflowerSeed > 0;
-      return {
-        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
-        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
-        disabled: !hasSeed,
-      };
-    }
-    if (state.player.selectedPlant === "moonflower") {
-      const hasSeed = state.player.moonflowerSeed > 0;
-      return {
-        label: hasSeed ? "Mondbohne pflanzen" : "Keine Mondbohnen-Saat",
-        handler: () => hasSeed && plantCrop(front.tx, front.ty, "moonflower"),
-        disabled: !hasSeed,
-      };
-    }
-  }
-  if (tileAt(front.tx, front.ty) === "w" && state.player.watering.charges < state.player.watering.max) {
-    return { label: "Gießkanne füllen", handler: refillWater };
-  }
-  return null;
-}
-
 function findNearby(list, x, y, radius) {
+  if (!list || !Array.isArray(list)) return null;
   for (const item of list) {
-    if (distance(x, y, item.x, item.y) <= radius) return item;
+    if (!item || typeof item.x !== 'number' || typeof item.y !== 'number') continue;
+    const dx = item.x - x;
+    const dy = item.y - y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= radius) {
+      return item;
+    }
   }
   return null;
-}
-
-function findNPCNearby(x, y, radius) {
-  for (const npc of state.npcs) {
-    if (distance(x, y, npc.x, npc.y) <= radius) return npc;
-  }
-  return null;
-}
-
-function placementPreview() {
-  const front = getFrontTile();
-  if (!front) return { valid: false };
-  const { tx, ty } = front;
-  if (!tileWalkable(tx, ty)) return { valid: false, tx, ty };
-  if (isReservedTile(tx, ty)) return { valid: false, tx, ty };
-  for (const stone of state.stones) {
-    const { tx: sx, ty: sy } = worldToTile(stone.x, stone.y);
-    if (sx === tx && sy === ty) return { valid: false, tx, ty };
-  }
-  return { valid: true, tx, ty };
-}
-
-function getFrontTile() {
-  const player = state.player;
-  let dirX = player.dir.x;
-  let dirY = player.dir.y;
-  if (!dirX && !dirY) dirY = 1;
-  const fx = player.x + Math.sign(dirX) * TILE * 0.75;
-  const fy = player.y + Math.sign(dirY) * TILE * 0.75;
-  const { tx, ty } = worldToTile(fx, fy);
-  return { tx, ty };
-}
-
-function pickupStone(stone) {
-  const idx = state.stones.indexOf(stone);
-  if (idx === -1) return;
-  state.stones.splice(idx, 1);
-  state.player.carrying = { kind: "stone", id: stone.id, stored: stone };
-  globalSfx.play("pickup");
-  scheduleSave();
-}
-
-function placeStone(tx, ty) {
-  const player = state.player;
-  if (!player.carrying || player.carrying.kind !== "stone") return;
-  const { x, y } = tileCenter(tx, ty);
-  const stone = player.carrying.stored;
-  stone.x = x;
-  stone.y = y;
-  state.stones.push(stone);
-  player.carrying = null;
-  globalSfx.play("plant");
-  scheduleSave();
-}
-
-function deliverStone() {
-  const player = state.player;
-  if (!player.carrying || player.carrying.kind !== "stone") return;
-  player.carrying = null;
-  player.yardDelivered = (player.yardDelivered + 1) % WORLD.yardBatch;
-  player.yardTotal += 1;
-  state.yard.delivered = player.yardDelivered;
-  state.yard.total = player.yardTotal;
-  if (player.yardDelivered === 0) {
-    player.poop = clamp(player.poop + 1, 0, WORLD.inventoryLimit);
-    showToast("Dünger erhalten");
-  }
-  if (player.yardTotal >= WORLD.yardUpgradeStones) {
-    player.yardTotal = 0;
-    state.yard.upgradeReady = true;
-    state.yard.upgradeNotified = false;
-    showToast("Neues bei Fecalfred!");
-  }
-  globalSfx.play("sell");
-  scheduleSave();
-}
-
-function collectDirt(dirt) {
-  const idx = state.dirt.indexOf(dirt);
-  if (idx !== -1) state.dirt.splice(idx, 1);
-  const baseChance = 0.1 + Math.random() * 0.05;
-  const bonus = isNight() ? 0.08 : 0;
-  if (Math.random() < Math.min(0.95, baseChance + bonus)) {
-    state.player.poop = clamp(state.player.poop + 1, 0, WORLD.inventoryLimit);
-    showToast(isNight() ? "Mondschein-Bonus: 💩 gefunden" : "Ein bisschen 💩 gefunden");
-  }
-  globalSfx.play("pickup");
-  scheduleSave();
-}
-
-function plantCrop(tx, ty, kind) {
-  const key = tileKey(tx, ty, state.map.cols);
-  if (state.plants.has(key)) return;
-  const plantDef = PLANTS[kind];
-  const now = state.time * 1000;
-  const plant = {
-    id: `${kind}-${tx}-${ty}-${now}`,
-    kind,
-    tx,
-    ty,
-    plantedAt: now,
-    readyAt: now + plantDef.growMs,
-    stage: "growing",
-    watered: false,
-    wateredMs: 0,
-    success: true,
-  };
-  if (kind === "corn") {
-    state.player.poop = clamp(state.player.poop - plantDef.poopCost, 0, WORLD.inventoryLimit);
-    plant.success = Math.random() < plantDef.chance;
-    if (!plant.success) {
-      plant.readyAt = now + 10000;
-    }
-  } else if (kind === "cabbage") {
-    state.player.cabbageSeed = clamp(state.player.cabbageSeed - 1, 0, WORLD.inventoryLimit);
-  } else if (kind === "moonflower") {
-    state.player.moonflowerSeed = clamp(state.player.moonflowerSeed - 1, 0, WORLD.inventoryLimit);
-    plant.success = true;
-    state.unlocks.moonflower = true;
-    const def = PLANTS.moonflower;
-    if (def && isNight()) {
-      const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
-      const minReady = plant.plantedAt + minMs;
-=======
-=======
-      const minReady = plant.plantedAt + (def.minMs ?? 0);
-      plant.readyAt = Math.max(minReady, plant.readyAt - def.nightSpeed * 1000 * 6);
-    }
-  }
-  state.plants.set(key, plant);
-  globalSfx.play("plant");
-  scheduleSave();
-}
-
-function waterPlant(plant) {
-  if (state.player.watering.charges <= 0) return;
-  state.player.watering.charges -= 1;
-  plant.watered = true;
-  if (plant.kind === "corn") {
-    const def = PLANTS.corn;
-    const minReady = plant.plantedAt + def.minMs;
-    plant.readyAt = Math.max(minReady, plant.readyAt - def.waterBonusMs);
-  } else if (plant.kind === "cabbage") {
-    const def = PLANTS.cabbage;
-    plant.readyAt = Math.min(plant.readyAt, plant.plantedAt + def.wateredTotalMs);
-  } else if (plant.kind === "moonflower") {
-    const def = PLANTS.moonflower;
-    if (def) {
-      const minMs = Number.isFinite(def.minMs) ? def.minMs : 0;
-      const bonusMs = Number.isFinite(def.waterBonusMs) ? def.waterBonusMs : 0;
-      const minReady = plant.plantedAt + minMs;
-      plant.readyAt = Math.max(minReady, plant.readyAt - bonusMs);
-=======
-=======
-      const minReady = plant.plantedAt + (def.minMs ?? 0);
-      plant.readyAt = Math.max(minReady, plant.readyAt - (def.waterBonusMs ?? 0));
-    }
-  }
-  globalSfx.play("water");
-  scheduleSave();
-}
-
-function harvestPlant(plant) {
-  const key = tileKey(plant.tx, plant.ty, state.map.cols);
-  state.plants.delete(key);
-  if (plant.kind === "corn") {
-    if (plant.success) {
-      state.player.corn = clamp(state.player.corn + 1, 0, WORLD.inventoryLimit);
-    }
-  } else if (plant.kind === "cabbage") {
-    state.player.cabbage = clamp(state.player.cabbage + 1, 0, WORLD.inventoryLimit);
-  } else if (plant.kind === "moonflower") {
-    state.player.moonflower = clamp(state.player.moonflower + 1, 0, WORLD.inventoryLimit);
-    state.unlocks.moonflower = true;
-  }
-  globalSfx.play("pickup");
-  scheduleSave();
-}
-
-function refillWater() {
-  state.player.watering.charges = state.player.watering.max;
-  globalSfx.play("water");
-  scheduleSave();
-}
-function openFredShop() {
-  const player = state.player;
-  const actions = [];
-  if (player.corn > 0) {
-    actions.push({
-      label: `Mais verkaufen (+${player.corn * ECON.cornSell} €)`,
-      description: `${player.corn}x Mais`,
-      onSelect: () => {
-        player.money += player.corn * ECON.cornSell;
-        player.corn = 0;
-        globalSfx.play("sell");
-        scheduleSave();
-      },
-    });
-  }
-  if (player.cabbage > 0) {
-    actions.push({
-      label: `Kohl verkaufen (+${player.cabbage * ECON.cabbageSell} €)`,
-      description: `${player.cabbage}x Kohl`,
-      onSelect: () => {
-        player.money += player.cabbage * ECON.cabbageSell;
-        player.cabbage = 0;
-        globalSfx.play("sell");
-        scheduleSave();
-      },
-    });
-  }
-  if (player.moonflower > 0) {
-    actions.push({
-      label: `Mondbohnen verkaufen (+${player.moonflower * ECON.moonflowerSell} €)`,
-      description: `${player.moonflower}x Mondbohne`,
-      onSelect: () => {
-        player.money += player.moonflower * ECON.moonflowerSell;
-        player.moonflower = 0;
-        state.unlocks.moonflower = true;
-        globalSfx.play("sell");
-        scheduleSave();
-      },
-    });
-  }
-  actions.push({
-    label: "Kohlsamen kaufen (2 €)",
-    description: "Eins pro Klick",
-    disabled: player.money < 2,
-    onSelect: () => {
-      if (player.money < 2) return;
-      player.money -= 2;
-      player.cabbageSeed = clamp(player.cabbageSeed + 1, 0, WORLD.inventoryLimit);
-      globalSfx.play("ui");
-      scheduleSave();
-    },
-  });
-  if (state.yard.upgradeReady || state.unlocks.moonflower) {
-    actions.push({
-      label: "Mondbohnen-Saat (3 €)",
-      description: "Leuchtet bei Nacht",
-      disabled: player.money < 3,
-      onSelect: () => {
-        if (player.money < 3) return;
-        player.money -= 3;
-        player.moonflowerSeed = clamp(player.moonflowerSeed + 1, 0, WORLD.inventoryLimit);
-        state.unlocks.moonflower = true;
-        globalSfx.play("ui");
-        scheduleSave();
-      },
-    });
-  }
-  if (state.yard.upgradeReady) {
-    actions.push({
-      label: "Karren kaufen (6 €)",
-      description: "+10 % Tragespeed",
-      disabled: player.upgrades.cart || player.money < 6,
-      onSelect: () => {
-        if (player.money < 6 || player.upgrades.cart) return;
-        player.money -= 6;
-        player.upgrades.cart = true;
-        state.yard.upgradeReady = false;
-        state.yard.upgradeNotified = true;
-        globalSfx.play("ui");
-        showToast("Karren verfügbar");
-        scheduleSave();
-      },
-    });
-    actions.push({
-      label: "💩 kaufen (4 €)",
-      description: "Dünger auf Vorrat",
-      disabled: player.money < 4,
-      onSelect: () => {
-        if (player.money < 4) return;
-        player.money -= 4;
-        player.poop = clamp(player.poop + 1, 0, WORLD.inventoryLimit);
-        globalSfx.play("sell");
-        scheduleSave();
-      },
-    });
-  } else if (!state.yard.upgradeNotified && state.yard.total === 0) {
-    showToast("Mehr Felsen für neue Waren!");
-    state.yard.upgradeNotified = true;
-  }
-  openDialog({ title: "Fecalfred", subtitle: "Alles fürs Geschäft", actions });
-}
-
-function openBertaShop() {
-  const player = state.player;
-  const actions = [];
-  if (player.upgrades.crusher && player.carrying && player.carrying.kind === "stone") {
-    actions.push({
-      label: "Stein zerkleinern",
-      description: "+8 Munition",
-      onSelect: () => {
-        player.carrying = null;
-        player.ammo = clamp(player.ammo + STONE.crusherYield, 0, WORLD.inventoryLimit);
-        globalSfx.play("sell");
-        scheduleSave();
-      },
-    });
-  }
-  actions.push({
-    label: "Gießkanne aufrüsten (5 €)",
-    description: "Kapazität 13 Füllungen",
-    disabled: player.upgrades.watering || player.money < 5,
-    onSelect: () => {
-      if (player.money < 5 || player.upgrades.watering) return;
-      player.money -= 5;
-      player.upgrades.watering = true;
-      player.watering.max = CAN_MAX;
-      player.watering.charges = CAN_MAX;
-      globalSfx.play("ui");
-      scheduleSave();
-    },
-  });
-  actions.push({
-    label: "Schuhe kaufen (7 €)",
-    description: "+35 % Geschwindigkeit",
-    disabled: player.upgrades.shoes || player.money < 7,
-    onSelect: () => {
-      if (player.money < 7 || player.upgrades.shoes) return;
-      player.money -= 7;
-      player.upgrades.shoes = true;
-      globalSfx.play("ui");
-      scheduleSave();
-    },
-  });
-  actions.push({
-    label: "Steinzerkleinerer (6 €)",
-    description: "Schaltet Munition frei",
-    disabled: player.upgrades.crusher || player.money < 6,
-    onSelect: () => {
-      if (player.money < 6 || player.upgrades.crusher) return;
-      player.money -= 6;
-      player.upgrades.crusher = true;
-      globalSfx.play("ui");
-      scheduleSave();
-    },
-  });
-  openDialog({ title: "Berta", subtitle: "Werkbank & Extras", actions });
-}
-
-function openStefanDialog() {
-  const actions = [
-    {
-      label: "Editor öffnen",
-      onSelect: enterEditor,
-    },
-    {
-      label: "Layout speichern",
-      onSelect: () => saveEditorLayout(),
-    },
-  ];
-  openDialog({ title: "Stefan", subtitle: "Der Planer", actions });
-}
-
-function scheduleSave() {
-  if (state.saveTimer) window.clearTimeout(state.saveTimer);
-  state.saveTimer = window.setTimeout(saveGame, SAVE_DEBOUNCE_MS);
 }
 
 function maybeSave() {
-  // intentional noop placeholder for future batching
-}
-
-function saveGame() {
-  state.saveTimer = null;
-  const player = state.player;
-  const save = {
-    version: GAME_VERSION,
-    player: {
-      x: player.x,
-      y: player.y,
-      money: player.money,
-      poop: player.poop,
-      corn: player.corn,
-      cabbage: player.cabbage,
-      cabbageSeed: player.cabbageSeed,
-      moonflower: player.moonflower,
-      moonflowerSeed: player.moonflowerSeed,
-      ammo: player.ammo,
-      stamina: player.stamina,
-      hearts: player.hearts,
-      yardDelivered: player.yardDelivered,
-      yardTotal: player.yardTotal,
-      selectedPlant: player.selectedPlant,
-      watering: { charges: player.watering.charges },
-      upgrades: { ...player.upgrades },
-    },
-    yard: { ...state.yard },
-    unlocks: { ...state.unlocks },
-    day: { time: state.day.time, count: state.day.count },
-    stones: state.stones.map(stone => ({ x: stone.x, y: stone.y })),
-    dirt: state.dirt.map(clod => ({ x: clod.x, y: clod.y })),
-    plants: Array.from(state.plants.values()).map(p => ({
-      tx: p.tx,
-      ty: p.ty,
-      kind: p.kind,
-      plantedAt: p.plantedAt,
-      readyAt: p.readyAt,
-      stage: p.stage,
-      watered: p.watered,
-      wateredMs: p.wateredMs,
-      success: p.success,
-    })),
-    editorLayout: state.editor.layout || buildCurrentEditorLayout(),
-  };
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-  } catch (err) {
-    console.warn("save failed", err);
-  }
-}
-function buildCurrentEditorLayout() {
-  return {
-    fieldArea: { ...state.map.fieldArea },
-    yardArea: { ...state.map.yardArea },
-    pondArea: { ...state.map.pondArea },
-    clearingArea: { ...state.map.clearingArea },
-    quarryArea: { ...state.map.quarryArea },
-    npcs: state.npcs.map(npc => ({ id: npc.id, x: npc.x / TILE, y: npc.y / TILE })),
-  };
-}
-
-function enterEditor() {
-  state.editor.open = true;
-  if (!state.editor.layout) {
-    state.editor.layout = loadEditorLayoutFromStorage() || buildCurrentEditorLayout();
-  }
-  state.editor.order = ["fred", "berta", "stefan", "fieldArea", "clearingArea", "pondArea", "quarryArea"];
-  state.editor.index = 0;
-  renderEditorPanel();
-  if (editorPanel) {
-    editorPanel.classList.add("open");
-  }
-}
-
-function exitEditor() {
-  state.editor.open = false;
-  if (editorPanel) {
-    editorPanel.classList.remove("open");
-  }
-}
-
-function loadEditorLayoutFromStorage() {
-  try {
-    const raw = localStorage.getItem(WORLD.editorLayoutKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch (err) {
-    console.warn("layout parse failed", err);
-    return null;
-  }
-}
-
-function saveEditorLayout() {
-  const layout = state.editor.layout || buildCurrentEditorLayout();
-  try {
-    localStorage.setItem(WORLD.editorLayoutKey, JSON.stringify(layout));
-    applyEditorLayout(layout, false);
-    showToast("Layout gespeichert");
-  } catch (err) {
-    console.warn("layout save failed", err);
-  }
-}
-
-function resetEditorLayout() {
-  localStorage.removeItem(WORLD.editorLayoutKey);
-  state.editor.layout = buildCurrentEditorLayout();
-  applyEditorLayout(state.editor.layout, false);
-  renderEditorPanel();
-  showToast("Layout zurückgesetzt");
-}
-
-function applyEditorLayout(layout, updatePanel = true) {
-  if (!layout || typeof layout !== "object") return;
-
-  const normalizeRect = (source, fallback) => {
-    const base = { ...fallback };
-    if (!source || typeof source !== "object") return base;
-    const width = sanitizeNumber(source.w, fallback.w, 1, fallback.w);
-    const height = sanitizeNumber(source.h, fallback.h, 1, fallback.h);
-    const minX = 1;
-    const minY = 1;
-    const maxX = state.map ? Math.max(minX, state.map.cols - width - 1) : fallback.x;
-    const maxY = state.map ? Math.max(minY, state.map.rows - height - 1) : fallback.y;
-    return {
-      x: sanitizeNumber(source.x, fallback.x, minX, maxX),
-      y: sanitizeNumber(source.y, fallback.y, minY, maxY),
-      w: width,
-      h: height,
-    };
-  };
-
-  const normalized = {
-    fieldArea: normalizeRect(layout.fieldArea, MAPDATA.fieldArea),
-    yardArea: normalizeRect(layout.yardArea, MAPDATA.yardArea),
-    pondArea: normalizeRect(layout.pondArea, MAPDATA.pondArea),
-    clearingArea: normalizeRect(layout.clearingArea, MAPDATA.clearingArea),
-    quarryArea: normalizeRect(layout.quarryArea, MAPDATA.quarryArea),
-    npcs: [],
-  };
-
-  for (const npc of state.npcs) {
-    const match = Array.isArray(layout.npcs) ? layout.npcs.find(entry => entry && entry.id === npc.id) : null;
-    const fallbackX = npc.x / TILE;
-    const fallbackY = npc.y / TILE;
-    const matchX = match ? match.x : undefined;
-    const matchY = match ? match.y : undefined;
-    const nx = sanitizeNumber(matchX, fallbackX, 1, state.map.cols - 2);
-    const ny = sanitizeNumber(matchY, fallbackY, 1, state.map.rows - 2);
-=======
-=======
-    const nx = sanitizeNumber(match?.x, fallbackX, 1, state.map.cols - 2);
-    const ny = sanitizeNumber(match?.y, fallbackY, 1, state.map.rows - 2);
-    npc.x = nx * TILE;
-    npc.y = ny * TILE;
-    normalized.npcs.push({ id: npc.id, x: nx, y: ny });
-  }
-
-  state.map.fieldArea = { ...normalized.fieldArea };
-  state.map.yardArea = { ...normalized.yardArea };
-  state.map.pondArea = { ...normalized.pondArea };
-  state.map.clearingArea = { ...normalized.clearingArea };
-  state.map.quarryArea = { ...normalized.quarryArea };
-  state.map.spawnable = rebuildSpawnable(state.map);
-
-  state.editor.layout = safeClone(normalized);
-  if (updatePanel) {
-    renderEditorPanel();
-  }
-}
-
-function renderEditorPanel() {
-  if (!state.editor.open || !editorBody) return;
-  const layout = state.editor.layout || buildCurrentEditorLayout();
-  editorBody.innerHTML = "";
-  const container = document.createElement("div");
-  container.className = "editor-controls";
-  const currentId = state.editor.order[state.editor.index];
-  const header = document.createElement("p");
-  header.textContent = `Aktiv: ${editorLabel(currentId)}`;
-  container.appendChild(header);
-  const grid = document.createElement("div");
-  grid.className = "editor-grid";
-  const makeButton = (text, dx, dy) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = text;
-    btn.addEventListener("click", () => moveEditorItem(currentId, dx, dy));
-    return btn;
-  };
-  grid.appendChild(makeButton("↑", 0, -1));
-  grid.appendChild(document.createElement("span"));
-  grid.appendChild(makeButton("→", 1, 0));
-  grid.appendChild(makeButton("←", -1, 0));
-  grid.appendChild(document.createElement("span"));
-  grid.appendChild(makeButton("↓", 0, 1));
-  container.appendChild(grid);
-  const nav = document.createElement("div");
-  nav.className = "editor-nav";
-  const prev = document.createElement("button");
-  prev.type = "button";
-  prev.textContent = "Vorheriges";
-  prev.addEventListener("click", () => {
-    state.editor.index = (state.editor.index - 1 + state.editor.order.length) % state.editor.order.length;
-    renderEditorPanel();
-  });
-  const next = document.createElement("button");
-  next.type = "button";
-  next.textContent = "Nächstes";
-  next.addEventListener("click", () => {
-    state.editor.index = (state.editor.index + 1) % state.editor.order.length;
-    renderEditorPanel();
-  });
-  nav.appendChild(prev);
-  nav.appendChild(next);
-  container.appendChild(nav);
-  editorBody.appendChild(container);
-}
-
-function editorLabel(id) {
-  switch (id) {
-    case "fred": return "Fecalfred";
-    case "berta": return "Berta";
-    case "stefan": return "Stefan";
-    case "fieldArea": return "Feld";
-    case "clearingArea": return "Lichtung";
-    case "pondArea": return "Teich";
-    case "quarryArea": return "Felsenhof";
-    default: return id;
-  }
-}
-
-function moveEditorItem(id, dx, dy) {
-  const layout = state.editor.layout || buildCurrentEditorLayout();
-  if (id === "fred" || id === "berta" || id === "stefan") {
-    const npc = layout.npcs.find(n => n.id === id);
-    if (!npc) return;
-    npc.x = clamp(npc.x + dx, 2, state.map.cols - 3);
-    npc.y = clamp(npc.y + dy, 2, state.map.rows - 3);
-  } else if (layout[id]) {
-    const rect = layout[id];
-    rect.x = clamp(rect.x + dx, 1, state.map.cols - rect.w - 1);
-    rect.y = clamp(rect.y + dy, 1, state.map.rows - rect.h - 1);
-  }
-  state.editor.layout = layout;
-  applyEditorLayout(layout, false);
-  renderEditorPanel();
-  scheduleSave();
-}
-
-function render() {
-  if (!ctx || !canvas) return;
-  const width = canvas.width / state.dpr;
-  const height = canvas.height / state.dpr;
-  ctx.save();
-  ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  drawBackground(width, height);
-  const offsetX = width / 2 - state.camera.x;
-  const offsetY = height / 2 - state.camera.y;
-  ctx.translate(offsetX, offsetY);
-  const view = computeViewBounds(width, height);
-  drawTiles(view);
-  drawHouses(view);
-  drawPlants(view);
-  drawDirt(view);
-  drawStones(view);
-  drawNPCs(view);
-  drawFireflies(view);
-
-  drawPlayer();
-  drawPreview(view);
-  ctx.restore();
-  applyLightingOverlay(width, height);
-  drawHudOverlay(width, height);
-}
-
-function drawBackground(width, height) {
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  if (FLAGS.dayNightEnabled) {
-    const ambient = state.lighting.ambient;
-    let top = mixColor(SKY_TOP_NIGHT, SKY_TOP_DAY, ambient);
-    let bottom = mixColor(SKY_BOTTOM_NIGHT, SKY_BOTTOM_DAY, ambient);
-    const phase = state.day.phase;
-    const dawnSpan = typeof WORLD.dawnDuration === "number" ? WORLD.dawnDuration : 0.12;
-    const duskSpan = typeof WORLD.duskDuration === "number" ? WORLD.duskDuration : 0.12;
-
-    const dawnSpan = WORLD.dawnDuration ?? 0.12;
-    const duskSpan = WORLD.duskDuration ?? 0.12;
-    const dawnDistance = Math.min(Math.abs(phase - 0), Math.abs(phase - 1));
-    const dawnWeight = clamp(1 - dawnDistance / Math.max(0.001, dawnSpan), 0, 1);
-    const duskWeight = clamp(1 - Math.abs(phase - 0.5) / Math.max(0.001, duskSpan), 0, 1);
-    const warm = Math.max(dawnWeight, duskWeight);
-    if (warm > 0) {
-      top = mixColor(top, SKY_TOP_DAWN, warm * 0.8);
-      bottom = mixColor(bottom, SKY_BOTTOM_DAWN, warm * 0.8);
-    }
-    gradient.addColorStop(0, top);
-    gradient.addColorStop(1, bottom);
-  } else {
-    gradient.addColorStop(0, SKY_TOP_DAY);
-    gradient.addColorStop(1, SKY_BOTTOM_DAY);
-  }
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-}
-
-function drawTiles(view) {
-  if (!state.map) return;
-  const { minX, maxX, minY, maxY } = view.tiles;
-  for (let ty = minY; ty <= maxY; ty++) {
-    for (let tx = minX; tx <= maxX; tx++) {
-      const sym = tileAt(tx, ty);
-      ctx.fillStyle = tileColor(sym);
-      ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
-      if (sym === "f") {
-        ctx.strokeStyle = "rgba(255,255,255,0.1)";
-        ctx.strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
-      }
+  // Simple auto-save placeholder - just store the current state periodically
+  if (state.time % 30 < 0.1) { // Save every 30 seconds
+    try {
+      const saveData = {
+        player: state.player,
+        stones: state.stones || [],
+        plants: state.plants || new Map(),
+        time: state.time,
+        dayNight: state.dayNight
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    } catch (err) {
+      console.warn("Auto-save failed:", err);
     }
   }
-}
-
-function drawHouses(view) {
-  for (const house of HOUSES) {
-    const { area } = house;
-    const x = area.x * TILE;
-    const y = area.y * TILE;
-    const width = area.w * TILE;
-    const height = area.h * TILE;
-    if (!rectIntersectsView(x, y, width, height, view)) continue;
-    drawHouse(house);
-  }
-}
-
-function drawHouse(house) {
-  const { area, palette, emblem } = house;
-  const x = area.x * TILE;
-  const y = area.y * TILE;
-  const width = area.w * TILE;
-  const height = area.h * TILE;
-  const roofHeight = Math.min(height * 0.45, TILE * 1.6);
-  const wallHeight = height - roofHeight;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.beginPath();
-  ctx.ellipse(width / 2, height + TILE * 0.25, width * 0.52, TILE * 0.4, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = palette.roof;
-  ctx.beginPath();
-  ctx.moveTo(0, roofHeight);
-  ctx.lineTo(width / 2, Math.max(roofHeight - TILE, 0));
-  ctx.lineTo(width, roofHeight);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillRect(0, roofHeight - TILE * 0.12, width, TILE * 0.12);
-  ctx.fillStyle = palette.wall;
-  ctx.fillRect(0, roofHeight, width, Math.max(wallHeight, TILE));
-  ctx.fillStyle = palette.trim;
-  ctx.fillRect(0, roofHeight, width, TILE * 0.12);
-  ctx.fillRect(0, roofHeight + wallHeight - TILE * 0.18, width, TILE * 0.18);
-  const windowSize = TILE * 0.72;
-  const windowY = roofHeight + TILE * 0.48;
-  ctx.fillStyle = palette.trim;
-  ctx.fillRect(TILE * 0.6, windowY, windowSize, windowSize);
-  ctx.fillRect(width - TILE * 0.6 - windowSize, windowY, windowSize, windowSize);
-  ctx.fillStyle = "rgba(255,255,255,0.08)";
-  ctx.fillRect(TILE * 0.6, windowY, windowSize, windowSize);
-  ctx.fillRect(width - TILE * 0.6 - windowSize, windowY, windowSize, windowSize);
-  const doorWidth = TILE * 1.1;
-  const doorHeight = TILE * 1.7;
-  ctx.fillStyle = palette.door;
-  ctx.fillRect(width / 2 - doorWidth / 2, roofHeight + wallHeight - doorHeight, doorWidth, doorHeight);
-  const bannerWidth = TILE * 1.5;
-  const bannerHeight = TILE * 0.42;
-  ctx.fillStyle = palette.banner;
-  ctx.fillRect(width / 2 - bannerWidth / 2, roofHeight - bannerHeight * 0.4, bannerWidth, bannerHeight);
-  ctx.fillStyle = "#120d0d";
-  ctx.font = `${TILE * 0.55}px "Inter", sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(emblem, width / 2, roofHeight - bannerHeight * 0.1);
-  ctx.restore();
-}
-
-function tileColor(sym) {
-  switch (sym) {
-    case "p": return "#6b5537";
-    case "h": return "#2c2f3b";
-    case "x": return "#0c1612";
-    case "w": return "#1b3f6e";
-    case "f": return "#3b6f36";
-    case "y": return "#6b4026";
-    case "c": return "#2d4b2a";
-    case "q": return "#4f4d49";
-    case "d": return "#5b3c2d";
-    case "b": return "#4a3a5b";
-    case "s": return "#37535c";
-    case "t": return "#2d604b";
-    default: return "#1e3a2b";
-  }
-}
-
-=======
-}
-
-function tileColor(sym) {
-  switch (sym) {
-    case "p": return "#6b5537";
-    case "h": return "#2c2f3b";
-    case "x": return "#0c1612";
-    case "w": return "#1b3f6e";
-    case "f": return "#3b6f36";
-    case "y": return "#6b4026";
-    case "c": return "#2d4b2a";
-    case "q": return "#4f4d49";
-    case "d": return "#5b3c2d";
-    case "b": return "#4a3a5b";
-    case "s": return "#37535c";
-    case "t": return "#2d604b";
-    default: return "#1e3a2b";
-  }
-}
-
-=======
-}
-
-function tileColor(sym) {
-  switch (sym) {
-    case "p": return "#6b5537";
-    case "h": return "#2c2f3b";
-    case "x": return "#0c1612";
-    case "w": return "#1b3f6e";
-    case "f": return "#3b6f36";
-    case "y": return "#6b4026";
-    case "c": return "#2d4b2a";
-    case "q": return "#4f4d49";
-    case "d": return "#5b3c2d";
-    case "b": return "#4a3a5b";
-    case "s": return "#37535c";
-    case "t": return "#2d604b";
-    default: return "#1e3a2b";
-  }
-}
-
-=======
-}
-
-function tileColor(sym) {
-  switch (sym) {
-    case "p": return "#6b5537";
-    case "h": return "#2c2f3b";
-    case "x": return "#0c1612";
-    case "w": return "#1b3f6e";
-    case "f": return "#3b6f36";
-    case "y": return "#6b4026";
-    case "c": return "#2d4b2a";
-    case "q": return "#4f4d49";
-    case "d": return "#5b3c2d";
-    case "b": return "#4a3a5b";
-    case "s": return "#37535c";
-    case "t": return "#2d604b";
-    default: return "#1e3a2b";
-  }
-}
-
-function drawPlants(view) {
-  const { minX, maxX, minY, maxY } = view.tiles;
-  for (const plant of state.plants.values()) {
-    if (plant.tx < minX || plant.tx > maxX || plant.ty < minY || plant.ty > maxY) continue;
-    const x = plant.tx * TILE + TILE / 2;
-    const y = plant.ty * TILE + TILE / 2;
-    ctx.save();
-    ctx.translate(x, y);
-    if (plant.kind === "corn") {
-      ctx.fillStyle = plant.stage === "ready" ? "#ffd95a" : plant.stage === "failed" ? "#665540" : "#c1a842";
-      ctx.beginPath();
-      ctx.ellipse(0, 0, TILE * 0.22, TILE * 0.34, 0, 0, TAU);
-      ctx.fill();
-    } else if (plant.kind === "moonflower") {
-      const baseColor = plant.stage === "failed" ? "#3f4652" : plant.stage === "ready" ? "#b8f3ff" : "#79d3ff";
-      if (plant.stage !== "failed") {
-        const pulse = (Math.sin(state.time * 4.2 + plant.tx + plant.ty) + 1) * 0.5;
-        ctx.save();
-        ctx.globalCompositeOperation = "lighter";
-        ctx.fillStyle = `rgba(140, 210, 255, ${0.28 + pulse * 0.32})`;
-        ctx.beginPath();
-        ctx.arc(0, 0, TILE * (0.42 + pulse * 0.12), 0, TAU);
-        ctx.fill();
-        ctx.restore();
-      }
-      ctx.fillStyle = baseColor;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, TILE * 0.24, TILE * 0.32, 0, 0, TAU);
-      ctx.fill();
-
-    } else {
-      ctx.fillStyle = plant.stage === "ready" ? "#7ae38f" : plant.stage === "failed" ? "#4f5f4f" : "#4ecb6d";
-      ctx.beginPath();
-      ctx.arc(0, 0, TILE * 0.28, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-}
-
-function drawDirt(view) {
-  ctx.fillStyle = "#5a4228";
-  for (const clod of state.dirt) {
-    if (clod.x + clod.radius < view.pixel.left || clod.x - clod.radius > view.pixel.right) continue;
-    if (clod.y + clod.radius < view.pixel.top || clod.y - clod.radius > view.pixel.bottom) continue;
-    ctx.beginPath();
-    ctx.arc(clod.x, clod.y, clod.radius, 0, TAU);
-    ctx.fill();
-  }
-}
-
-function drawStones(view) {
-  ctx.fillStyle = "#8793a1";
-  for (const stone of state.stones) {
-    if (stone.x + stone.radius < view.pixel.left || stone.x - stone.radius > view.pixel.right) continue;
-    if (stone.y + stone.radius < view.pixel.top || stone.y - stone.radius > view.pixel.bottom) continue;
-    ctx.beginPath();
-    ctx.arc(stone.x, stone.y, stone.radius, 0, TAU);
-    ctx.fill();
-  }
-}
-
-function drawNPCs(view) {
-  let index = 0;
-  for (const npc of state.npcs) {
-    if (npc.x < view.pixel.left - TILE || npc.x > view.pixel.right + TILE) { index += 1; continue; }
-    if (npc.y < view.pixel.top - TILE || npc.y > view.pixel.bottom + TILE) { index += 1; continue; }
-    const facing = vectorToFacing(state.player.x - npc.x, state.player.y - npc.y, "down");
-    drawNpcSprite(npc, facing, index);
-    index += 1;
-  }
-}
-
-function drawFireflies(view) {
-  if (!FLAGS.dayNightEnabled || !state.fireflies.length) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (const fly of state.fireflies) {
-    if (fly.x < view.pixel.left - TILE || fly.x > view.pixel.right + TILE) continue;
-    if (fly.y < view.pixel.top - TILE || fly.y > view.pixel.bottom + TILE) continue;
-    const pulse = (Math.sin(fly.pulse) + 1) * 0.5;
-    const alpha = clamp(fly.life * (0.45 + pulse * 0.5), 0, 1);
-    if (alpha <= 0.01) continue;
-    const radius = TILE * (0.1 + pulse * 0.12);
-    ctx.fillStyle = `rgba(150, 220, 255, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(fly.x, fly.y, radius, 0, TAU);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
-function drawNpcSprite(npc, facing, index) {
-  const palette = npc.style || {
-    skin: "#f0d4b8",
-    hair: "#3a2a1f",
-    outfit: "#b8745a",
-    accent: "#f5c16c",
-    eyes: "#211d19",
-  };
-  const bob = Math.sin(state.time * 1.8 + index) * TILE * 0.08;
-  ctx.save();
-  ctx.translate(npc.x, npc.y - bob);
-  ctx.fillStyle = "rgba(0,0,0,0.26)";
-  ctx.beginPath();
-  ctx.ellipse(0, TILE * 0.34, TILE * 0.3, TILE * 0.17, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = palette.outfit || "#b8745a";
-  ctx.beginPath();
-  ctx.ellipse(0, 0, TILE * 0.28, TILE * 0.4, 0, 0, TAU);
-  ctx.fill();
-  if (palette.accent) {
-    ctx.fillStyle = palette.accent;
-    ctx.fillRect(-TILE * 0.24, TILE * 0.08, TILE * 0.48, TILE * 0.14);
-  }
-  ctx.fillStyle = palette.skin || "#f0d4b8";
-  ctx.beginPath();
-  ctx.ellipse(-TILE * 0.28, -TILE * 0.06, TILE * 0.1, TILE * 0.26, 0, 0, TAU);
-  ctx.ellipse(TILE * 0.28, -TILE * 0.06, TILE * 0.1, TILE * 0.26, 0, 0, TAU);
-  ctx.fill();
-  if (npc.id === "fred") {
-    ctx.fillStyle = "#f3d17c";
-    ctx.beginPath();
-    ctx.ellipse(0, TILE * 0.05, TILE * 0.15, TILE * 0.12, 0, 0, TAU);
-    ctx.fill();
-  } else if (npc.id === "berta") {
-    ctx.strokeStyle = palette.accent || "#68d4f5";
-    ctx.lineWidth = TILE * 0.08;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.arc(0, TILE * 0.06, TILE * 0.14, 0, TAU);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -TILE * 0.1);
-    ctx.lineTo(0, TILE * 0.2);
-    ctx.stroke();
-  } else if (npc.id === "stefan") {
-    ctx.fillStyle = "#e6f7ff";
-    ctx.fillRect(-TILE * 0.12, -TILE * 0.05, TILE * 0.24, TILE * 0.26);
-    ctx.strokeStyle = palette.accent || "#9fe3c6";
-    ctx.lineWidth = TILE * 0.04;
-    ctx.strokeRect(-TILE * 0.12, -TILE * 0.05, TILE * 0.24, TILE * 0.26);
-  }
-  drawFaceSprite(facing, "calm", palette, { scale: 0.92 });
-  ctx.restore();
-}
-
-function drawPlayer() {
-  const player = state.player;
-  const anim = player.anim || { facing: "down", stride: 0, bob: 0, expression: "calm" };
-  const facing = anim.facing || "down";
-  const stride = anim.stride || 0;
-  const bob = anim.bob || 0;
-  const expression = anim.expression || "calm";
-  const carrying = player.carrying && player.carrying.kind === "stone";
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.beginPath();
-  ctx.ellipse(0, TILE * 0.34, TILE * 0.34, TILE * 0.18, 0, 0, TAU);
-  ctx.fill();
-  ctx.translate(0, -bob);
-  drawPlayerLegs(stride, carrying);
-  drawPlayerTorso();
-  drawPlayerArms(stride, carrying);
-  drawFaceSprite(facing, expression, PLAYER_COLORS, { carrying });
-  ctx.restore();
-  if (carrying) {
-    drawCarriedStone(player, bob);
-  }
-}
-
-function drawPlayerLegs(stride, carrying) {
-  const swing = stride * (carrying ? TILE * 0.08 : TILE * 0.14);
-  ctx.fillStyle = PLAYER_COLORS.pants;
-  ctx.beginPath();
-  ctx.ellipse(-TILE * 0.14 + swing, TILE * 0.22, TILE * 0.13, TILE * 0.26, 0, 0, TAU);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(TILE * 0.14 - swing, TILE * 0.22, TILE * 0.13, TILE * 0.26, 0, 0, TAU);
-  ctx.fill();
-}
-
-function drawPlayerTorso() {
-  ctx.fillStyle = PLAYER_COLORS.shirt;
-  ctx.beginPath();
-  ctx.ellipse(0, -TILE * 0.06, TILE * 0.28, TILE * 0.38, 0, 0, TAU);
-  ctx.fill();
-  ctx.strokeStyle = PLAYER_COLORS.strap;
-  ctx.lineWidth = TILE * 0.12;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(-TILE * 0.2, -TILE * 0.34);
-  ctx.lineTo(TILE * 0.24, TILE * 0.3);
-  ctx.stroke();
-}
-
-function drawPlayerArms(stride, carrying) {
-  ctx.fillStyle = PLAYER_COLORS.skin;
-  if (carrying) {
-    ctx.beginPath();
-    ctx.ellipse(-TILE * 0.28, -TILE * 0.32, TILE * 0.11, TILE * 0.36, 0, 0, TAU);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(TILE * 0.28, -TILE * 0.32, TILE * 0.11, TILE * 0.36, 0, 0, TAU);
-    ctx.fill();
-  } else {
-    const swing = stride * TILE * 0.18;
-    ctx.beginPath();
-    ctx.ellipse(-TILE * 0.32, -TILE * 0.08 + swing, TILE * 0.1, TILE * 0.28, 0, 0, TAU);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(TILE * 0.32, -TILE * 0.08 - swing, TILE * 0.1, TILE * 0.28, 0, 0, TAU);
-    ctx.fill();
-  }
-}
-
-function drawCarriedStone(player, bob) {
-  ctx.save();
-  ctx.translate(player.x, player.y - TILE * 0.72 - bob);
-  ctx.fillStyle = "#b9c3cf";
-  ctx.beginPath();
-  const animPhase = player.anim && typeof player.anim.phase === "number" ? player.anim.phase : 0;
-  ctx.ellipse(0, Math.sin(animPhase * 2) * TILE * 0.04, TILE * 0.26, TILE * 0.18, 0, 0, TAU);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawFaceSprite(facing, expression, palette, { scale = 1 } = {}) {
-  const skin = palette.skin || "#f4dcca";
-  const hair = palette.hair || "#2f2f2f";
-  const eyes = palette.eyes || "#1c1919";
-  const headY = -TILE * 0.36 * scale;
-  const headW = TILE * 0.24 * scale;
-  const headH = TILE * 0.28 * scale;
-  ctx.save();
-  ctx.translate(0, -TILE * 0.02 * scale);
-  ctx.fillStyle = hair;
-  if (facing === "up") {
-    ctx.beginPath();
-    ctx.arc(0, headY - headH * 0.1, headW + TILE * 0.07 * scale, Math.PI, 0);
-    ctx.fill();
-    ctx.fillRect(-headW - TILE * 0.02, headY - headH * 0.1, (headW + TILE * 0.02) * 2, headH * 0.35);
-  } else {
-    ctx.beginPath();
-    ctx.ellipse(0, headY - headH * 0.55, headW + TILE * 0.05 * scale, headH * 0.72, 0, 0, TAU);
-    ctx.fill();
-    ctx.fillRect(-headW - TILE * 0.04, headY - headH * 0.18, (headW + TILE * 0.04) * 2, headH * 0.32);
-  }
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.ellipse(0, headY, headW, headH, 0, 0, TAU);
-  ctx.fill();
-  if (facing !== "up") {
-    ctx.fillStyle = skin;
-    ctx.beginPath();
-    ctx.ellipse(0, headY + headH * 0.05, headW * 0.96, headH * 0.9, 0, 0, TAU);
-    ctx.fill();
-  }
-  const eyeY = headY - headH * 0.12;
-  ctx.fillStyle = eyes;
-  ctx.strokeStyle = eyes;
-  ctx.lineWidth = TILE * 0.05 * scale;
-  ctx.lineCap = "round";
-  if (facing === "left") {
-    ctx.beginPath();
-    ctx.ellipse(-headW * 0.22, eyeY, TILE * 0.04 * scale, TILE * 0.055 * scale, 0, 0, TAU);
-    ctx.fill();
-  } else if (facing === "right") {
-    ctx.beginPath();
-    ctx.ellipse(headW * 0.22, eyeY, TILE * 0.04 * scale, TILE * 0.055 * scale, 0, 0, TAU);
-    ctx.fill();
-  } else if (facing === "up") {
-    ctx.beginPath();
-    ctx.moveTo(-headW * 0.32, eyeY);
-    ctx.lineTo(-headW * 0.08, eyeY);
-    ctx.moveTo(headW * 0.32, eyeY);
-    ctx.lineTo(headW * 0.08, eyeY);
-    ctx.stroke();
-  } else {
-    ctx.beginPath();
-    ctx.ellipse(-headW * 0.22, eyeY, TILE * 0.045 * scale, TILE * 0.06 * scale, 0, 0, TAU);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(headW * 0.22, eyeY, TILE * 0.045 * scale, TILE * 0.06 * scale, 0, 0, TAU);
-    ctx.fill();
-  }
-  if (expression === "strain" || expression === "focus") {
-    ctx.strokeStyle = hair;
-    ctx.lineWidth = TILE * 0.045 * scale;
-    const browY = eyeY - headH * 0.22;
-    ctx.beginPath();
-    ctx.moveTo(-headW * 0.32, browY);
-    ctx.lineTo(-headW * 0.08, browY - TILE * 0.04 * scale);
-    ctx.moveTo(headW * 0.32, browY);
-    ctx.lineTo(headW * 0.08, browY - TILE * 0.04 * scale);
-    ctx.stroke();
-  }
-  const mouthY = headY + headH * 0.48;
-  ctx.strokeStyle = expression === "strain" ? "#8f3a3a" : eyes;
-  ctx.lineWidth = TILE * 0.07 * scale;
-  ctx.beginPath();
-  if (expression === "strain") {
-    ctx.moveTo(-headW * 0.22, mouthY);
-    ctx.lineTo(headW * 0.22, mouthY);
-  } else if (expression === "focus") {
-    ctx.moveTo(-headW * 0.18, mouthY);
-    ctx.lineTo(headW * 0.18, mouthY);
-  } else if (expression === "smile") {
-    ctx.arc(0, mouthY, headW * 0.3, 0, Math.PI);
-  } else {
-    ctx.arc(0, mouthY, headW * 0.24, 0, Math.PI);
-  }
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawPreview(view) {
-  const preview = state.preview;
-  if (!preview || !view) return;
-  if (preview.tx < view.tiles.minX || preview.tx > view.tiles.maxX) return;
-  if (preview.ty < view.tiles.minY || preview.ty > view.tiles.maxY) return;
-  ctx.save();
-  ctx.fillStyle = preview.valid ? "rgba(120,220,140,0.35)" : "rgba(220,80,80,0.35)";
-  ctx.fillRect(preview.tx * TILE, preview.ty * TILE, TILE, TILE);
-  ctx.restore();
-}
-
-function applyLightingOverlay(width, height) {
-  if (!FLAGS.dayNightEnabled) return;
-  const ambient = state.lighting.ambient;
-  if (ambient >= 0.995) return;
-  const darkness = clamp(1 - ambient, 0, 1);
-  ctx.save();
-  ctx.globalCompositeOperation = "multiply";
-  ctx.fillStyle = `rgba(12, 16, 24, ${0.35 + darkness * 0.4})`;
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
-  if (ambient < 0.6) {
-    ctx.save();
-    ctx.globalAlpha = clamp((0.6 - ambient) * 0.85, 0, 0.5);
-    ctx.fillStyle = "rgba(70, 110, 180, 0.65)";
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
-  }
-}
-
-
-function drawHudOverlay(width, height) {
-  ctx.save();
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.font = "12px Inter, sans-serif";
-  ctx.fillText(`FPS: ${state.fps.toFixed(0)}`, width - 80, height - 16);
-  ctx.restore();
 }
 
 function boot() {
-  initDom();
-  setupCanvas();
-  watchInputMode();
-  document.addEventListener("fullscreenchange", () => resizeCanvas());
-  state.map = createMap();
-  state.player = createPlayer();
-  state.npcs = buildNPCs();
-  primeAudioUnlock();
-  setupInput();
-  initWorld();
-  state.ready = true;
-  state.lastTick = performance.now();
-  requestAnimationFrame(mainLoop);
+  try {
+    initDom();
+    setupCanvas();
+    watchInputMode();
+    
+    // Set up fullscreen change listener
+    document.addEventListener("fullscreenchange", () => resizeCanvas());
+    
+    // Initialize game state
+    state.map = createMap();
+    state.player = createPlayer();
+    state.npcs = buildNPCs();
+    
+    // Initialize audio (safely)
+    if (typeof primeAudioUnlock === "function") {
+      primeAudioUnlock();
+    }
+    
+    setupInput();
+    initWorld();
+    
+    // Mark as ready and start the game loop
+    state.ready = true;
+    state.lastTick = performance.now();
+    requestAnimationFrame(mainLoop);
+    
+    console.log("Poopboy game initialized successfully");
+  } catch (err) {
+    failBoot(err);
+  }
 }
 
 function requestBoot() {
@@ -3083,10 +1911,10 @@ function requestBoot() {
 function scheduleBoot() {
   if (bootStarted || bootScheduled) return;
   bootScheduled = true;
-  requestAnimationFrame(() => {
+  setTimeout(() => {
     bootScheduled = false;
     requestBoot();
-  });
+  }, 0);
 }
 
 function initBoot() {
@@ -3103,4 +1931,6 @@ function initBoot() {
   window.addEventListener("load", scheduleBoot, { once: true });
 }
 
+// Start the game
 initBoot();
+
